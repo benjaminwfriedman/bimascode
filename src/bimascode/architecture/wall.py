@@ -200,39 +200,56 @@ class Wall(ElementInstance):
 
         # Set placement (local to building storey)
         start = self.start_point
-        location = ifc_file.create_entity(
-            "IfcCartesianPoint",
-            Coordinates=(start[0], start[1], 0.0)
+        location = ifc_file.createIfcCartesianPoint((float(start[0]), float(start[1]), 0.0))
+
+        axis_placement = ifc_file.createIfcAxis2Placement3D(
+            location,
+            ifc_file.createIfcDirection((0.0, 0.0, 1.0)),
+            ifc_file.createIfcDirection((math.cos(self.angle), math.sin(self.angle), 0.0))
         )
 
-        axis_placement = ifc_file.create_entity(
-            "IfcAxis2Placement3D",
-            Location=location,
-            Axis=ifc_file.create_entity("IfcDirection", DirectionRatios=(0.0, 0.0, 1.0)),
-            RefDirection=ifc_file.create_entity(
-                "IfcDirection",
-                DirectionRatios=(math.cos(self.angle), math.sin(self.angle), 0.0)
-            )
-        )
-
-        local_placement = ifc_file.create_entity(
-            "IfcLocalPlacement",
-            PlacementRelTo=ifc_building_storey.ObjectPlacement,
-            RelativePlacement=axis_placement
+        local_placement = ifc_file.createIfcLocalPlacement(
+            ifc_building_storey.ObjectPlacement,
+            axis_placement
         )
 
         ifc_wall.ObjectPlacement = local_placement
 
-        # Create geometry representation (simplified box for now)
-        # Full layer-by-layer geometry is in the type's create_geometry method
+        # Create geometry representation using BREP
         geom = self.get_geometry()
 
+        if geom:
+            from bimascode.export.ifc_geometry import build123d_to_ifc_brep
+
+            # Convert build123d geometry to IFC BREP
+            ifc_brep = build123d_to_ifc_brep(geom, ifc_file)
+
+            if ifc_brep:
+                # Create shape representation with BREP
+                shape_representation = ifc_file.createIfcShapeRepresentation(
+                    ifc_file.by_type("IfcGeometricRepresentationContext")[0],
+                    "Body",
+                    "Brep",
+                    [ifc_brep]
+                )
+
+                # Create product definition shape
+                product_shape = ifc_file.createIfcProductDefinitionShape(
+                    None,
+                    None,
+                    [shape_representation]
+                )
+
+                ifc_wall.Representation = product_shape
+
         # Associate with building storey
-        ifc_file.create_entity(
-            "IfcRelContainedInSpatialStructure",
-            GlobalId=ifc_file.create_entity("IfcGloballyUniqueId", ifc_file.create_guid()).wrappedValue,
-            RelatedElements=[ifc_wall],
-            RelatingStructure=ifc_building_storey
+        ifc_file.createIfcRelContainedInSpatialStructure(
+            self._generate_guid(),
+            self.level.building._ifc_owner_history,
+            f"Wall{self.name}Container",
+            None,
+            [ifc_wall],
+            ifc_building_storey
         )
 
         # Associate with material layer set
@@ -247,11 +264,13 @@ class Wall(ElementInstance):
             OffsetFromReferenceLine=0.0
         )
 
-        ifc_file.create_entity(
-            "IfcRelAssociatesMaterial",
-            GlobalId=ifc_file.create_entity("IfcGloballyUniqueId", ifc_file.create_guid()).wrappedValue,
-            RelatedObjects=[ifc_wall],
-            RelatingMaterial=material_layer_set_usage
+        ifc_file.createIfcRelAssociatesMaterial(
+            self._generate_guid(),
+            self.level.building._ifc_owner_history,
+            None,
+            None,
+            [ifc_wall],
+            material_layer_set_usage
         )
 
         return ifc_wall

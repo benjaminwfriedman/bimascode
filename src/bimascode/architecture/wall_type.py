@@ -224,24 +224,26 @@ class WallType(ElementType):
         current_offset = 0.0
 
         for layer in self.layers:
-            # Create box for this layer
+            # Create box for this layer (centered at origin)
             layer_box = Box(
                 length,
                 layer.thickness_mm,
-                height,
-                align=(None, None, (0, 0, 0))
+                height
             )
 
             # Position the layer
             # Offset from exterior face
             layer_y_offset = current_offset + layer.thickness_mm / 2
 
-            # Rotate and position
+            # Translate and rotate to wall position
+            # Start at wall start point, then offset for layer position
             loc = Location(
-                (start_point[0], start_point[1], 0),
+                (start_point[0] + length / 2 * math.cos(angle) - layer_y_offset * math.sin(angle),
+                 start_point[1] + length / 2 * math.sin(angle) + layer_y_offset * math.cos(angle),
+                 height / 2),
                 (0, 0, 1),
                 math.degrees(angle)
-            ) * Location((length / 2, layer_y_offset, height / 2))
+            )
 
             layer_box = layer_box.locate(loc)
             layer_solids.append(layer_box)

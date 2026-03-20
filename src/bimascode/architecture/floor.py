@@ -181,42 +181,68 @@ class Floor(ElementInstance):
 
         # Set placement (at level elevation)
         centroid = self.get_centroid()
-        location = ifc_file.create_entity(
-            "IfcCartesianPoint",
-            Coordinates=(centroid[0], centroid[1], 0.0)
+        location = ifc_file.createIfcCartesianPoint((float(centroid[0]), float(centroid[1]), 0.0))
+
+        axis_placement = ifc_file.createIfcAxis2Placement3D(
+            location,
+            ifc_file.createIfcDirection((0.0, 0.0, 1.0)),
+            ifc_file.createIfcDirection((1.0, 0.0, 0.0))
         )
 
-        axis_placement = ifc_file.create_entity(
-            "IfcAxis2Placement3D",
-            Location=location,
-            Axis=ifc_file.create_entity("IfcDirection", DirectionRatios=(0.0, 0.0, 1.0)),
-            RefDirection=ifc_file.create_entity("IfcDirection", DirectionRatios=(1.0, 0.0, 0.0))
-        )
-
-        local_placement = ifc_file.create_entity(
-            "IfcLocalPlacement",
-            PlacementRelTo=ifc_building_storey.ObjectPlacement,
-            RelativePlacement=axis_placement
+        local_placement = ifc_file.createIfcLocalPlacement(
+            ifc_building_storey.ObjectPlacement,
+            axis_placement
         )
 
         ifc_slab.ObjectPlacement = local_placement
 
+        # Create geometry representation using BREP
+        geom = self.get_geometry()
+
+        if geom:
+            from bimascode.export.ifc_geometry import build123d_to_ifc_brep
+
+            # Convert build123d geometry to IFC BREP
+            ifc_brep = build123d_to_ifc_brep(geom, ifc_file)
+
+            if ifc_brep:
+                # Create shape representation with BREP
+                shape_representation = ifc_file.createIfcShapeRepresentation(
+                    ifc_file.by_type("IfcGeometricRepresentationContext")[0],
+                    "Body",
+                    "Brep",
+                    [ifc_brep]
+                )
+
+                # Create product definition shape
+                product_shape = ifc_file.createIfcProductDefinitionShape(
+                    None,
+                    None,
+                    [shape_representation]
+                )
+
+                ifc_slab.Representation = product_shape
+
         # Associate with building storey
-        ifc_file.create_entity(
-            "IfcRelContainedInSpatialStructure",
-            GlobalId=ifc_file.create_entity("IfcGloballyUniqueId", ifc_file.create_guid()).wrappedValue,
-            RelatedElements=[ifc_slab],
-            RelatingStructure=ifc_building_storey
+        ifc_file.createIfcRelContainedInSpatialStructure(
+            self._generate_guid(),
+            self.level.building._ifc_owner_history,
+            f"Floor{self.name}Container",
+            None,
+            [ifc_slab],
+            ifc_building_storey
         )
 
         # Associate with material layer set
         material_layer_set = self.type.to_ifc(ifc_file)
 
-        ifc_file.create_entity(
-            "IfcRelAssociatesMaterial",
-            GlobalId=ifc_file.create_entity("IfcGloballyUniqueId", ifc_file.create_guid()).wrappedValue,
-            RelatedObjects=[ifc_slab],
-            RelatingMaterial=material_layer_set
+        ifc_file.createIfcRelAssociatesMaterial(
+            self._generate_guid(),
+            self.level.building._ifc_owner_history,
+            None,
+            None,
+            [ifc_slab],
+            material_layer_set
         )
 
         return ifc_slab

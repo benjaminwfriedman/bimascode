@@ -199,6 +199,16 @@ class ElementInstance(ABC):
         """
         return param_name in self._overridden_parameters
 
+    @staticmethod
+    def _generate_guid() -> str:
+        """
+        Generate a valid IFC GUID.
+
+        Returns:
+            UUID string
+        """
+        return str(uuid.uuid4())
+
     def _on_type_parameter_changed(self, param_name: str, new_value: Any, old_value: Any) -> None:
         """
         Called when a type parameter changes.

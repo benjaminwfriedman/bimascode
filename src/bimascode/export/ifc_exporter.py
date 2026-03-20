@@ -56,7 +56,7 @@ class IFCExporter:
         # Export all building components
         self._export_levels(building)
         self._export_grids(building)
-        # Materials will be exported when assigned to elements in Sprint 2
+        self._export_elements(building)  # Sprint 2: Walls, Floors, Roofs
 
         # Write file
         output_path = Path(filepath)
@@ -371,3 +371,33 @@ class IFCExporter:
 
         except Exception as e:
             return {"valid": False, "error": str(e)}
+
+    def _export_elements(self, building: "Building") -> None:
+        """
+        Export architectural elements (walls, floors, roofs) to IFC.
+
+        Args:
+            building: Building instance
+        """
+        from ..architecture import Wall, Floor, Roof
+
+        # Store IFC storeys for element placement
+        ifc_storeys = {}
+
+        # Get IFC storeys that were already created
+        for level in building.levels:
+            # Find the IFC storey for this level
+            for ifc_storey in self._ifc_file.by_type("IfcBuildingStorey"):
+                if ifc_storey.GlobalId == level.guid:
+                    ifc_storeys[level] = ifc_storey
+                    break
+
+        # Export elements from each level
+        for level in building.levels:
+            ifc_storey = ifc_storeys.get(level)
+            if not ifc_storey or not level.elements:
+                continue
+
+            for element in level.elements:
+                if isinstance(element, (Wall, Floor, Roof)):
+                    element.to_ifc(self._ifc_file, ifc_storey)
