@@ -31,6 +31,7 @@ class Wall(ElementInstance):
         end_point: Tuple[float, float],
         level: Level,
         height: Optional[Length | float] = None,
+        structural: bool = False,
         name: Optional[str] = None
     ):
         """
@@ -42,6 +43,7 @@ class Wall(ElementInstance):
             end_point: (x, y) coordinates of wall end point
             level: Level this wall sits on
             height: Wall height (defaults to level height or 3000mm)
+            structural: If True, wall is structural (shear wall)
             name: Optional name for this wall
         """
         super().__init__(wall_type, name)
@@ -53,6 +55,9 @@ class Wall(ElementInstance):
 
         # Wall join trim adjustments
         self._trim_adjustments: dict = {}
+
+        # Structural flag
+        self._structural = structural
 
         # Store geometric parameters
         self.set_parameter("start_point", start_point, override=False)
@@ -127,9 +132,19 @@ class Wall(ElementInstance):
         return math.degrees(self.angle)
 
     @property
+    def structural(self) -> bool:
+        """Check if wall is marked as structural (shear wall)."""
+        return self._structural
+
+    @structural.setter
+    def structural(self, value: bool) -> None:
+        """Set the structural flag."""
+        self._structural = value
+
+    @property
     def is_structural(self) -> bool:
-        """Check if wall has structural layers."""
-        return len(self.type.get_structural_layers()) > 0
+        """Check if wall has structural layers or is marked as structural."""
+        return self._structural or len(self.type.get_structural_layers()) > 0
 
     @property
     def hosted_elements(self) -> List:
@@ -241,12 +256,16 @@ class Wall(ElementInstance):
         Returns:
             IfcWall entity
         """
+        # Determine predefined type based on structural flag
+        predefined_type = "SHEAR" if self._structural else "STANDARD"
+
         # Create wall
         ifc_wall = ifc_file.create_entity(
             "IfcWall",
             GlobalId=self.guid,
             Name=self.name,
-            Description=f"{self.type.name} wall"
+            Description=f"{self.type.name} wall",
+            PredefinedType=predefined_type
         )
 
         # Set placement (local to building storey)

@@ -138,5 +138,70 @@ class Building(Element):
         exporter = IFCExporter(schema=schema)
         exporter.export(self, filepath)
 
+    def get_rooms(self) -> List:
+        """
+        Get all rooms in the building across all levels.
+
+        Returns:
+            List of Room objects
+        """
+        from ..spatial.room import Room
+
+        rooms = []
+        for level in self._levels:
+            for element in level.elements:
+                if isinstance(element, Room):
+                    rooms.append(element)
+        return rooms
+
+    def room_schedule(self):
+        """
+        Generate a room schedule as a pandas DataFrame.
+
+        Returns a DataFrame with columns:
+        - number: Room number
+        - name: Room name
+        - level: Level name
+        - area_m2: Area in square meters
+        - area_sqft: Area in square feet
+        - volume_m3: Volume in cubic meters
+        - height_m: Floor-to-ceiling height in meters
+        - perimeter_m: Perimeter in meters
+        - floor_finish: Floor finish description
+        - wall_finish: Wall finish description
+        - ceiling_finish: Ceiling finish description
+
+        Returns:
+            pandas DataFrame with room schedule
+
+        Raises:
+            ImportError: If pandas is not installed
+        """
+        try:
+            import pandas as pd
+        except ImportError:
+            raise ImportError("pandas is required for room_schedule(). Install with: pip install pandas")
+
+        rooms = self.get_rooms()
+
+        if not rooms:
+            # Return empty DataFrame with correct columns
+            return pd.DataFrame(columns=[
+                "number", "name", "level", "area_m2", "area_sqft",
+                "volume_m3", "height_m", "perimeter_m",
+                "floor_finish", "wall_finish", "ceiling_finish"
+            ])
+
+        # Convert rooms to dictionaries
+        data = [room.to_dict() for room in rooms]
+
+        # Create DataFrame
+        df = pd.DataFrame(data)
+
+        # Sort by level and room number
+        df = df.sort_values(by=["level", "number"])
+
+        return df
+
     def __repr__(self) -> str:
         return f"Building(name='{self.name}', levels={len(self._levels)})"

@@ -374,12 +374,19 @@ class IFCExporter:
 
     def _export_elements(self, building: "Building") -> None:
         """
-        Export architectural elements (walls, floors, roofs) to IFC.
+        Export all building elements to IFC.
+
+        Handles:
+        - Architectural: Wall, Floor, Roof, Door, Window, Ceiling
+        - Structural: StructuralColumn, Beam
+        - Spatial: Room
 
         Args:
             building: Building instance
         """
-        from ..architecture import Wall, Floor, Roof, Door, Window
+        from ..architecture import Wall, Floor, Roof, Door, Window, Ceiling
+        from ..structure import StructuralColumn, Beam
+        from ..spatial import Room
 
         # Store IFC storeys for element placement
         ifc_storeys = {}
@@ -408,4 +415,12 @@ class IFCExporter:
                         elif isinstance(hosted, Window):
                             hosted.to_ifc(self._ifc_file, ifc_storey, ifc_wall)
                 elif isinstance(element, (Floor, Roof)):
+                    element.to_ifc(self._ifc_file, ifc_storey)
+                elif isinstance(element, StructuralColumn):
+                    element.to_ifc(self._ifc_file, ifc_storey)
+                elif isinstance(element, Beam):
+                    element.to_ifc(self._ifc_file, ifc_storey)
+                elif isinstance(element, Ceiling):
+                    element.to_ifc(self._ifc_file, ifc_storey)
+                elif isinstance(element, Room):
                     element.to_ifc(self._ifc_file, ifc_storey)

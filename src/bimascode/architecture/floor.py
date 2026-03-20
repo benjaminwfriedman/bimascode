@@ -30,6 +30,7 @@ class Floor(ElementInstance):
         boundary: List[Tuple[float, float]],
         level: Level,
         slope: float = 0.0,
+        structural: bool = False,
         name: Optional[str] = None
     ):
         """
@@ -40,6 +41,7 @@ class Floor(ElementInstance):
             boundary: List of (x, y) coordinates defining floor boundary
             level: Level this floor sits on
             slope: Floor slope in degrees (for drainage, ramps, etc.)
+            structural: If True, floor is a structural slab (base slab)
             name: Optional name for this floor
         """
         super().__init__(floor_type, name)
@@ -48,6 +50,9 @@ class Floor(ElementInstance):
 
         # Openings in this floor
         self._openings: List['Opening'] = []
+
+        # Structural flag
+        self._structural = structural
 
         # Store geometric parameters
         self.set_parameter("boundary", boundary, override=False)
@@ -66,6 +71,16 @@ class Floor(ElementInstance):
     def slope(self) -> float:
         """Get floor slope in degrees."""
         return self.get_parameter("slope")
+
+    @property
+    def structural(self) -> bool:
+        """Check if floor is marked as structural (base slab)."""
+        return self._structural
+
+    @structural.setter
+    def structural(self, value: bool) -> None:
+        """Set the structural flag."""
+        self._structural = value
 
     @property
     def thickness(self) -> float:
@@ -201,13 +216,16 @@ class Floor(ElementInstance):
         Returns:
             IfcSlab entity
         """
+        # Determine predefined type based on structural flag
+        predefined_type = "BASESLAB" if self._structural else "FLOOR"
+
         # Create slab
         ifc_slab = ifc_file.create_entity(
             "IfcSlab",
             GlobalId=self.guid,
             Name=self.name,
             Description=f"{self.type.name} floor",
-            PredefinedType="FLOOR"
+            PredefinedType=predefined_type
         )
 
         # Set placement (at level elevation)

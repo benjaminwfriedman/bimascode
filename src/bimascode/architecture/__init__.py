@@ -49,6 +49,14 @@ from .wall_joins import (
     detect_and_process_wall_joins,
 )
 
+# Sprint 4: Ceilings
+from .ceiling_type import (
+    CeilingType,
+    create_gypsum_ceiling_type,
+    create_suspended_ceiling_type,
+)
+from .ceiling import Ceiling
+
 __all__ = [
     # Wall types and elements
     "WallType",
@@ -89,4 +97,9 @@ __all__ = [
     "WallJoinDetector",
     "WallJoinProcessor",
     "detect_and_process_wall_joins",
+    # Ceiling types and elements (Sprint 4)
+    "CeilingType",
+    "Ceiling",
+    "create_gypsum_ceiling_type",
+    "create_suspended_ceiling_type",
 ]
