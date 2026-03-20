@@ -6,7 +6,7 @@ They can have slope for drainage (flat roofs, accessibility ramps).
 They support openings for stairs, shafts, and other penetrations.
 """
 
-from typing import List, Tuple, Optional, TYPE_CHECKING
+from typing import List, Tuple, Optional, Union, TYPE_CHECKING
 from bimascode.core.type_instance import ElementInstance
 from bimascode.performance.bounding_box import BoundingBox
 from bimascode.spatial.level import Level
@@ -15,6 +15,8 @@ import math
 
 if TYPE_CHECKING:
     from bimascode.architecture.opening import Opening
+    from bimascode.drawing.view_base import ViewRange
+    from bimascode.drawing.primitives import Line2D, Arc2D, Polyline2D, Hatch2D
 
 
 class Floor(ElementInstance):
@@ -308,6 +310,50 @@ class Floor(ElementInstance):
             self.level.elevation_mm,
             self.level.elevation_mm + self.thickness
         )
+
+    def get_plan_representation(
+        self,
+        cut_height: float,
+        view_range: "ViewRange",
+    ) -> List[Union["Line2D", "Arc2D", "Polyline2D", "Hatch2D"]]:
+        """Generate floor plan linework for this floor.
+
+        Floors are typically shown with their boundary outline.
+
+        Args:
+            cut_height: Z coordinate of the section cut
+            view_range: View range parameters
+
+        Returns:
+            List of 2D geometry primitives
+        """
+        from bimascode.drawing.primitives import Point2D, Polyline2D
+        from bimascode.drawing.line_styles import LineStyle, Layer
+
+        result: List[Union["Line2D", "Arc2D", "Polyline2D", "Hatch2D"]] = []
+
+        # Floors are below the cut plane - show with visible (not cut) style
+        bbox = self.get_bounding_box()
+        is_cut = bbox.min_z <= cut_height <= bbox.max_z
+
+        if is_cut:
+            style = LineStyle.cut_medium()
+        else:
+            style = LineStyle.visible()
+
+        # Create polyline from boundary
+        boundary = self.boundary
+        if len(boundary) >= 3:
+            points = [Point2D(p[0], p[1]) for p in boundary]
+            floor_outline = Polyline2D(
+                points=points,
+                closed=True,
+                style=style,
+                layer=Layer.FLOOR,
+            )
+            result.append(floor_outline)
+
+        return result
 
     def __repr__(self) -> str:
         return (

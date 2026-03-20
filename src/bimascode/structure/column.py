@@ -5,7 +5,7 @@ This module implements structural columns with support for grid placement
 and IFC export.
 """
 
-from typing import Tuple, Optional, TYPE_CHECKING
+from typing import Tuple, Optional, List, Union, TYPE_CHECKING
 from bimascode.core.type_instance import ElementInstance
 from bimascode.performance.bounding_box import BoundingBox
 from bimascode.spatial.level import Level
@@ -14,6 +14,8 @@ import math
 
 if TYPE_CHECKING:
     from bimascode.structure.column_type import ColumnType
+    from bimascode.drawing.view_base import ViewRange
+    from bimascode.drawing.primitives import Line2D, Arc2D, Polyline2D, Hatch2D
 
 
 class StructuralColumn(ElementInstance):
@@ -321,6 +323,98 @@ class StructuralColumn(ElementInstance):
         max_z = min_z + self.height
 
         return BoundingBox(min_x, min_y, min_z, max_x, max_y, max_z)
+
+    def get_plan_representation(
+        self,
+        cut_height: float,
+        view_range: "ViewRange",
+    ) -> List[Union["Line2D", "Arc2D", "Polyline2D", "Hatch2D"]]:
+        """Generate floor plan linework for this column.
+
+        Columns are shown with a rectangular outline and optional X pattern.
+
+        Args:
+            cut_height: Z coordinate of the section cut
+            view_range: View range parameters
+
+        Returns:
+            List of 2D geometry primitives
+        """
+        from bimascode.drawing.primitives import Point2D, Line2D, Polyline2D, Hatch2D
+        from bimascode.drawing.line_styles import LineStyle, Layer
+
+        result: List[Union["Line2D", "Arc2D", "Polyline2D", "Hatch2D"]] = []
+
+        # Check if column is cut by the section plane
+        bbox = self.get_bounding_box()
+        is_cut = bbox.min_z <= cut_height <= bbox.max_z
+
+        if is_cut:
+            style = LineStyle.cut_heavy()
+        else:
+            style = LineStyle.visible()
+
+        # Calculate column corners with rotation
+        pos = self.position
+        width = self.width
+        depth = self.depth
+        rotation_rad = self.rotation_radians
+
+        cos_r = math.cos(rotation_rad)
+        sin_r = math.sin(rotation_rad)
+        half_w = width / 2.0
+        half_d = depth / 2.0
+
+        # Four corners of the column
+        corners = [
+            Point2D(
+                pos[0] + half_w * cos_r - half_d * sin_r,
+                pos[1] + half_w * sin_r + half_d * cos_r,
+            ),
+            Point2D(
+                pos[0] - half_w * cos_r - half_d * sin_r,
+                pos[1] - half_w * sin_r + half_d * cos_r,
+            ),
+            Point2D(
+                pos[0] - half_w * cos_r + half_d * sin_r,
+                pos[1] - half_w * sin_r - half_d * cos_r,
+            ),
+            Point2D(
+                pos[0] + half_w * cos_r + half_d * sin_r,
+                pos[1] + half_w * sin_r - half_d * cos_r,
+            ),
+        ]
+
+        # Create column outline
+        column_outline = Polyline2D(
+            points=corners,
+            closed=True,
+            style=style,
+            layer=Layer.COLUMN,
+        )
+        result.append(column_outline)
+
+        # Add X pattern for cut columns (structural convention)
+        if is_cut:
+            # Diagonal from corner 0 to corner 2
+            diag1 = Line2D(
+                start=corners[0],
+                end=corners[2],
+                style=LineStyle.cut_medium(),
+                layer=Layer.COLUMN,
+            )
+            result.append(diag1)
+
+            # Diagonal from corner 1 to corner 3
+            diag2 = Line2D(
+                start=corners[1],
+                end=corners[3],
+                style=LineStyle.cut_medium(),
+                layer=Layer.COLUMN,
+            )
+            result.append(diag2)
+
+        return result
 
     def __repr__(self) -> str:
         pos = self.position

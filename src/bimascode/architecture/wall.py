@@ -5,7 +5,7 @@ This module implements straight walls with support for hosted elements
 (doors, windows) and wall joins.
 """
 
-from typing import Tuple, Optional, List, TYPE_CHECKING
+from typing import Tuple, Optional, List, TYPE_CHECKING, Union
 from bimascode.core.type_instance import ElementInstance
 from bimascode.performance.bounding_box import BoundingBox
 from bimascode.spatial.level import Level
@@ -15,6 +15,8 @@ import math
 if TYPE_CHECKING:
     from bimascode.architecture.door import Door
     from bimascode.architecture.window import Window
+    from bimascode.drawing.view_base import ViewRange
+    from bimascode.drawing.primitives import Line2D, Arc2D, Polyline2D, Hatch2D
 
 
 class Wall(ElementInstance):
@@ -371,6 +373,162 @@ class Wall(ElementInstance):
         max_z = min_z + height
 
         return BoundingBox(min_x, min_y, min_z, max_x, max_y, max_z)
+
+    def get_plan_representation(
+        self,
+        cut_height: float,
+        view_range: "ViewRange",
+    ) -> List[Union["Line2D", "Arc2D", "Polyline2D", "Hatch2D"]]:
+        """Generate floor plan linework for this wall.
+
+        Creates polylines representing the wall outline, accounting for:
+        - Wall join trim adjustments at corners
+        - Openings from hosted doors and windows
+
+        Args:
+            cut_height: Z coordinate of the section cut
+            view_range: View range parameters
+
+        Returns:
+            List of 2D geometry primitives
+        """
+        from bimascode.drawing.primitives import Point2D, Line2D, Polyline2D, Hatch2D
+        from bimascode.drawing.line_styles import LineStyle, Layer
+
+        # Check if wall is cut by the section plane
+        bbox = self.get_bounding_box()
+        is_cut = bbox.min_z <= cut_height <= bbox.max_z
+
+        if not is_cut:
+            style = LineStyle.visible()
+        else:
+            style = LineStyle.cut_heavy()
+
+        # Wall geometry
+        start = self.start_point
+        end = self.end_point
+        half_width = self.width / 2.0
+        angle = self.angle
+        wall_length = self.length
+
+        # Direction vectors
+        cos_a = math.cos(angle)
+        sin_a = math.sin(angle)
+
+        # Perpendicular offset vectors (left side is positive)
+        perp_x = -sin_a * half_width
+        perp_y = cos_a * half_width
+
+        # Apply trim adjustments from wall joins
+        # start_offset: negative = extend start backwards, positive = trim start forward
+        # end_offset: positive = extend end forward, negative = trim end back
+        start_offset = 0.0
+        end_offset = 0.0
+        if hasattr(self, '_trim_adjustments') and self._trim_adjustments:
+            start_offset = self._trim_adjustments.get('start_offset', 0.0)
+            end_offset = self._trim_adjustments.get('end_offset', 0.0)
+
+        # Adjusted start and end points along centerline
+        adj_start_x = start[0] + start_offset * cos_a
+        adj_start_y = start[1] + start_offset * sin_a
+        adj_end_x = end[0] + end_offset * cos_a
+        adj_end_y = end[1] + end_offset * sin_a
+
+        # Collect openings (doors/windows) that are cut by the section plane
+        openings = []
+        for element in self._hosted_elements:
+            elem_bbox = element.get_bounding_box() if hasattr(element, 'get_bounding_box') else None
+            if elem_bbox and elem_bbox.min_z <= cut_height <= elem_bbox.max_z:
+                # Opening is cut - get its position along wall
+                offset = element.offset if hasattr(element, 'offset') else 0
+                width = element.width if hasattr(element, 'width') else 0
+                openings.append((offset, offset + width))
+
+        # Sort openings by start position
+        openings.sort(key=lambda x: x[0])
+
+        result: List[Union["Line2D", "Arc2D", "Polyline2D", "Hatch2D"]] = []
+
+        # If no openings, draw wall as single polyline
+        if not openings:
+            corners = [
+                Point2D(adj_start_x + perp_x, adj_start_y + perp_y),
+                Point2D(adj_end_x + perp_x, adj_end_y + perp_y),
+                Point2D(adj_end_x - perp_x, adj_end_y - perp_y),
+                Point2D(adj_start_x - perp_x, adj_start_y - perp_y),
+            ]
+            wall_outline = Polyline2D(
+                points=corners,
+                closed=True,
+                style=style,
+                layer=Layer.WALL,
+            )
+            result.append(wall_outline)
+            # Add solid fill for cut walls
+            if is_cut:
+                hatch = Hatch2D(
+                    boundary=corners,
+                    pattern="SOLID",
+                    scale=1.0,
+                    layer=Layer.WALL,
+                )
+                result.append(hatch)
+        else:
+            # Draw wall segments between openings
+            # Build list of solid segments: (start_offset, end_offset)
+            segments = []
+            current_pos = 0.0
+
+            for open_start, open_end in openings:
+                if open_start > current_pos:
+                    segments.append((current_pos, open_start))
+                current_pos = max(current_pos, open_end)
+
+            # Add final segment after last opening
+            if current_pos < wall_length:
+                segments.append((current_pos, wall_length))
+
+            # Draw each segment as a closed polyline
+            for seg_start, seg_end in segments:
+                # Account for trim adjustments at wall ends
+                actual_start = seg_start
+                actual_end = seg_end
+
+                if seg_start == 0:
+                    actual_start = start_offset  # May be negative (extension)
+                if seg_end == wall_length:
+                    actual_end = wall_length + end_offset
+
+                # Segment corners
+                s_x = start[0] + actual_start * cos_a
+                s_y = start[1] + actual_start * sin_a
+                e_x = start[0] + actual_end * cos_a
+                e_y = start[1] + actual_end * sin_a
+
+                corners = [
+                    Point2D(s_x + perp_x, s_y + perp_y),
+                    Point2D(e_x + perp_x, e_y + perp_y),
+                    Point2D(e_x - perp_x, e_y - perp_y),
+                    Point2D(s_x - perp_x, s_y - perp_y),
+                ]
+                seg_outline = Polyline2D(
+                    points=corners,
+                    closed=True,
+                    style=style,
+                    layer=Layer.WALL,
+                )
+                result.append(seg_outline)
+                # Add solid fill for cut wall segments
+                if is_cut:
+                    hatch = Hatch2D(
+                        boundary=corners,
+                        pattern="SOLID",
+                        scale=1.0,
+                        layer=Layer.WALL,
+                    )
+                    result.append(hatch)
+
+        return result
 
     def __repr__(self) -> str:
         return (

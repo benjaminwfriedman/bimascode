@@ -5,7 +5,7 @@ This module implements ceilings as horizontal covering elements
 at a specified height above a level.
 """
 
-from typing import List, Tuple, Optional, TYPE_CHECKING
+from typing import List, Tuple, Optional, Union, TYPE_CHECKING
 from bimascode.core.type_instance import ElementInstance
 from bimascode.performance.bounding_box import BoundingBox
 from bimascode.spatial.level import Level
@@ -13,6 +13,8 @@ from bimascode.utils.units import Length, normalize_length
 
 if TYPE_CHECKING:
     from bimascode.architecture.ceiling_type import CeilingType
+    from bimascode.drawing.view_base import ViewRange
+    from bimascode.drawing.primitives import Line2D, Arc2D, Polyline2D, Hatch2D
 
 
 class Ceiling(ElementInstance):
@@ -275,6 +277,56 @@ class Ceiling(ElementInstance):
             self.elevation,  # Bottom of ceiling
             self.top_elevation  # Top of ceiling
         )
+
+    def get_plan_representation(
+        self,
+        cut_height: float,
+        view_range: "ViewRange",
+    ) -> List[Union["Line2D", "Arc2D", "Polyline2D", "Hatch2D"]]:
+        """Generate floor plan linework for this ceiling.
+
+        Ceilings are typically shown in Reflected Ceiling Plans (RCP),
+        not standard floor plans. In floor plans, they appear above
+        the cut plane with dashed lines (if visible).
+
+        Args:
+            cut_height: Z coordinate of the section cut
+            view_range: View range parameters
+
+        Returns:
+            List of 2D geometry primitives
+        """
+        from bimascode.drawing.primitives import Point2D, Polyline2D
+        from bimascode.drawing.line_styles import LineStyle, Layer
+
+        result: List[Union["Line2D", "Arc2D", "Polyline2D", "Hatch2D"]] = []
+
+        # Ceilings are above the cut plane - show with dashed above-cut style
+        bbox = self.get_bounding_box()
+
+        if bbox.min_z > cut_height:
+            # Ceiling is above cut plane - typical case
+            style = LineStyle.above_cut()
+        elif bbox.max_z < cut_height:
+            # Ceiling is below cut plane - unusual, but show as visible
+            style = LineStyle.visible()
+        else:
+            # Ceiling is at cut plane - show as cut
+            style = LineStyle.cut_medium()
+
+        # Create polyline from boundary
+        boundary = self.boundary
+        if len(boundary) >= 3:
+            points = [Point2D(p[0], p[1]) for p in boundary]
+            ceiling_outline = Polyline2D(
+                points=points,
+                closed=True,
+                style=style,
+                layer=Layer.CEILING,
+            )
+            result.append(ceiling_outline)
+
+        return result
 
     def __repr__(self) -> str:
         return (

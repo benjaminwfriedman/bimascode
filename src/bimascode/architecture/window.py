@@ -5,7 +5,7 @@ Windows are hosted in walls and create openings (voids) in their host.
 They define position along the wall and sill height.
 """
 
-from typing import Optional, TYPE_CHECKING
+from typing import Optional, List, Union, TYPE_CHECKING
 from bimascode.core.type_instance import ElementInstance
 from bimascode.performance.bounding_box import BoundingBox
 from bimascode.utils.units import Length, normalize_length
@@ -14,6 +14,8 @@ import math
 if TYPE_CHECKING:
     from bimascode.architecture.window_type import WindowType
     from bimascode.architecture.wall import Wall
+    from bimascode.drawing.view_base import ViewRange
+    from bimascode.drawing.primitives import Line2D, Arc2D, Polyline2D, Hatch2D
 
 
 class Window(ElementInstance):
@@ -378,6 +380,117 @@ class Window(ElementInstance):
         top_z = base_z + height
 
         return BoundingBox(min_x, min_y, base_z, max_x, max_y, top_z)
+
+    def get_plan_representation(
+        self,
+        cut_height: float,
+        view_range: "ViewRange",
+    ) -> List[Union["Line2D", "Arc2D", "Polyline2D", "Hatch2D"]]:
+        """Generate floor plan linework for this window.
+
+        Windows are shown with three parallel lines (jambs and glass line).
+
+        Args:
+            cut_height: Z coordinate of the section cut
+            view_range: View range parameters
+
+        Returns:
+            List of 2D geometry primitives
+        """
+        from bimascode.drawing.primitives import Point2D, Line2D
+        from bimascode.drawing.line_styles import LineStyle, Layer
+
+        result: List[Union["Line2D", "Arc2D", "Polyline2D", "Hatch2D"]] = []
+
+        # Check if window is at the cut plane
+        bbox = self.get_bounding_box()
+        is_cut = bbox.min_z <= cut_height <= bbox.max_z
+
+        if not is_cut:
+            return result
+
+        # Window style
+        style = LineStyle.cut_wide()
+
+        wall = self._host_wall
+        wall_start = wall.start_point
+        wall_angle = wall.angle
+        half_wall = wall.width / 2.0
+
+        # Calculate window position in world coordinates
+        cos_a = math.cos(wall_angle)
+        sin_a = math.sin(wall_angle)
+
+        offset = self.offset
+        width = self.width
+
+        # Window jamb positions
+        left_x = wall_start[0] + offset * cos_a
+        left_y = wall_start[1] + offset * sin_a
+        right_x = wall_start[0] + (offset + width) * cos_a
+        right_y = wall_start[1] + (offset + width) * sin_a
+
+        # Three lines representing the window:
+        # 1. Outer jamb line
+        # 2. Glass line (center)
+        # 3. Inner jamb line
+
+        # Glass line offset from wall center (typically small)
+        glass_offset = 0.0  # At center
+
+        for offset_mult, line_style in [
+            (-0.35, style),  # Outer jamb (35% of half-wall towards outside)
+            (0.0, style),    # Glass (center line)
+            (0.35, style),   # Inner jamb (35% of half-wall towards inside)
+        ]:
+            perp_offset = half_wall * offset_mult
+
+            line = Line2D(
+                start=Point2D(
+                    left_x - perp_offset * sin_a,
+                    left_y + perp_offset * cos_a,
+                ),
+                end=Point2D(
+                    right_x - perp_offset * sin_a,
+                    right_y + perp_offset * cos_a,
+                ),
+                style=line_style,
+                layer=Layer.WINDOW,
+            )
+            result.append(line)
+
+        # Draw jamb end caps (perpendicular lines at each end)
+        # Left jamb cap
+        left_cap = Line2D(
+            start=Point2D(
+                left_x - half_wall * 0.35 * sin_a,
+                left_y + half_wall * 0.35 * cos_a,
+            ),
+            end=Point2D(
+                left_x + half_wall * 0.35 * sin_a,
+                left_y - half_wall * 0.35 * cos_a,
+            ),
+            style=style,
+            layer=Layer.WINDOW,
+        )
+        result.append(left_cap)
+
+        # Right jamb cap
+        right_cap = Line2D(
+            start=Point2D(
+                right_x - half_wall * 0.35 * sin_a,
+                right_y + half_wall * 0.35 * cos_a,
+            ),
+            end=Point2D(
+                right_x + half_wall * 0.35 * sin_a,
+                right_y - half_wall * 0.35 * cos_a,
+            ),
+            style=style,
+            layer=Layer.WINDOW,
+        )
+        result.append(right_cap)
+
+        return result
 
     def __repr__(self) -> str:
         return (

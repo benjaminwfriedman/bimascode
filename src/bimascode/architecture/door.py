@@ -5,7 +5,7 @@ Doors are hosted in walls and create openings (voids) in their host.
 They define position along the wall and sill height.
 """
 
-from typing import Optional, TYPE_CHECKING
+from typing import Optional, List, Union, TYPE_CHECKING
 from bimascode.core.type_instance import ElementInstance
 from bimascode.performance.bounding_box import BoundingBox
 from bimascode.utils.units import Length, normalize_length
@@ -14,6 +14,8 @@ import math
 if TYPE_CHECKING:
     from bimascode.architecture.door_type import DoorType
     from bimascode.architecture.wall import Wall
+    from bimascode.drawing.view_base import ViewRange
+    from bimascode.drawing.primitives import Line2D, Arc2D, Polyline2D, Hatch2D
 
 
 class Door(ElementInstance):
@@ -386,6 +388,110 @@ class Door(ElementInstance):
         top_z = base_z + height
 
         return BoundingBox(min_x, min_y, base_z, max_x, max_y, top_z)
+
+    def get_plan_representation(
+        self,
+        cut_height: float,
+        view_range: "ViewRange",
+    ) -> List[Union["Line2D", "Arc2D", "Polyline2D", "Hatch2D"]]:
+        """Generate floor plan linework for this door.
+
+        Creates a door swing arc and door panel rectangle.
+
+        Args:
+            cut_height: Z coordinate of the section cut
+            view_range: View range parameters
+
+        Returns:
+            List of 2D geometry primitives
+        """
+        from bimascode.drawing.primitives import Point2D, Line2D, Arc2D
+        from bimascode.drawing.line_styles import LineStyle, Layer
+
+        result: List[Union["Line2D", "Arc2D", "Polyline2D", "Hatch2D"]] = []
+
+        # Check if door is at the cut plane (doors typically start at floor)
+        bbox = self.get_bounding_box()
+        is_cut = bbox.min_z <= cut_height <= bbox.max_z
+
+        if not is_cut:
+            return result
+
+        # Door style (cut lines for openings)
+        style = LineStyle.cut_wide()
+
+        wall = self._host_wall
+        wall_start = wall.start_point
+        wall_angle = wall.angle
+
+        # Calculate door position in world coordinates
+        cos_a = math.cos(wall_angle)
+        sin_a = math.sin(wall_angle)
+
+        # Door frame corners
+        offset = self.offset
+        width = self.width
+
+        # Panel thickness (simplified - 45mm)
+        panel_thickness = 45.0
+
+        # Door panel hinge point (at one side of opening)
+        hinge_x = wall_start[0] + offset * cos_a
+        hinge_y = wall_start[1] + offset * sin_a
+
+        # Door swing point (at other side of opening)
+        swing_x = wall_start[0] + (offset + width) * cos_a
+        swing_y = wall_start[1] + (offset + width) * sin_a
+
+        # Draw door swing arc (90 degree arc from closed to open position)
+        # Arc center is at hinge point, radius is door width
+        # Start angle is wall angle, end angle is wall angle + 90 degrees
+        swing_arc = Arc2D(
+            center=Point2D(hinge_x, hinge_y),
+            radius=width,
+            start_angle=wall_angle,
+            end_angle=wall_angle + math.pi / 2,
+            style=LineStyle.visible().with_weight(
+                LineStyle.visible().weight
+            ),
+            layer=Layer.DOOR,
+        )
+        result.append(swing_arc)
+
+        # Draw door panel in open position (perpendicular to wall)
+        panel_end_x = hinge_x - width * sin_a  # Perpendicular to wall
+        panel_end_y = hinge_y + width * cos_a
+
+        panel_line = Line2D(
+            start=Point2D(hinge_x, hinge_y),
+            end=Point2D(panel_end_x, panel_end_y),
+            style=style,
+            layer=Layer.DOOR,
+        )
+        result.append(panel_line)
+
+        # Draw opening threshold lines (sides of the opening)
+        half_wall = wall.width / 2.0
+
+        # Left jamb line
+        left_jamb = Line2D(
+            start=Point2D(hinge_x - half_wall * sin_a, hinge_y + half_wall * cos_a),
+            end=Point2D(hinge_x + half_wall * sin_a, hinge_y - half_wall * cos_a),
+            style=style,
+            layer=Layer.DOOR,
+        )
+        result.append(left_jamb)
+
+        # Right jamb line
+        right_jamb = Line2D(
+            start=Point2D(swing_x - half_wall * sin_a, swing_y + half_wall * cos_a),
+            end=Point2D(swing_x + half_wall * sin_a, swing_y - half_wall * cos_a),
+            style=style,
+            layer=Layer.DOOR,
+        )
+        result.append(right_jamb)
+
+        return result
 
     def __repr__(self) -> str:
         return (

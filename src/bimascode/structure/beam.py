@@ -5,7 +5,7 @@ This module implements structural beams spanning between points
 with IFC export support.
 """
 
-from typing import Tuple, Optional, TYPE_CHECKING
+from typing import Tuple, Optional, List, Union, TYPE_CHECKING
 from bimascode.core.type_instance import ElementInstance
 from bimascode.performance.bounding_box import BoundingBox
 from bimascode.spatial.level import Level
@@ -14,6 +14,8 @@ import math
 
 if TYPE_CHECKING:
     from bimascode.structure.beam_type import BeamType
+    from bimascode.drawing.view_base import ViewRange
+    from bimascode.drawing.primitives import Line2D, Arc2D, Polyline2D, Hatch2D
 
 
 class Beam(ElementInstance):
@@ -324,6 +326,77 @@ class Beam(ElementInstance):
         max_z = max(start[2], end[2]) + half_h
 
         return BoundingBox(min_x, min_y, min_z, max_x, max_y, max_z)
+
+    def get_plan_representation(
+        self,
+        cut_height: float,
+        view_range: "ViewRange",
+    ) -> List[Union["Line2D", "Arc2D", "Polyline2D", "Hatch2D"]]:
+        """Generate floor plan linework for this beam.
+
+        Beams above the cut plane are shown with dashed lines.
+        Beams cut by the plane are shown with solid lines.
+
+        Args:
+            cut_height: Z coordinate of the section cut
+            view_range: View range parameters
+
+        Returns:
+            List of 2D geometry primitives
+        """
+        from bimascode.drawing.primitives import Point2D, Polyline2D
+        from bimascode.drawing.line_styles import LineStyle, Layer
+
+        result: List[Union["Line2D", "Arc2D", "Polyline2D", "Hatch2D"]] = []
+
+        # Check beam position relative to cut plane
+        bbox = self.get_bounding_box()
+
+        if bbox.max_z < cut_height:
+            # Beam is below cut plane - not typically shown in floor plan
+            return result
+        elif bbox.min_z > cut_height:
+            # Beam is above cut plane - show with dashed lines
+            style = LineStyle.above_cut()
+        else:
+            # Beam is cut - show with solid lines
+            style = LineStyle.cut_heavy()
+
+        # Calculate beam outline in plan view
+        start = self.start_point
+        end = self.end_point
+        width = self.width
+        half_w = width / 2.0
+
+        # Calculate perpendicular direction
+        dx = end[0] - start[0]
+        dy = end[1] - start[1]
+        length_2d = math.sqrt(dx * dx + dy * dy)
+
+        if length_2d < 1e-6:
+            return result
+
+        # Perpendicular unit vector
+        perp_x = -dy / length_2d * half_w
+        perp_y = dx / length_2d * half_w
+
+        # Four corners of beam in plan
+        corners = [
+            Point2D(start[0] + perp_x, start[1] + perp_y),
+            Point2D(end[0] + perp_x, end[1] + perp_y),
+            Point2D(end[0] - perp_x, end[1] - perp_y),
+            Point2D(start[0] - perp_x, start[1] - perp_y),
+        ]
+
+        beam_outline = Polyline2D(
+            points=corners,
+            closed=True,
+            style=style,
+            layer=Layer.BEAM,
+        )
+        result.append(beam_outline)
+
+        return result
 
     def __repr__(self) -> str:
         start = self.start_point
