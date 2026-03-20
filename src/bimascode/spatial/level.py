@@ -39,6 +39,7 @@ class Level(Element):
 
         self.building = building
         self._elevation = normalize_length(elevation, building.length_unit)
+        self._elements = []  # Elements hosted on this level
 
         # Register with building
         building._add_level(self)
@@ -61,6 +62,21 @@ class Level(Element):
             elevation: New elevation value
         """
         self._elevation = normalize_length(elevation, self.building.length_unit)
+
+    def add_element(self, element) -> None:
+        """
+        Add an element to this level.
+
+        Args:
+            element: Element to add (Wall, Floor, etc.)
+        """
+        if element not in self._elements:
+            self._elements.append(element)
+
+    @property
+    def elements(self):
+        """Get all elements on this level."""
+        return self._elements.copy()
 
     def to_ifc(self, ifc_file):
         """
