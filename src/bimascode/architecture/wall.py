@@ -1,15 +1,19 @@
 """
 Wall element class for BIM as Code.
 
-This module implements straight walls (no wall joins yet - that's Sprint 3).
-Walls are hosted on levels and have start/end points.
+This module implements straight walls with support for hosted elements
+(doors, windows) and wall joins.
 """
 
-from typing import Tuple, Optional
+from typing import Tuple, Optional, List, TYPE_CHECKING
 from bimascode.core.type_instance import ElementInstance
 from bimascode.spatial.level import Level
 from bimascode.utils.units import Length, normalize_length
 import math
+
+if TYPE_CHECKING:
+    from bimascode.architecture.door import Door
+    from bimascode.architecture.window import Window
 
 
 class Wall(ElementInstance):
@@ -43,6 +47,12 @@ class Wall(ElementInstance):
         super().__init__(wall_type, name)
 
         self.level = level
+
+        # Hosted elements (doors, windows)
+        self._hosted_elements: List = []
+
+        # Wall join trim adjustments
+        self._trim_adjustments: dict = {}
 
         # Store geometric parameters
         self.set_parameter("start_point", start_point, override=False)
@@ -115,6 +125,47 @@ class Wall(ElementInstance):
     def angle_degrees(self) -> float:
         """Get wall angle in degrees."""
         return math.degrees(self.angle)
+
+    @property
+    def is_structural(self) -> bool:
+        """Check if wall has structural layers."""
+        return len(self.type.get_structural_layers()) > 0
+
+    @property
+    def hosted_elements(self) -> List:
+        """Get all hosted elements (doors, windows)."""
+        return self._hosted_elements.copy()
+
+    @property
+    def openings(self) -> List:
+        """Get opening geometries from hosted elements."""
+        opening_geoms = []
+        for element in self._hosted_elements:
+            if hasattr(element, 'get_opening_geometry'):
+                opening_geoms.append(element.get_opening_geometry())
+        return opening_geoms
+
+    def add_hosted_element(self, element) -> None:
+        """
+        Add a hosted element (door or window) to this wall.
+
+        Args:
+            element: Door or Window to host
+        """
+        if element not in self._hosted_elements:
+            self._hosted_elements.append(element)
+            self.invalidate_geometry()
+
+    def remove_hosted_element(self, element) -> None:
+        """
+        Remove a hosted element from this wall.
+
+        Args:
+            element: Door or Window to remove
+        """
+        if element in self._hosted_elements:
+            self._hosted_elements.remove(element)
+            self.invalidate_geometry()
 
     def get_midpoint(self) -> Tuple[float, float]:
         """

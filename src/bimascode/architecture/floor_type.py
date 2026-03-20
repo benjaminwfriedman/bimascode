@@ -169,8 +169,20 @@ class FloorType(ElementType):
 
             current_z += layer.thickness_mm
 
-        # Return compound of all layers
-        return Compound(children=layer_solids)
+        # Create floor compound
+        floor_compound = Compound(children=layer_solids)
+
+        # Apply boolean subtraction for openings
+        if hasattr(instance, 'openings') and instance.openings:
+            for opening in instance.openings:
+                try:
+                    opening_geom = opening.get_opening_geometry()
+                    floor_compound = floor_compound - opening_geom
+                except Exception:
+                    # Boolean operation failed - skip this opening
+                    pass
+
+        return floor_compound
 
     def to_ifc(self, ifc_file):
         """

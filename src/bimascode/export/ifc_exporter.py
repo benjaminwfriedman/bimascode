@@ -379,7 +379,7 @@ class IFCExporter:
         Args:
             building: Building instance
         """
-        from ..architecture import Wall, Floor, Roof
+        from ..architecture import Wall, Floor, Roof, Door, Window
 
         # Store IFC storeys for element placement
         ifc_storeys = {}
@@ -399,5 +399,13 @@ class IFCExporter:
                 continue
 
             for element in level.elements:
-                if isinstance(element, (Wall, Floor, Roof)):
+                if isinstance(element, Wall):
+                    ifc_wall = element.to_ifc(self._ifc_file, ifc_storey)
+                    # Export hosted elements (doors, windows)
+                    for hosted in element.hosted_elements:
+                        if isinstance(hosted, Door):
+                            hosted.to_ifc(self._ifc_file, ifc_storey, ifc_wall)
+                        elif isinstance(hosted, Window):
+                            hosted.to_ifc(self._ifc_file, ifc_storey, ifc_wall)
+                elif isinstance(element, (Floor, Roof)):
                     element.to_ifc(self._ifc_file, ifc_storey)

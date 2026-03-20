@@ -258,8 +258,20 @@ class WallType(ElementType):
 
             current_offset += layer.thickness_mm
 
-        # Return compound of all layers
-        return Compound(children=layer_solids)
+        # Create wall compound
+        wall_compound = Compound(children=layer_solids)
+
+        # Apply boolean subtraction for hosted element openings
+        if hasattr(instance, 'openings') and instance.openings:
+            for opening in instance.openings:
+                try:
+                    wall_compound = wall_compound - opening
+                except Exception:
+                    # Boolean operation failed - skip this opening
+                    # This can happen with edge cases in geometry
+                    pass
+
+        return wall_compound
 
     def to_ifc(self, ifc_file):
         """

@@ -3,13 +3,17 @@ Floor/Slab element class for BIM as Code.
 
 Floors are horizontal elements defined by a boundary polygon.
 They can have slope for drainage (flat roofs, accessibility ramps).
+They support openings for stairs, shafts, and other penetrations.
 """
 
-from typing import List, Tuple, Optional
+from typing import List, Tuple, Optional, TYPE_CHECKING
 from bimascode.core.type_instance import ElementInstance
 from bimascode.spatial.level import Level
 from bimascode.utils.units import normalize_length, Length
 import math
+
+if TYPE_CHECKING:
+    from bimascode.architecture.opening import Opening
 
 
 class Floor(ElementInstance):
@@ -41,6 +45,9 @@ class Floor(ElementInstance):
         super().__init__(floor_type, name)
 
         self.level = level
+
+        # Openings in this floor
+        self._openings: List['Opening'] = []
 
         # Store geometric parameters
         self.set_parameter("boundary", boundary, override=False)
@@ -144,20 +151,44 @@ class Floor(ElementInstance):
         self.set_parameter("slope", slope, override=False)
         self.invalidate_geometry()
 
-    def add_opening(self, opening_boundary: List[Tuple[float, float]]) -> None:
+    @property
+    def openings(self) -> List['Opening']:
+        """Get all openings in this floor."""
+        return self._openings.copy()
+
+    def add_opening(self, opening_boundary: List[Tuple[float, float]], name: Optional[str] = None) -> 'Opening':
         """
         Add an opening (void) in the floor.
 
         Args:
             opening_boundary: List of (x, y) coordinates for opening
+            name: Optional name for the opening
 
-        Note: Full opening support will be implemented in Sprint 3
+        Returns:
+            The created Opening object
         """
-        # Store openings for future implementation
-        openings = self.get_parameter("openings", [])
-        openings.append(opening_boundary)
-        self.set_parameter("openings", openings, override=False)
+        from bimascode.architecture.opening import Opening
+
+        opening = Opening(
+            host_element=self,
+            boundary=opening_boundary,
+            depth=self.thickness + 2,  # +2mm for clean cut
+            name=name or f"Opening_{len(self._openings) + 1}"
+        )
+        self._openings.append(opening)
         self.invalidate_geometry()
+        return opening
+
+    def remove_opening(self, opening: 'Opening') -> None:
+        """
+        Remove an opening from this floor.
+
+        Args:
+            opening: Opening to remove
+        """
+        if opening in self._openings:
+            self._openings.remove(opening)
+            self.invalidate_geometry()
 
     def to_ifc(self, ifc_file, ifc_building_storey):
         """

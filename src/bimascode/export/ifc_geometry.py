@@ -250,7 +250,39 @@ def build123d_to_ifc_brep(geometry: Any, ifc_file: Any) -> Any:
 
         return ifc_face
 
-    # Process all faces
+    # Check if we have multiple solids (compound geometry like door frame + panel)
+    from OCP.TopAbs import TopAbs_SOLID
+    solid_explorer = TopExp_Explorer(occ_shape, TopAbs_SOLID)
+    solids = []
+    while solid_explorer.More():
+        solids.append(TopoDS.Solid_s(solid_explorer.Current()))
+        solid_explorer.Next()
+
+    # If multiple solids, create a closed shell for each and combine
+    if len(solids) > 1:
+        all_shells = []
+        for solid in solids:
+            ifc_faces = []
+            face_explorer = TopExp_Explorer(solid, TopAbs_FACE)
+            while face_explorer.More():
+                occ_face = TopoDS.Face_s(face_explorer.Current())
+                ifc_face = create_ifc_face_surface(occ_face)
+                if ifc_face:
+                    ifc_faces.append(ifc_face)
+                face_explorer.Next()
+            if ifc_faces:
+                closed_shell = ifc_file.createIfcClosedShell(ifc_faces)
+                all_shells.append(closed_shell)
+
+        if not all_shells:
+            return None
+
+        # Create IfcShellBasedSurfaceModel for multiple disconnected solids
+        # This is valid IFC geometry for assemblies like doors (frame + panel)
+        shell_model = ifc_file.createIfcShellBasedSurfaceModel(all_shells)
+        return shell_model
+
+    # Single solid - process all faces into one shell
     ifc_faces = []
     face_explorer = TopExp_Explorer(occ_shape, TopAbs_FACE)
 

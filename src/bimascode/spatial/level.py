@@ -78,6 +78,43 @@ class Level(Element):
         """Get all elements on this level."""
         return self._elements.copy()
 
+    def get_walls(self):
+        """Get all walls on this level."""
+        from bimascode.architecture.wall import Wall
+        return [e for e in self._elements if isinstance(e, Wall)]
+
+    def process_wall_joins(self, end_cap_type=None):
+        """
+        Process wall joins for all walls on this level.
+
+        Detects wall joins (corners, T-junctions, crosses) and calculates
+        trim adjustments for clean connections.
+
+        Args:
+            end_cap_type: How to trim wall ends (default: FLUSH)
+                         Use EndCapType.EXTERIOR to extend walls to outer face
+                         Use EndCapType.INTERIOR to trim to inner face
+        """
+        from bimascode.architecture.wall_joins import (
+            detect_and_process_wall_joins,
+            EndCapType
+        )
+
+        if end_cap_type is None:
+            end_cap_type = EndCapType.FLUSH
+
+        walls = self.get_walls()
+        if not walls:
+            return
+
+        # Detect and process joins
+        adjustments = detect_and_process_wall_joins(walls, end_cap_type)
+
+        # Apply adjustments to walls
+        for wall, adj in adjustments.items():
+            wall._trim_adjustments = adj
+            wall.invalidate_geometry()
+
     def to_ifc(self, ifc_file):
         """
         Export this level to IFC as IfcBuildingStorey.
