@@ -7,6 +7,7 @@ This module implements straight walls with support for hosted elements
 
 from typing import Tuple, Optional, List, TYPE_CHECKING
 from bimascode.core.type_instance import ElementInstance
+from bimascode.performance.bounding_box import BoundingBox
 from bimascode.spatial.level import Level
 from bimascode.utils.units import Length, normalize_length
 import math
@@ -344,6 +345,32 @@ class Wall(ElementInstance):
         )
 
         return ifc_wall
+
+    def get_bounding_box(self) -> BoundingBox:
+        """Get axis-aligned bounding box for this wall.
+
+        Returns:
+            BoundingBox encompassing the wall geometry
+        """
+        start = self.start_point
+        end = self.end_point
+        width = self.width
+        height = self.height
+
+        # Calculate perpendicular offset for wall thickness
+        half_width = width / 2.0
+
+        # Get min/max from start and end points
+        min_x = min(start[0], end[0]) - half_width
+        max_x = max(start[0], end[0]) + half_width
+        min_y = min(start[1], end[1]) - half_width
+        max_y = max(start[1], end[1]) + half_width
+
+        # Z coordinates from level elevation
+        min_z = self.level.elevation_mm
+        max_z = min_z + height
+
+        return BoundingBox(min_x, min_y, min_z, max_x, max_y, max_z)
 
     def __repr__(self) -> str:
         return (

@@ -9,6 +9,7 @@ This module implements the parametric type/instance pattern used throughout BIM 
 
 from typing import Any, Dict, List, Optional, Set
 from abc import ABC, abstractmethod
+import time
 import uuid
 
 
@@ -128,6 +129,11 @@ class ElementInstance(ABC):
         self._geometry = None
         self._geometry_valid = False
 
+        # Cache invalidation support (Sprint 5)
+        self._modified_timestamp: float = time.time()
+        self._cached_2d: Any = None
+        self._cache_timestamp: float = 0.0
+
         # Register with type
         self.type._register_instance(self)
 
@@ -225,8 +231,22 @@ class ElementInstance(ABC):
             self._geometry_valid = False
 
     def invalidate_geometry(self) -> None:
-        """Mark geometry as invalid and requiring regeneration."""
+        """Mark geometry as invalid and requiring regeneration.
+
+        Also invalidates the 2D representation cache.
+        """
         self._geometry_valid = False
+        self._invalidate_cache()
+
+    def _invalidate_cache(self) -> None:
+        """Invalidate cached representations when geometry changes."""
+        self._modified_timestamp = time.time()
+        self._cached_2d = None
+
+    @property
+    def modified_timestamp(self) -> float:
+        """Get the timestamp of the last geometry modification."""
+        return self._modified_timestamp
 
     def get_geometry(self, force_rebuild: bool = False) -> Any:
         """

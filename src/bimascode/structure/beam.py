@@ -7,6 +7,7 @@ with IFC export support.
 
 from typing import Tuple, Optional, TYPE_CHECKING
 from bimascode.core.type_instance import ElementInstance
+from bimascode.performance.bounding_box import BoundingBox
 from bimascode.spatial.level import Level
 from bimascode.utils.units import Length, normalize_length
 import math
@@ -296,6 +297,33 @@ class Beam(ElementInstance):
             )
 
         return ifc_beam
+
+    def get_bounding_box(self) -> BoundingBox:
+        """Get axis-aligned bounding box for this beam.
+
+        Takes into account beam width and height (cross-section).
+
+        Returns:
+            BoundingBox encompassing the beam geometry
+        """
+        start = self.start_point
+        end = self.end_point
+        width = self.width
+        height = self.height
+
+        # Add half-width margin in all directions for the cross-section
+        half_w = width / 2.0
+        half_h = height / 2.0
+
+        # Simple AABB from endpoints plus cross-section padding
+        min_x = min(start[0], end[0]) - half_w
+        max_x = max(start[0], end[0]) + half_w
+        min_y = min(start[1], end[1]) - half_w
+        max_y = max(start[1], end[1]) + half_w
+        min_z = min(start[2], end[2]) - half_h
+        max_z = max(start[2], end[2]) + half_h
+
+        return BoundingBox(min_x, min_y, min_z, max_x, max_y, max_z)
 
     def __repr__(self) -> str:
         start = self.start_point

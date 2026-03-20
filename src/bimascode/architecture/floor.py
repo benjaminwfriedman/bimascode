@@ -8,6 +8,7 @@ They support openings for stairs, shafts, and other penetrations.
 
 from typing import List, Tuple, Optional, TYPE_CHECKING
 from bimascode.core.type_instance import ElementInstance
+from bimascode.performance.bounding_box import BoundingBox
 from bimascode.spatial.level import Level
 from bimascode.utils.units import normalize_length, Length
 import math
@@ -295,6 +296,18 @@ class Floor(ElementInstance):
         )
 
         return ifc_slab
+
+    def get_bounding_box(self) -> BoundingBox:
+        """Get axis-aligned bounding box for this floor.
+
+        Returns:
+            BoundingBox encompassing the floor geometry
+        """
+        return BoundingBox.from_polygon_2d(
+            self.boundary,
+            self.level.elevation_mm,
+            self.level.elevation_mm + self.thickness
+        )
 
     def __repr__(self) -> str:
         return (

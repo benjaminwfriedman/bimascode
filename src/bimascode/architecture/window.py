@@ -7,6 +7,7 @@ They define position along the wall and sill height.
 
 from typing import Optional, TYPE_CHECKING
 from bimascode.core.type_instance import ElementInstance
+from bimascode.performance.bounding_box import BoundingBox
 from bimascode.utils.units import Length, normalize_length
 import math
 
@@ -329,6 +330,54 @@ class Window(ElementInstance):
         )
 
         return ifc_window
+
+    def get_bounding_box(self) -> BoundingBox:
+        """Get axis-aligned bounding box for this window.
+
+        The bounding box is calculated from the window's position
+        in world coordinates relative to the host wall.
+
+        Returns:
+            BoundingBox encompassing the window geometry
+        """
+        wall = self._host_wall
+        wall_start = wall.start_point
+        wall_angle = wall.angle
+
+        # Window position along wall
+        offset = self.offset
+        width = self.width
+        height = self.height
+        sill = self.sill_height
+
+        # Calculate bounding box corners in world coordinates
+        cos_a = math.cos(wall_angle)
+        sin_a = math.sin(wall_angle)
+
+        # Wall thickness for perpendicular extent
+        wall_width = wall.width
+        half_wall_width = wall_width / 2.0
+
+        # Calculate the four corner points of the window footprint
+        x1 = wall_start[0] + offset * cos_a - half_wall_width * sin_a
+        y1 = wall_start[1] + offset * sin_a + half_wall_width * cos_a
+        x2 = wall_start[0] + (offset + width) * cos_a - half_wall_width * sin_a
+        y2 = wall_start[1] + (offset + width) * sin_a + half_wall_width * cos_a
+        x3 = wall_start[0] + offset * cos_a + half_wall_width * sin_a
+        y3 = wall_start[1] + offset * sin_a - half_wall_width * cos_a
+        x4 = wall_start[0] + (offset + width) * cos_a + half_wall_width * sin_a
+        y4 = wall_start[1] + (offset + width) * sin_a - half_wall_width * cos_a
+
+        min_x = min(x1, x2, x3, x4)
+        max_x = max(x1, x2, x3, x4)
+        min_y = min(y1, y2, y3, y4)
+        max_y = max(y1, y2, y3, y4)
+
+        # Z coordinates
+        base_z = wall.level.elevation_mm + sill
+        top_z = base_z + height
+
+        return BoundingBox(min_x, min_y, base_z, max_x, max_y, top_z)
 
     def __repr__(self) -> str:
         return (

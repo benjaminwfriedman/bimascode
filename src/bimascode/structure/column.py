@@ -7,6 +7,7 @@ and IFC export.
 
 from typing import Tuple, Optional, TYPE_CHECKING
 from bimascode.core.type_instance import ElementInstance
+from bimascode.performance.bounding_box import BoundingBox
 from bimascode.spatial.level import Level
 from bimascode.utils.units import Length, normalize_length
 import math
@@ -276,6 +277,50 @@ class StructuralColumn(ElementInstance):
             )
 
         return ifc_column
+
+    def get_bounding_box(self) -> BoundingBox:
+        """Get axis-aligned bounding box for this column.
+
+        Takes into account column rotation.
+
+        Returns:
+            BoundingBox encompassing the column geometry
+        """
+        pos = self.position
+        width = self.width
+        depth = self.depth
+        rotation_rad = self.rotation_radians
+
+        # For a rotated rectangle, compute the corners
+        cos_r = math.cos(rotation_rad)
+        sin_r = math.sin(rotation_rad)
+        half_w = width / 2.0
+        half_d = depth / 2.0
+
+        # Compute the four corners relative to center
+        corners_x = [
+            pos[0] + half_w * cos_r - half_d * sin_r,
+            pos[0] - half_w * cos_r - half_d * sin_r,
+            pos[0] + half_w * cos_r + half_d * sin_r,
+            pos[0] - half_w * cos_r + half_d * sin_r,
+        ]
+        corners_y = [
+            pos[1] + half_w * sin_r + half_d * cos_r,
+            pos[1] - half_w * sin_r + half_d * cos_r,
+            pos[1] + half_w * sin_r - half_d * cos_r,
+            pos[1] - half_w * sin_r - half_d * cos_r,
+        ]
+
+        min_x = min(corners_x)
+        max_x = max(corners_x)
+        min_y = min(corners_y)
+        max_y = max(corners_y)
+
+        # Z coordinates
+        min_z = self.level.elevation_mm
+        max_z = min_z + self.height
+
+        return BoundingBox(min_x, min_y, min_z, max_x, max_y, max_z)
 
     def __repr__(self) -> str:
         pos = self.position

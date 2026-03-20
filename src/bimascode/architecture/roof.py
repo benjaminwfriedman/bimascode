@@ -8,6 +8,7 @@ Supports openings for skylights, hatches, and other penetrations.
 
 from typing import List, Tuple, Optional, TYPE_CHECKING
 from bimascode.core.type_instance import ElementInstance
+from bimascode.performance.bounding_box import BoundingBox
 from bimascode.spatial.level import Level
 from bimascode.architecture.floor_type import FloorType
 from bimascode.utils.units import Length
@@ -279,6 +280,18 @@ class Roof(ElementInstance):
         )
 
         return ifc_roof
+
+    def get_bounding_box(self) -> BoundingBox:
+        """Get axis-aligned bounding box for this roof.
+
+        Returns:
+            BoundingBox encompassing the roof geometry
+        """
+        return BoundingBox.from_polygon_2d(
+            self.boundary,
+            self.level.elevation_mm,
+            self.level.elevation_mm + self.thickness
+        )
 
     def __repr__(self) -> str:
         return (

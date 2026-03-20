@@ -2,8 +2,11 @@
 Base classes for all BIM elements.
 """
 
+import time
 import uuid
 from typing import Optional, Dict, Any
+
+from bimascode.performance.bounding_box import BoundingBox
 
 
 class Element:
@@ -28,6 +31,9 @@ class Element:
         self.description = description
         self._guid = self._generate_guid()
         self._properties: Dict[str, Any] = {}
+        self._modified_timestamp: float = time.time()
+        self._cached_2d: Any = None
+        self._cache_timestamp: float = 0.0
 
     @staticmethod
     def _generate_guid() -> str:
@@ -74,3 +80,26 @@ class Element:
 
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}(name='{self.name}', guid='{self._guid}')"
+
+    def _invalidate_cache(self) -> None:
+        """Invalidate cached representations when geometry changes.
+
+        Call this method from property setters that modify element geometry.
+        """
+        self._modified_timestamp = time.time()
+        self._cached_2d = None
+
+    @property
+    def modified_timestamp(self) -> float:
+        """Get the timestamp of the last geometry modification."""
+        return self._modified_timestamp
+
+    def get_bounding_box(self) -> Optional[BoundingBox]:
+        """Get the axis-aligned bounding box of this element.
+
+        Subclasses should override this method to provide accurate bounds.
+
+        Returns:
+            BoundingBox for the element, or None if not applicable
+        """
+        return None

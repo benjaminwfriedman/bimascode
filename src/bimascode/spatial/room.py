@@ -7,6 +7,7 @@ Rooms are defined by boundary polygons and compute area/volume.
 
 from typing import List, Tuple, Optional, TYPE_CHECKING
 from bimascode.core.element import Element
+from bimascode.performance.bounding_box import BoundingBox
 from bimascode.spatial.level import Level
 from bimascode.utils.units import Length, normalize_length
 
@@ -209,6 +210,7 @@ class Room(Element):
             boundary: List of (x, y) coordinates in mm
         """
         self._boundary = boundary
+        self._invalidate_cache()
 
     def set_floor_to_ceiling_height(self, height: Length | float) -> None:
         """
@@ -218,6 +220,7 @@ class Room(Element):
             height: New height value
         """
         self._floor_to_ceiling_height = normalize_length(height).mm
+        self._invalidate_cache()
 
     def to_ifc(self, ifc_file, ifc_building_storey):
         """
@@ -424,6 +427,18 @@ class Room(Element):
             "wall_finish": self.wall_finish or "",
             "ceiling_finish": self.ceiling_finish or ""
         }
+
+    def get_bounding_box(self) -> BoundingBox:
+        """Get axis-aligned bounding box for this room.
+
+        Returns:
+            BoundingBox encompassing the room volume
+        """
+        return BoundingBox.from_polygon_2d(
+            self._boundary,
+            self.level.elevation_mm,
+            self.level.elevation_mm + self._floor_to_ceiling_height
+        )
 
     def __repr__(self) -> str:
         return (

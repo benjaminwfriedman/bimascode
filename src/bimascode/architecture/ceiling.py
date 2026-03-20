@@ -7,6 +7,7 @@ at a specified height above a level.
 
 from typing import List, Tuple, Optional, TYPE_CHECKING
 from bimascode.core.type_instance import ElementInstance
+from bimascode.performance.bounding_box import BoundingBox
 from bimascode.spatial.level import Level
 from bimascode.utils.units import Length, normalize_length
 
@@ -262,6 +263,18 @@ class Ceiling(ElementInstance):
             )
 
         return ifc_covering
+
+    def get_bounding_box(self) -> BoundingBox:
+        """Get axis-aligned bounding box for this ceiling.
+
+        Returns:
+            BoundingBox encompassing the ceiling geometry
+        """
+        return BoundingBox.from_polygon_2d(
+            self.boundary,
+            self.elevation,  # Bottom of ceiling
+            self.top_elevation  # Top of ceiling
+        )
 
     def __repr__(self) -> str:
         return (
