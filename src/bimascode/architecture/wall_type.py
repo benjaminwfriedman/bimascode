@@ -196,6 +196,14 @@ class WallType(ElementType):
         The wall is created as a compound of boxes, one for each layer.
         Layers are positioned from exterior to interior.
 
+        IMPORTANT: Geometry is created in LOCAL coordinates:
+        - Origin at wall start point
+        - X-axis along wall length direction
+        - Y-axis perpendicular (toward interior)
+        - Z-axis upward
+
+        The IFC placement (in wall.py) handles world positioning.
+
         Args:
             instance: Wall instance to create geometry for
 
@@ -212,37 +220,37 @@ class WallType(ElementType):
         if start_point is None or end_point is None:
             raise ValueError("Wall must have start_point and end_point")
 
-        # Calculate wall length and direction
+        # Calculate wall length
         import math
         dx = end_point[0] - start_point[0]
         dy = end_point[1] - start_point[1]
         length = math.sqrt(dx * dx + dy * dy)
-        angle = math.atan2(dy, dx)
 
-        # Create layer geometries
+        # Create layer geometries in LOCAL coordinates
+        # X = along wall length (0 to length)
+        # Y = perpendicular to wall (layers stack in Y direction)
+        # Z = height (0 to height)
         layer_solids = []
         current_offset = 0.0
 
         for layer in self.layers:
-            # Create box for this layer (centered at origin)
+            # Create box for this layer
             layer_box = Box(
                 length,
                 layer.thickness_mm,
                 height
             )
 
-            # Position the layer
-            # Offset from exterior face
+            # Position the layer in local coordinates:
+            # - X: center along wall length (length/2)
+            # - Y: offset from exterior face (current_offset + half thickness)
+            # - Z: center at half height
             layer_y_offset = current_offset + layer.thickness_mm / 2
 
-            # Translate and rotate to wall position
-            # Start at wall start point, then offset for layer position
             loc = Location(
-                (start_point[0] + length / 2 * math.cos(angle) - layer_y_offset * math.sin(angle),
-                 start_point[1] + length / 2 * math.sin(angle) + layer_y_offset * math.cos(angle),
-                 height / 2),
+                (length / 2, layer_y_offset, height / 2),
                 (0, 0, 1),
-                math.degrees(angle)
+                0  # No rotation - geometry is in local coords
             )
 
             layer_box = layer_box.locate(loc)
