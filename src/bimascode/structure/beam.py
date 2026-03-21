@@ -156,6 +156,58 @@ class Beam(ElementInstance):
             (start[2] + end[2]) / 2
         )
 
+    def get_world_geometry(self):
+        """Get beam geometry transformed to world coordinates.
+
+        The base get_geometry() returns geometry in local beam coordinates
+        (origin at beam start, X along beam length, Y/Z centered). This method
+        transforms it to world coordinates using the beam's start point and orientation.
+
+        CRITICAL: locate() REPLACES transforms, it does NOT chain them!
+        Since create_geometry() applies an internal transform (shift to put start at origin),
+        we must compose that with the world transform using multiplication.
+
+        Returns:
+            build123d geometry in world coordinates, or None
+        """
+        import copy
+        from build123d import Location
+
+        local_geom = self.get_geometry()
+        if local_geom is None:
+            return None
+
+        # CRITICAL: Copy geometry before transforming!
+        # locate() modifies in place, which would corrupt the cached local geometry
+        geom_copy = copy.copy(local_geom)
+
+        start = self.start_point
+        angle_deg = self.horizontal_angle_degrees
+        level_z = self.level.elevation_mm
+
+        # The local geometry has an internal transform from create_geometry():
+        # - Box centered at origin, then shifted by (length/2, 0, 0) to put start at origin
+        # This transform: Location((length/2, 0, 0))
+        #
+        # We need to compose with world transform:
+        # - Rotate by beam angle around Z
+        # - Translate to start point at level elevation + local Z offset
+        #
+        # Since locate() REPLACES transforms, we must multiply:
+        # combined = world_transform * local_transform
+        local_transform = Location((self.length / 2, 0, 0))
+        world_transform = Location(
+            (start[0], start[1], level_z + start[2]),
+            (0, 0, 1),
+            angle_deg
+        )
+        combined = world_transform * local_transform
+
+        # Apply the combined transform
+        world_geom = geom_copy.locate(combined)
+
+        return world_geom
+
     def set_start_point(self, point: Tuple[float, float, float]) -> None:
         """
         Set the beam start point.
@@ -303,7 +355,8 @@ class Beam(ElementInstance):
     def get_bounding_box(self) -> BoundingBox:
         """Get axis-aligned bounding box for this beam.
 
-        Takes into account beam width and height (cross-section).
+        Takes into account beam width and height (cross-section),
+        and adds level elevation to Z coordinates.
 
         Returns:
             BoundingBox encompassing the beam geometry
@@ -312,18 +365,20 @@ class Beam(ElementInstance):
         end = self.end_point
         width = self.width
         height = self.height
+        level_z = self.level.elevation_mm
 
         # Add half-width margin in all directions for the cross-section
         half_w = width / 2.0
         half_h = height / 2.0
 
         # Simple AABB from endpoints plus cross-section padding
+        # Z coordinates are relative to level, so add level elevation
         min_x = min(start[0], end[0]) - half_w
         max_x = max(start[0], end[0]) + half_w
         min_y = min(start[1], end[1]) - half_w
         max_y = max(start[1], end[1]) + half_w
-        min_z = min(start[2], end[2]) - half_h
-        max_z = max(start[2], end[2]) + half_h
+        min_z = level_z + min(start[2], end[2]) - half_h
+        max_z = level_z + max(start[2], end[2]) + half_h
 
         return BoundingBox(min_x, min_y, min_z, max_x, max_y, max_z)
 

@@ -244,7 +244,12 @@ class SectionView(ViewBase):
         if not isinstance(element, HasGeometry):
             return []
 
-        geometry = element.get_geometry()
+        # Use world geometry if available (includes transform to world coordinates)
+        if hasattr(element, 'get_world_geometry'):
+            geometry = element.get_world_geometry()
+        else:
+            geometry = element.get_geometry()
+
         if geometry is None:
             return []
 
