@@ -144,27 +144,33 @@ class Wall(ElementInstance):
         Returns:
             build123d geometry in world coordinates, or None
         """
+        import copy
         from build123d import Location
 
         local_geom = self.get_geometry()
         if local_geom is None:
             return None
 
+        # CRITICAL: Copy geometry before transforming!
+        # locate() modifies in place, which would corrupt the cached local geometry
+        geom_copy = copy.copy(local_geom)
+
         # Transform from local to world coordinates:
-        # - Translate to wall start point
+        # - Translate to wall start point at level elevation
         # - Rotate by wall angle around Z axis
         start = self.start_point
         angle_deg = self.angle_degrees
+        z = self.level.elevation_mm
 
         # Create transform: rotate around Z, then translate to start point
         # Location takes (position, axis, angle_degrees)
         world_transform = Location(
-            (start[0], start[1], 0),  # Translation to wall start
+            (start[0], start[1], z),  # Translation to wall start at level elevation
             (0, 0, 1),                 # Rotation axis (Z)
             angle_deg                  # Rotation angle in degrees
         )
 
-        return local_geom.locate(world_transform)
+        return geom_copy.locate(world_transform)
 
     @property
     def structural(self) -> bool:

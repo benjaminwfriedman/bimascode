@@ -129,11 +129,16 @@ class Door(ElementInstance):
         Returns:
             build123d geometry in world coordinates, or None
         """
+        import copy
         from build123d import Location
 
         local_geom = self.get_geometry()
         if local_geom is None:
             return None
+
+        # CRITICAL: Copy geometry before transforming!
+        # locate() modifies in place, which would corrupt the cached local geometry
+        geom_copy = copy.copy(local_geom)
 
         wall = self._host_wall
         wall_start = wall.start_point
@@ -172,9 +177,8 @@ class Door(ElementInstance):
         # Compose transforms: world_transform * local_position
         # This applies local_position first (offset along wall, center in thickness),
         # then world_transform (rotate and translate to wall's world position)
-        # Note: calling locate() twice doesn't compose - it replaces the transform
         combined_transform = world_transform * local_position
-        return local_geom.locate(combined_transform)
+        return geom_copy.locate(combined_transform)
 
     def set_offset(self, offset: Length | float) -> None:
         """

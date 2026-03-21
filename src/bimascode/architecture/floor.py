@@ -159,11 +159,16 @@ class Floor(ElementInstance):
         Returns:
             build123d geometry in world coordinates, or None
         """
+        import copy
         from build123d import Location
 
         local_geom = self.get_geometry()
         if local_geom is None:
             return None
+
+        # CRITICAL: Copy geometry before transforming!
+        # locate() modifies in place, which would corrupt the cached local geometry
+        geom_copy = copy.copy(local_geom)
 
         # Transform from local (centered) to world coordinates:
         # - Translate to floor centroid (X, Y)
@@ -172,7 +177,7 @@ class Floor(ElementInstance):
         z = self.level.elevation_mm
 
         world_transform = Location((cx, cy, z))
-        return local_geom.locate(world_transform)
+        return geom_copy.locate(world_transform)
 
     def set_boundary(self, boundary: List[Tuple[float, float]]) -> None:
         """

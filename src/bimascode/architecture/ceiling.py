@@ -145,6 +145,43 @@ class Ceiling(ElementInstance):
         z = self.elevation + self.thickness / 2
         return (cx, cy, z)
 
+    def get_world_geometry(self):
+        """Get ceiling geometry transformed to world coordinates.
+
+        The base get_geometry() returns geometry in local ceiling coordinates.
+
+        IMPORTANT: build123d's Polygon() automatically centers vertices at the
+        centroid, so the local geometry is shifted from the original boundary
+        coordinates. We need to translate by the centroid to restore correct
+        world positioning.
+
+        Returns:
+            build123d geometry in world coordinates, or None
+        """
+        import copy
+        from build123d import Location
+
+        local_geom = self.get_geometry()
+        if local_geom is None:
+            return None
+
+        # CRITICAL: Copy geometry before transforming!
+        # locate() modifies in place, which would corrupt the cached local geometry
+        geom_copy = copy.copy(local_geom)
+
+        # Ceiling elevation (Z position)
+        z = self.elevation
+
+        # build123d Polygon centers the vertices at the centroid, so local geometry
+        # is offset from the original boundary coordinates. We need to translate
+        # by the centroid to put the ceiling back at the correct XY position.
+        cx, cy = self.get_centroid()
+
+        # Apply transform: translate to centroid XY and ceiling elevation Z
+        world_geom = geom_copy.locate(Location((cx, cy, z)))
+
+        return world_geom
+
     def set_boundary(self, boundary: List[Tuple[float, float]]) -> None:
         """
         Set the ceiling boundary.

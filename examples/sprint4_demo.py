@@ -378,7 +378,9 @@ def main():
 
     print("\n11. Exporting to IFC...")
 
-    output_path = "output/sprint4_demo.ifc"
+    from datetime import datetime
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    output_path = f"output/sprint4_demo_{timestamp}.ifc"
     building.export_ifc(output_path)
 
     print(f"   Exported to: {output_path}")

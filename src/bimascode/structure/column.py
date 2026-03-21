@@ -136,6 +136,59 @@ class StructuralColumn(ElementInstance):
         z = self.level.elevation_mm + self.height
         return (pos[0], pos[1], z)
 
+    def get_world_geometry(self):
+        """Get column geometry transformed to world coordinates.
+
+        The base get_geometry() returns geometry in local column coordinates
+        (origin at base center, Z upward). This method transforms it to world
+        coordinates using the column's position, level elevation, and rotation.
+
+        CRITICAL: locate() REPLACES transforms, it does NOT chain them!
+        Since create_geometry() applies an internal transform (shift to put base at Z=0),
+        we must compose that with the world transform using multiplication.
+
+        Returns:
+            build123d geometry in world coordinates, or None
+        """
+        import copy
+        from build123d import Location
+
+        local_geom = self.get_geometry()
+        if local_geom is None:
+            return None
+
+        # CRITICAL: Copy geometry before transforming!
+        # locate() modifies in place, which would corrupt the cached local geometry
+        geom_copy = copy.copy(local_geom)
+
+        # Column placement is at base center
+        pos = self.position
+        z = self.level.elevation_mm
+        rotation_deg = self.rotation
+
+        # The local geometry has an internal transform from create_geometry():
+        # - Box centered at origin, then shifted by (0, 0, height/2) to put base at Z=0
+        # This transform: Location((0, 0, height/2))
+        #
+        # We need to compose with world transform:
+        # - Rotate by column rotation around Z
+        # - Translate to (pos_x, pos_y, level_elevation)
+        #
+        # Since locate() REPLACES transforms, we must multiply:
+        # combined = world_transform * local_transform
+        local_transform = Location((0, 0, self.height / 2))
+        world_transform = Location(
+            (pos[0], pos[1], z),
+            (0, 0, 1),
+            rotation_deg
+        )
+        combined = world_transform * local_transform
+
+        # Apply the combined transform
+        world_geom = geom_copy.locate(combined)
+
+        return world_geom
+
     def get_center_3d(self) -> Tuple[float, float, float]:
         """
         Get the 3D center point of the column.

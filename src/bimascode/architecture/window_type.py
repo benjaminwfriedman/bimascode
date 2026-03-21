@@ -243,6 +243,10 @@ class WindowType(ElementType):
         The opening is created in the wall's LOCAL coordinate system.
         The window instance provides the position along the wall.
 
+        IMPORTANT: Wall geometry is centered on Y=0, extending from
+        -wall_thickness/2 to +wall_thickness/2. The opening must be
+        centered at Y=0 to cut through all wall layers.
+
         Args:
             instance: Window instance to create opening for
 
@@ -266,9 +270,12 @@ class WindowType(ElementType):
         # Create opening box in wall's local coordinates
         opening_box = Box(width, wall_thickness, height)
 
-        # Position the opening
+        # Position the opening:
+        # - X: centered on window position along wall
+        # - Y: centered at Y=0 (wall centerline) - wall extends from -width/2 to +width/2
+        # - Z: centered vertically on window
         opening_box = opening_box.locate(Location(
-            (offset + width / 2, wall_thickness / 2 - 1, sill_height + height / 2),
+            (offset + width / 2, 0, sill_height + height / 2),
             (0, 0, 1), 0
         ))
 

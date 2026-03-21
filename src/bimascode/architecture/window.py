@@ -121,6 +121,65 @@ class Window(ElementInstance):
 
         return (x, y, z)
 
+    def get_world_geometry(self):
+        """Get window geometry transformed to world coordinates.
+
+        The base get_geometry() returns geometry in local window coordinates
+        (origin at bottom-left corner of frame). This method transforms it
+        to world coordinates using the host wall's position and rotation.
+
+        Returns:
+            build123d geometry in world coordinates, or None
+        """
+        import copy
+        from build123d import Location
+
+        local_geom = self.get_geometry()
+        if local_geom is None:
+            return None
+
+        # CRITICAL: Copy geometry before transforming!
+        # locate() modifies in place, which would corrupt the cached local geometry
+        geom_copy = copy.copy(local_geom)
+
+        wall = self._host_wall
+        wall_start = wall.start_point
+        wall_angle_deg = wall.angle_degrees
+
+        offset = self.offset
+        sill = self.sill_height
+        wall_thickness = wall.width
+        z = wall.level.elevation_mm + sill
+
+        # Window local geometry: origin at bottom-left of frame, extends +X (width), +Y (depth), +Z (height)
+        # Window frame_depth is how deep the window is (Y extent in window local coords)
+        frame_depth = self.type.frame_depth
+
+        # In wall-local coordinates:
+        # - X runs along the wall length (from start to end)
+        # - Y runs perpendicular to wall, with Y=0 at the wall centerline
+        # - The wall extends from Y = -wall_thickness/2 to Y = +wall_thickness/2
+        #
+        # The window should be centered in the wall thickness:
+        # - Window center Y should be at wall center Y (which is 0 in wall-local)
+        # - So window Y ranges from -frame_depth/2 to +frame_depth/2
+        # - Window local origin (Y=0) should map to wall-local Y = -frame_depth/2
+        y_offset = -frame_depth / 2
+
+        # Position window in wall-local coordinates
+        local_position = Location((offset, y_offset, 0))
+
+        # Wall-to-world transform: rotate by wall angle around Z, then translate
+        world_transform = Location(
+            (wall_start[0], wall_start[1], z),
+            (0, 0, 1),
+            wall_angle_deg
+        )
+
+        # Compose transforms: world_transform * local_position
+        combined_transform = world_transform * local_position
+        return geom_copy.locate(combined_transform)
+
     def set_offset(self, offset: Length | float) -> None:
         """
         Set the offset from wall start.
