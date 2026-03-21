@@ -1,4 +1,12 @@
-# BIM as Code
+<p align="center">
+  <img src="assets/bimascode-logo.svg" alt="BIM as Code" width="400">
+</p>
+
+<p align="center">
+  <strong>Programmatic Building Information Modeling in Python</strong>
+</p>
+
+---
 
 **BIM as Code** is a Python library for programmatic Building Information Modeling. Write Python code to create buildings, generate documentation drawings, and export to industry-standard formats like IFC and DXF.
 
