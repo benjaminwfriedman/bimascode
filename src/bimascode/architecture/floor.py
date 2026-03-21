@@ -8,6 +8,7 @@ They support openings for stairs, shafts, and other penetrations.
 
 from typing import List, Tuple, Optional, Union, TYPE_CHECKING
 from bimascode.core.type_instance import ElementInstance
+from bimascode.core.world_geometry import FreestandingElementMixin
 from bimascode.performance.bounding_box import BoundingBox
 from bimascode.spatial.level import Level
 from bimascode.utils.units import normalize_length, Length
@@ -19,7 +20,7 @@ if TYPE_CHECKING:
     from bimascode.drawing.primitives import Line2D, Arc2D, Polyline2D, Hatch2D
 
 
-class Floor(ElementInstance):
+class Floor(ElementInstance, FreestandingElementMixin):
     """
     A floor/slab element.
 
@@ -149,35 +150,27 @@ class Floor(ElementInstance):
         z = self.level.elevation_mm + self.thickness / 2
         return (cx, cy, z)
 
-    def get_world_geometry(self):
-        """Get floor geometry transformed to world coordinates.
+    def _get_world_position(self) -> Tuple[float, float, float]:
+        """Get world position for floor geometry.
 
-        The base get_geometry() returns geometry centered at origin
-        (due to build123d.Polygon centering). This method transforms it
-        to world coordinates using the floor's centroid and level elevation.
+        build123d's Polygon centers vertices at the centroid, so we translate
+        by the centroid to restore correct world positioning.
 
         Returns:
-            build123d geometry in world coordinates, or None
+            (x, y, z) at floor centroid, with Z at level elevation
         """
-        import copy
-        from build123d import Location
-
-        local_geom = self.get_geometry()
-        if local_geom is None:
-            return None
-
-        # CRITICAL: Copy geometry before transforming!
-        # locate() modifies in place, which would corrupt the cached local geometry
-        geom_copy = copy.copy(local_geom)
-
-        # Transform from local (centered) to world coordinates:
-        # - Translate to floor centroid (X, Y)
-        # - Translate to level elevation (Z)
         cx, cy = self.get_centroid()
-        z = self.level.elevation_mm
+        return (cx, cy, self.level.elevation_mm)
 
-        world_transform = Location((cx, cy, z))
-        return geom_copy.locate(world_transform)
+    def _get_world_rotation(self) -> float:
+        """Get world rotation for floor geometry.
+
+        Floors have no rotation (horizontal elements).
+
+        Returns:
+            0.0 (no rotation)
+        """
+        return 0.0
 
     def set_boundary(self, boundary: List[Tuple[float, float]]) -> None:
         """

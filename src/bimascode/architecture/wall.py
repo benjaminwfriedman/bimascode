@@ -7,6 +7,7 @@ This module implements straight walls with support for hosted elements
 
 from typing import Tuple, Optional, List, TYPE_CHECKING, Union
 from bimascode.core.type_instance import ElementInstance
+from bimascode.core.world_geometry import FreestandingElementMixin
 from bimascode.performance.bounding_box import BoundingBox
 from bimascode.spatial.level import Level
 from bimascode.utils.units import Length, normalize_length
@@ -19,7 +20,7 @@ if TYPE_CHECKING:
     from bimascode.drawing.primitives import Line2D, Arc2D, Polyline2D, Hatch2D
 
 
-class Wall(ElementInstance):
+class Wall(ElementInstance, FreestandingElementMixin):
     """
     A straight wall element.
 
@@ -134,43 +135,22 @@ class Wall(ElementInstance):
         """Get wall angle in degrees."""
         return math.degrees(self.angle)
 
-    def get_world_geometry(self):
-        """Get wall geometry transformed to world coordinates.
-
-        The base get_geometry() returns geometry in local wall coordinates
-        (X along wall, Y perpendicular, Z up). This method transforms it
-        to world coordinates using the wall's position and rotation.
+    def _get_world_position(self) -> Tuple[float, float, float]:
+        """Get world position for wall geometry.
 
         Returns:
-            build123d geometry in world coordinates, or None
+            (x, y, z) at wall start point, with Z at level elevation
         """
-        import copy
-        from build123d import Location
-
-        local_geom = self.get_geometry()
-        if local_geom is None:
-            return None
-
-        # CRITICAL: Copy geometry before transforming!
-        # locate() modifies in place, which would corrupt the cached local geometry
-        geom_copy = copy.copy(local_geom)
-
-        # Transform from local to world coordinates:
-        # - Translate to wall start point at level elevation
-        # - Rotate by wall angle around Z axis
         start = self.start_point
-        angle_deg = self.angle_degrees
-        z = self.level.elevation_mm
+        return (start[0], start[1], self.level.elevation_mm)
 
-        # Create transform: rotate around Z, then translate to start point
-        # Location takes (position, axis, angle_degrees)
-        world_transform = Location(
-            (start[0], start[1], z),  # Translation to wall start at level elevation
-            (0, 0, 1),                 # Rotation axis (Z)
-            angle_deg                  # Rotation angle in degrees
-        )
+    def _get_world_rotation(self) -> float:
+        """Get world rotation for wall geometry.
 
-        return geom_copy.locate(world_transform)
+        Returns:
+            Wall angle in degrees
+        """
+        return self.angle_degrees
 
     @property
     def structural(self) -> bool:
