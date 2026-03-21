@@ -10,54 +10,75 @@
 
 **BIM as Code** is a Python library for programmatic Building Information Modeling. Write Python code to create buildings, generate documentation drawings, and export to industry-standard formats like IFC and DXF.
 
-## Status
-
-🚧 **v1.0 Development In Progress** - Sprint 1 of 10
-
-This project is under active development. See [EPOCH_SPRINT_PLAN.md](./EPOCH_SPRINT_PLAN.md) for the full roadmap.
-
-## Vision
-
-Replace GUI-based BIM authoring with a code-first workflow:
+## Quick Example
 
 ```python
-from bimascode import Building, Level, Wall, Door
+from bimascode.spatial.building import Building
+from bimascode.spatial.level import Level
+from bimascode.architecture import Wall, create_basic_wall_type, Door, DoorType, Window, WindowType
+from bimascode.utils.materials import MaterialLibrary
 
-# Create a building
-building = Building(name="My Building")
+# Create building and level
+building = Building("My Building")
+ground = Level(building, "Ground Floor", elevation=0)
 
-# Add levels
-level_1 = Level(building, name="Level 1", elevation=0.0)
-level_2 = Level(building, name="Level 2", elevation=4000.0)
+# Define types
+concrete = MaterialLibrary.concrete()
+wall_type = create_basic_wall_type("Exterior Wall", 300, concrete)
+door_type = DoorType(name="Entry Door", width=900, height=2100)
+window_type = WindowType(name="Standard Window", width=1200, height=1500, default_sill_height=900)
 
-# Add walls
-wall = Wall(
-    level=level_1,
-    start=(0, 0),
-    end=(10000, 0),
-    height=4000,
-    thickness=200
-)
+# Create walls (10m x 8m building)
+wall_south = Wall(wall_type, (0, 0), (10000, 0), ground)
+wall_east = Wall(wall_type, (10000, 0), (10000, 8000), ground)
+wall_north = Wall(wall_type, (10000, 8000), (0, 8000), ground)
+wall_west = Wall(wall_type, (0, 8000), (0, 0), ground)
 
-# Add a door
-door = Door(wall, location=5000, width=900, height=2100)
+# Add door and window
+door = Door(door_type, wall_south, offset=2000)
+window = Window(window_type, wall_east, offset=3000)
 
 # Export to IFC
 building.export_ifc("my_building.ifc")
-
-# Generate floor plan
-plan = building.floor_plan(level_1)
-plan.export("floor_plan.pdf")
 ```
 
-## Features (v1.0)
+## Features
 
-- **Building Modeling**: Walls, floors, roofs, doors, windows, stairs
-- **Structure**: Columns, beams, foundations
-- **Spatial Organization**: Levels, grids, rooms
-- **Documentation**: Floor plans, elevations, sections, schedules
-- **Interoperability**: IFC4 import/export, DXF output
-- **Visualization**: In-IDE 3D preview with OCP CAD Viewer
+### Spatial Organization
+- **Buildings** - Root container with unit system (metric/imperial)
+- **Levels** - Building storeys with elevation tracking
+- **Grids** - Architectural layout axes
+- **Rooms** - Spatial elements with area/volume calculations
+
+### Architectural Elements
+- **Walls** - Straight walls with compound layer stacks
+- **Wall Joins** - Automatic corner, T-junction, and cross detection
+- **Doors** - Hosted in walls with configurable types
+- **Windows** - Hosted in walls with sill height control
+- **Floors/Slabs** - Horizontal elements with layer stacks
+- **Roofs** - Flat roofs with drainage slope
+- **Ceilings** - Suspended ceiling elements
+- **Openings** - Voids in floors/roofs (stairs, shafts, skylights)
+
+### Structural Elements
+- **Columns** - Vertical structural members with section profiles
+- **Beams** - Horizontal/sloped members spanning between points
+
+### Drawing Generation
+- **Floor Plans** - Horizontal section cuts with configurable cut height
+- **Elevations** - Exterior projections with hidden line removal
+- **Sections** - Vertical section cuts with depth control
+- **View Templates** - Visibility and graphic overrides per element category
+- **Line Weights** - AIA/NCS standard line weights (0.13mm to 0.70mm)
+- **DXF Export** - Professional CAD output with proper layers
+
+### Performance
+- **Spatial Indexing** - R-tree for fast element queries
+- **Representation Caching** - Cached 2D linework with automatic invalidation
+
+### Export Formats
+- **IFC4/IFC2x3** - Full project hierarchy, properties, and materials
+- **DXF** - AIA-compliant layers and line weights
 
 ## Installation
 
@@ -75,51 +96,42 @@ pip install -e ".[dev,viz]"
 
 ## Requirements
 
-- Python 3.10 or higher
-- build123d (geometry engine)
-- IfcOpenShell (IFC support)
-- ezdxf (DXF export)
+- Python 3.10+
+- [build123d](https://github.com/gumyr/build123d) - Geometry engine
+- [IfcOpenShell](https://ifcopenshell.org/) - IFC support
+- [ezdxf](https://ezdxf.mozman.at/) - DXF export
+
+## Examples
+
+See the [examples/](./examples) directory:
+
+| Example | Description |
+|---------|-------------|
+| `sprint6_demo.py` | Simple house with walls, doors, windows → IFC + DXF |
+| `school_floor_plan.py` | School with 16 classrooms, lobby, corridors |
+| `office_world_geometry_demo.py` | Office with exposed structural grid, view templates |
 
 ## Documentation
 
-See the [examples](./examples) directory for usage examples and the [docs](./docs) directory for detailed documentation.
+See the [docs/](./docs) directory for detailed documentation.
 
 ## Project Structure
 
 ```
 bimascode/
 ├── src/bimascode/
-│   ├── core/          # Building, Level, Element
-│   ├── architecture/  # Wall, Floor, Roof, Door, Window
-│   ├── structure/     # Column, Beam, Foundation
-│   ├── spatial/       # Room, Grid, Level
-│   ├── drawing/       # Views, Annotations
-│   ├── sheets/        # Sheet, Viewport, TitleBlock
-│   ├── export/        # IFC, DXF, PDF, STEP
-│   └── utils/         # Units, Materials, Parameters
+│   ├── core/           # Base Element class, type/instance pattern
+│   ├── spatial/        # Building, Level, Grid, Room
+│   ├── architecture/   # Wall, Floor, Roof, Door, Window, Ceiling
+│   ├── structure/      # Column, Beam, Profile
+│   ├── drawing/        # Floor plans, elevations, sections, DXF export
+│   ├── performance/    # Spatial index, representation cache
+│   ├── export/         # IFC exporter/importer
+│   └── utils/          # Units, Materials
+├── examples/
 ├── tests/
-├── docs/
-└── examples/
+└── docs/
 ```
-
-## Development Roadmap
-
-This project follows a 10-sprint development plan:
-
-- **Sprint 1** (Current): IFC import/export, levels, grids, units
-- **Sprint 2-3**: Walls, roofs, openings, wall joins
-- **Sprint 4**: Rooms, structure (columns, beams)
-- **Sprint 5**: Performance optimization
-- **Sprint 6**: Drawing generation with professional line weights
-- **Sprint 7-8**: Annotations, sheets, title blocks
-- **Sprint 9**: Schedules and material takeoffs
-- **Sprint 10**: Stairs and v1.0 release
-
-See [EPOCH_SPRINT_PLAN.md](./EPOCH_SPRINT_PLAN.md) for details.
-
-## Contributing
-
-This project is currently in early development. Contributions will be welcomed after v1.0 release.
 
 ## License
 
