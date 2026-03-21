@@ -209,15 +209,15 @@ class DoorType(ElementType):
         sill_height = instance.sill_height
 
         # Create opening box in wall's local coordinates
-        # Wall local coords: X along length, Y through thickness, Z vertical
+        # Wall local coords: X along length, Y through thickness (centered on Y=0), Z vertical
         opening_box = Box(width, wall_thickness, height)
 
         # Position the opening:
         # X: offset along wall + half opening width
-        # Y: center in wall thickness
+        # Y: centered on wall centerline (Y=0)
         # Z: sill height + half opening height
         opening_box = opening_box.locate(Location(
-            (offset + width / 2, wall_thickness / 2 - 1, sill_height + height / 2),
+            (offset + width / 2, 0, sill_height + height / 2),
             (0, 0, 1), 0
         ))
 

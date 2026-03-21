@@ -86,6 +86,7 @@ class SectionCutter:
         from OCP.gp import gp_Dir, gp_Pln, gp_Pnt
         from OCP.TopAbs import TopAbs_EDGE
         from OCP.TopExp import TopExp_Explorer
+        from OCP.TopoDS import TopoDS
 
         # Get the OCC shape from build123d geometry
         if hasattr(geometry, "wrapped"):
@@ -110,11 +111,12 @@ class SectionCutter:
         explorer = TopExp_Explorer(result_shape, TopAbs_EDGE)
 
         while explorer.More():
-            edge = explorer.Current()
+            edge_shape = explorer.Current()
             explorer.Next()
 
-            # Get curve adapter
+            # Get curve adapter - must cast Shape to Edge
             try:
+                edge = TopoDS.Edge_s(edge_shape)
                 curve = BRepAdaptor_Curve(edge)
                 curve_type = curve.GetType()
 
@@ -263,6 +265,7 @@ class SectionCutter:
         from OCP.gp import gp_Dir, gp_Pln, gp_Pnt
         from OCP.TopAbs import TopAbs_EDGE
         from OCP.TopExp import TopExp_Explorer
+        from OCP.TopoDS import TopoDS
 
         # Get the OCC shape
         if hasattr(geometry, "wrapped"):
@@ -293,10 +296,12 @@ class SectionCutter:
         explorer = TopExp_Explorer(result_shape, TopAbs_EDGE)
 
         while explorer.More():
-            edge = explorer.Current()
+            edge_shape = explorer.Current()
             explorer.Next()
 
             try:
+                # Cast Shape to Edge
+                edge = TopoDS.Edge_s(edge_shape)
                 curve = BRepAdaptor_Curve(edge)
                 curve_type = curve.GetType()
 

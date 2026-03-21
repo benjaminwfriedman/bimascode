@@ -23,12 +23,17 @@ if TYPE_CHECKING:
 
 
 class ElevationDirection:
-    """Standard elevation view directions."""
+    """Standard elevation view directions.
 
-    NORTH = (0, 1, 0)  # Looking north (at south face)
-    SOUTH = (0, -1, 0)  # Looking south (at north face)
-    EAST = (1, 0, 0)  # Looking east (at west face)
-    WEST = (-1, 0, 0)  # Looking west (at east face)
+    Named by the face being viewed, following architectural convention:
+    - "North Elevation" shows the North face of the building
+    - To see the North face, the viewer looks South (toward the building)
+    """
+
+    NORTH = (0, -1, 0)  # View of North face (viewer looks South)
+    SOUTH = (0, 1, 0)   # View of South face (viewer looks North)
+    EAST = (-1, 0, 0)   # View of East face (viewer looks West)
+    WEST = (1, 0, 0)    # View of West face (viewer looks East)
 
 
 class ElevationView(ViewBase):
@@ -40,7 +45,7 @@ class ElevationView(ViewBase):
     appearance of the building.
 
     Example:
-        >>> # North elevation looking at the south face
+        >>> # North elevation showing the north face of the building
         >>> view = ElevationView(
         ...     "North Elevation",
         ...     direction=ElevationDirection.NORTH,
@@ -54,6 +59,7 @@ class ElevationView(ViewBase):
         direction: Tuple[float, float, float],
         origin: Optional[Tuple[float, float, float]] = None,
         depth: float = 100000.0,
+        front_clip_depth: float = 1000.0,
         height_range: Optional[Tuple[float, float]] = None,
         scale: ViewScale = ViewScale.SCALE_1_100,
         crop_region: Optional[ViewCropRegion] = None,
@@ -67,6 +73,9 @@ class ElevationView(ViewBase):
             direction: View direction vector (direction viewer is looking)
             origin: Origin point for the view (default: model center)
             depth: How far to look in the view direction (mm)
+            front_clip_depth: How deep from the front face to include elements (mm).
+                For exterior elevations, use a small value (e.g., 1000mm) to only
+                show the facade. For full building projection, use a large value.
             height_range: Optional (min_z, max_z) to limit vertical extent
             scale: View scale
             crop_region: Optional crop region
@@ -78,6 +87,7 @@ class ElevationView(ViewBase):
         self.direction = self._normalize(direction)
         self.origin = origin
         self.depth = depth
+        self.front_clip_depth = front_clip_depth
         self.height_range = height_range
         self._template = template
         self.show_hidden_lines = show_hidden_lines
@@ -90,19 +100,47 @@ class ElevationView(ViewBase):
         return (v[0] / length, v[1] / length, v[2] / length)
 
     def _get_view_bbox(self, spatial_index) -> Optional[BoundingBox]:
-        """Get bounding box for elements in the elevation view."""
+        """Get bounding box for elements in the elevation view.
+
+        The bounding box is limited by front_clip_depth to only include
+        elements near the facade facing the viewer.
+        """
         # Get overall model bounds
         model_bounds = spatial_index.bounds
         if model_bounds is None:
             return None
 
-        # Use model bounds, optionally limited by height range
         min_x, min_y, min_z = model_bounds.min_x, model_bounds.min_y, model_bounds.min_z
         max_x, max_y, max_z = model_bounds.max_x, model_bounds.max_y, model_bounds.max_z
 
+        # Apply height range if specified
         if self.height_range is not None:
             min_z = max(min_z, self.height_range[0])
             max_z = min(max_z, self.height_range[1])
+
+        # Limit depth based on view direction and front_clip_depth
+        # The viewer looks in direction `self.direction` at the building face.
+        # The "front" face is the one the viewer sees first (closest to viewer).
+        # If looking +X, the front face is at min_x (West face of building).
+        # If looking -X, the front face is at max_x (East face of building).
+        dx, dy, dz = self.direction
+
+        if abs(dx) > 0.9:
+            # Looking along X axis
+            if dx > 0:
+                # Looking +X (East): seeing West face, front is at min_x
+                max_x = min_x + self.front_clip_depth
+            else:
+                # Looking -X (West): seeing East face, front is at max_x
+                min_x = max_x - self.front_clip_depth
+        elif abs(dy) > 0.9:
+            # Looking along Y axis
+            if dy > 0:
+                # Looking +Y (North): seeing South face, front is at min_y
+                max_y = min_y + self.front_clip_depth
+            else:
+                # Looking -Y (South): seeing North face, front is at max_y
+                min_y = max_y - self.front_clip_depth
 
         return BoundingBox(min_x, min_y, min_z, max_x, max_y, max_z)
 

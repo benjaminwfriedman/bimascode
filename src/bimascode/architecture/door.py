@@ -116,6 +116,66 @@ class Door(ElementInstance):
 
         return (x, y, z)
 
+    def get_world_geometry(self):
+        """Get door geometry transformed to world coordinates.
+
+        The base get_geometry() returns geometry in local door coordinates
+        (origin at bottom-left corner of frame). This method transforms it
+        to world coordinates using the host wall's position and rotation.
+
+        The wall's start/end points define its centerline. The door must be
+        positioned relative to this centerline, centered in the wall thickness.
+
+        Returns:
+            build123d geometry in world coordinates, or None
+        """
+        from build123d import Location
+
+        local_geom = self.get_geometry()
+        if local_geom is None:
+            return None
+
+        wall = self._host_wall
+        wall_start = wall.start_point
+        wall_angle_deg = wall.angle_degrees
+
+        offset = self.offset
+        sill = self.sill_height
+        wall_thickness = wall.width
+        z = wall.level.elevation_mm + sill
+
+        # Door local geometry: origin at bottom-left of frame, extends +X (width), +Y (depth), +Z (height)
+        # Door frame_depth is how deep the door is (Y extent in door local coords)
+        frame_depth = self.type.frame_depth
+
+        # In wall-local coordinates:
+        # - X runs along the wall length (from start to end)
+        # - Y runs perpendicular to wall, with Y=0 at the wall centerline
+        # - The wall extends from Y = -wall_thickness/2 to Y = +wall_thickness/2
+        #
+        # The door should be centered in the wall thickness:
+        # - Door center Y should be at wall center Y (which is 0 in wall-local)
+        # - So door Y ranges from -frame_depth/2 to +frame_depth/2
+        # - Door local origin (Y=0) should map to wall-local Y = -frame_depth/2
+        y_offset = -frame_depth / 2
+
+        # Position door in wall-local coordinates
+        local_position = Location((offset, y_offset, 0))
+
+        # Wall-to-world transform: rotate by wall angle around Z, then translate
+        world_transform = Location(
+            (wall_start[0], wall_start[1], z),
+            (0, 0, 1),
+            wall_angle_deg
+        )
+
+        # Compose transforms: world_transform * local_position
+        # This applies local_position first (offset along wall, center in thickness),
+        # then world_transform (rotate and translate to wall's world position)
+        # Note: calling locate() twice doesn't compose - it replaces the transform
+        combined_transform = world_transform * local_position
+        return local_geom.locate(combined_transform)
+
     def set_offset(self, offset: Length | float) -> None:
         """
         Set the offset from wall start.

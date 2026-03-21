@@ -243,9 +243,12 @@ class WallType(ElementType):
 
             # Position the layer in local coordinates:
             # - X: center along wall length (length/2)
-            # - Y: offset from exterior face (current_offset + half thickness)
+            # - Y: centered on wall centerline (Y=0 is centerline)
+            #      Wall extends from Y = -total_width/2 to Y = +total_width/2
             # - Z: center at half height
-            layer_y_offset = current_offset + layer.thickness_mm / 2
+            total_width = sum(lyr.thickness_mm for lyr in self.layers)
+            half_total = total_width / 2.0
+            layer_y_offset = current_offset + layer.thickness_mm / 2 - half_total
 
             loc = Location(
                 (length / 2, layer_y_offset, height / 2),

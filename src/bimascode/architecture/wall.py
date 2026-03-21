@@ -134,6 +134,38 @@ class Wall(ElementInstance):
         """Get wall angle in degrees."""
         return math.degrees(self.angle)
 
+    def get_world_geometry(self):
+        """Get wall geometry transformed to world coordinates.
+
+        The base get_geometry() returns geometry in local wall coordinates
+        (X along wall, Y perpendicular, Z up). This method transforms it
+        to world coordinates using the wall's position and rotation.
+
+        Returns:
+            build123d geometry in world coordinates, or None
+        """
+        from build123d import Location
+
+        local_geom = self.get_geometry()
+        if local_geom is None:
+            return None
+
+        # Transform from local to world coordinates:
+        # - Translate to wall start point
+        # - Rotate by wall angle around Z axis
+        start = self.start_point
+        angle_deg = self.angle_degrees
+
+        # Create transform: rotate around Z, then translate to start point
+        # Location takes (position, axis, angle_degrees)
+        world_transform = Location(
+            (start[0], start[1], 0),  # Translation to wall start
+            (0, 0, 1),                 # Rotation axis (Z)
+            angle_deg                  # Rotation angle in degrees
+        )
+
+        return local_geom.locate(world_transform)
+
     @property
     def structural(self) -> bool:
         """Check if wall is marked as structural (shear wall)."""

@@ -103,11 +103,12 @@ class HLRProcessor:
         from OCP.BRep import BRep_Tool
         from OCP.BRepAdaptor import BRepAdaptor_Curve
         from OCP.GeomAbs import GeomAbs_Circle, GeomAbs_Line
-        from OCP.gp import gp_Ax2, gp_Dir, gp_Pnt
+        from OCP.gp import gp_Ax2, gp_Dir, gp_Pnt, gp_Vec
         from OCP.HLRAlgo import HLRAlgo_Projector
         from OCP.HLRBRep import HLRBRep_Algo, HLRBRep_HLRToShape
         from OCP.TopAbs import TopAbs_EDGE
         from OCP.TopExp import TopExp_Explorer
+        from OCP.TopoDS import TopoDS
 
         # Get the OCC shape
         if hasattr(geometry, "wrapped"):
@@ -120,13 +121,30 @@ class HLRProcessor:
         hlr.Add(shape)
 
         # Set up projector (orthographic projection)
-        # The projector defines the view direction
+        # For HLR, we need a proper coordinate system:
+        # - Z axis = view direction (into the screen)
+        # - Y axis = up direction
+        # - X axis = right direction (computed from Z cross Y)
         view_origin = gp_Pnt(0, 0, 0)
         view_dir = gp_Dir(*view_direction)
+        up_dir = gp_Dir(*view_up)
 
-        # Create axis system for projection
-        # Z is view direction, X is perpendicular to Z and up
-        ax2 = gp_Ax2(view_origin, view_dir)
+        # Compute X axis as cross product of view direction and up
+        # X = view_dir × up (gives right-hand coordinate system)
+        # For West view (-1,0,0) with up (0,0,1): X = (-1,0,0) × (0,0,1) = (0,1,0) = +Y
+        up_vec = gp_Vec(up_dir)
+        view_vec = gp_Vec(view_dir)
+        x_vec = view_vec.Crossed(up_vec)
+
+        # Normalize and create X direction
+        if x_vec.Magnitude() > 1e-10:
+            x_dir = gp_Dir(x_vec)
+        else:
+            # Fallback if up and view are parallel
+            x_dir = gp_Dir(1, 0, 0) if abs(view_direction[0]) < 0.9 else gp_Dir(0, 1, 0)
+
+        # Create axis system: origin, Z-axis (view dir), X-axis
+        ax2 = gp_Ax2(view_origin, view_dir, x_dir)
         projector = HLRAlgo_Projector(ax2)
 
         hlr.Projector(projector)
@@ -191,16 +209,19 @@ class HLRProcessor:
         from OCP.GeomAbs import GeomAbs_Circle, GeomAbs_Line
         from OCP.TopAbs import TopAbs_EDGE
         from OCP.TopExp import TopExp_Explorer
+        from OCP.TopoDS import TopoDS
 
         result: List[Line2D] = []
 
         explorer = TopExp_Explorer(shape, TopAbs_EDGE)
 
         while explorer.More():
-            edge = explorer.Current()
+            edge_shape = explorer.Current()
             explorer.Next()
 
             try:
+                # Cast Shape to Edge
+                edge = TopoDS.Edge_s(edge_shape)
                 curve = BRepAdaptor_Curve(edge)
                 curve_type = curve.GetType()
 
@@ -208,27 +229,21 @@ class HLRProcessor:
                     p1 = curve.Value(curve.FirstParameter())
                     p2 = curve.Value(curve.LastParameter())
 
-                    # Project 3D to 2D based on view direction
-                    pt1 = self._project_point(
-                        (p1.X(), p1.Y(), p1.Z()), view_direction
-                    )
-                    pt2 = self._project_point(
-                        (p2.X(), p2.Y(), p2.Z()), view_direction
-                    )
-
+                    # HLR output is in projection plane coordinates:
+                    # - X = horizontal extent (perpendicular to view and up)
+                    # - Y = vertical extent (negated due to gp_Ax2 convention)
+                    # Negate Y to get correct vertical orientation (up = positive)
                     result.append(
                         Line2D(
-                            start=Point2D(pt1[0], pt1[1]),
-                            end=Point2D(pt2[0], pt2[1]),
+                            start=Point2D(p1.X(), -p1.Y()),
+                            end=Point2D(p2.X(), -p2.Y()),
                             style=style,
                             layer=layer,
                         )
                     )
                 else:
                     # Tessellate other curve types
-                    lines = self._tessellate_edge(
-                        curve, style, layer, view_direction
-                    )
+                    lines = self._tessellate_edge(curve, style, layer)
                     result.extend(lines)
 
             except Exception:
@@ -241,10 +256,12 @@ class HLRProcessor:
         curve,
         style: LineStyle,
         layer: str,
-        view_direction: Tuple[float, float, float],
         num_segments: int = 32,
     ) -> List[Line2D]:
-        """Tessellate a curve edge into line segments."""
+        """Tessellate a curve edge into line segments.
+
+        HLR output is in projection plane coordinates - map directly to 2D.
+        """
         result = []
 
         first = curve.FirstParameter()
@@ -256,10 +273,9 @@ class HLRProcessor:
             param = first + i * step
             pnt = curve.Value(param)
 
-            pt = self._project_point(
-                (pnt.X(), pnt.Y(), pnt.Z()), view_direction
-            )
-            current = Point2D(pt[0], pt[1])
+            # HLR output: X=horizontal, Y=vertical (negated due to gp_Ax2 convention)
+            # Negate Y to get correct vertical orientation
+            current = Point2D(pnt.X(), -pnt.Y())
 
             if prev_point is not None:
                 result.append(
@@ -317,7 +333,11 @@ class HLRProcessor:
         visible_style: Optional[LineStyle] = None,
         hidden_style: Optional[LineStyle] = None,
     ) -> Tuple[List[Line2D], List[Line2D]]:
-        """Process multiple elements through HLR.
+        """Process multiple elements through HLR with proper occlusion.
+
+        All geometry is combined into a single compound shape before HLR
+        processing, so that elements properly occlude each other (e.g.,
+        a wall in front hides doors behind it).
 
         Args:
             elements: List of elements with get_geometry() method
@@ -330,27 +350,128 @@ class HLRProcessor:
         Returns:
             Tuple of (visible_lines, hidden_lines)
         """
-        all_visible: List[Line2D] = []
-        all_hidden: List[Line2D] = []
+        if visible_style is None:
+            visible_style = LineStyle.visible()
+        if hidden_style is None:
+            hidden_style = LineStyle.hidden()
 
+        if not self._occt_available:
+            return [], []
+
+        # Collect all geometry shapes
+        from OCP.BRep import BRep_Builder
+        from OCP.TopoDS import TopoDS_Compound
+
+        builder = BRep_Builder()
+        compound = TopoDS_Compound()
+        builder.MakeCompound(compound)
+
+        has_geometry = False
         for element in elements:
-            if hasattr(element, "get_geometry"):
+            # Prefer world geometry if available (includes transform to world coordinates)
+            if hasattr(element, "get_world_geometry"):
+                geometry = element.get_world_geometry()
+            elif hasattr(element, "get_geometry"):
                 geometry = element.get_geometry()
-                if geometry is not None:
-                    layer = self._get_layer_for_element(element)
-                    visible, hidden = self.process(
-                        geometry,
-                        view_direction,
-                        view_up,
-                        show_hidden,
-                        visible_style,
-                        hidden_style,
-                        layer,
-                    )
-                    all_visible.extend(visible)
-                    all_hidden.extend(hidden)
+            else:
+                geometry = None
 
-        return all_visible, all_hidden
+            if geometry is not None:
+                # Get the OCC shape
+                if hasattr(geometry, "wrapped"):
+                    shape = geometry.wrapped
+                else:
+                    shape = geometry
+                builder.Add(compound, shape)
+                has_geometry = True
+
+        if not has_geometry:
+            return [], []
+
+        # Run HLR on the combined compound - this computes proper occlusion
+        try:
+            return self._process_compound_hlr(
+                compound,
+                view_direction,
+                view_up,
+                show_hidden,
+                visible_style,
+                hidden_style,
+            )
+        except Exception:
+            return [], []
+
+    def _process_compound_hlr(
+        self,
+        compound,
+        view_direction: Tuple[float, float, float],
+        view_up: Tuple[float, float, float],
+        show_hidden: bool,
+        visible_style: LineStyle,
+        hidden_style: LineStyle,
+    ) -> Tuple[List[Line2D], List[Line2D]]:
+        """Run HLR on a compound shape with all geometry combined."""
+        from OCP.gp import gp_Ax2, gp_Dir, gp_Pnt, gp_Vec
+        from OCP.HLRAlgo import HLRAlgo_Projector
+        from OCP.HLRBRep import HLRBRep_Algo, HLRBRep_HLRToShape
+
+        # Create HLR algorithm with combined geometry
+        hlr = HLRBRep_Algo()
+        hlr.Add(compound)
+
+        # Set up projector (same as in process())
+        view_origin = gp_Pnt(0, 0, 0)
+        view_dir = gp_Dir(*view_direction)
+        up_dir = gp_Dir(*view_up)
+
+        up_vec = gp_Vec(up_dir)
+        view_vec = gp_Vec(view_dir)
+        x_vec = view_vec.Crossed(up_vec)
+
+        if x_vec.Magnitude() > 1e-10:
+            x_dir = gp_Dir(x_vec)
+        else:
+            x_dir = gp_Dir(1, 0, 0) if abs(view_direction[0]) < 0.9 else gp_Dir(0, 1, 0)
+
+        ax2 = gp_Ax2(view_origin, view_dir, x_dir)
+        projector = HLRAlgo_Projector(ax2)
+
+        hlr.Projector(projector)
+        hlr.Update()
+        hlr.Hide()
+
+        # Extract results
+        hlr_shapes = HLRBRep_HLRToShape(hlr)
+
+        visible_lines: List[Line2D] = []
+        hidden_lines: List[Line2D] = []
+
+        # Use a default layer for combined output
+        layer = "0"
+
+        # Extract visible sharp edges
+        visible_compound = hlr_shapes.VCompound()
+        if visible_compound is not None:
+            visible_lines.extend(
+                self._extract_edges(visible_compound, visible_style, layer, view_direction)
+            )
+
+        # Extract visible smooth edges
+        visible_smooth = hlr_shapes.Rg1LineVCompound()
+        if visible_smooth is not None:
+            visible_lines.extend(
+                self._extract_edges(visible_smooth, visible_style, layer, view_direction)
+            )
+
+        # Extract hidden edges if requested
+        if show_hidden:
+            hidden_compound = hlr_shapes.HCompound()
+            if hidden_compound is not None:
+                hidden_lines.extend(
+                    self._extract_edges(hidden_compound, hidden_style, layer, view_direction)
+                )
+
+        return visible_lines, hidden_lines
 
     def _get_layer_for_element(self, element) -> str:
         """Get appropriate layer for an element."""

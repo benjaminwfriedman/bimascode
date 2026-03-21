@@ -149,6 +149,31 @@ class Floor(ElementInstance):
         z = self.level.elevation_mm + self.thickness / 2
         return (cx, cy, z)
 
+    def get_world_geometry(self):
+        """Get floor geometry transformed to world coordinates.
+
+        The base get_geometry() returns geometry centered at origin
+        (due to build123d.Polygon centering). This method transforms it
+        to world coordinates using the floor's centroid and level elevation.
+
+        Returns:
+            build123d geometry in world coordinates, or None
+        """
+        from build123d import Location
+
+        local_geom = self.get_geometry()
+        if local_geom is None:
+            return None
+
+        # Transform from local (centered) to world coordinates:
+        # - Translate to floor centroid (X, Y)
+        # - Translate to level elevation (Z)
+        cx, cy = self.get_centroid()
+        z = self.level.elevation_mm
+
+        world_transform = Location((cx, cy, z))
+        return local_geom.locate(world_transform)
+
     def set_boundary(self, boundary: List[Tuple[float, float]]) -> None:
         """
         Set the floor boundary.
