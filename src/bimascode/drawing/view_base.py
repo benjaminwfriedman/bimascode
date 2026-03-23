@@ -9,7 +9,8 @@ from __future__ import annotations
 import math
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, List, Optional, Tuple
+from enum import Enum
+from typing import TYPE_CHECKING, Dict, List, Optional, Tuple
 
 from bimascode.drawing.primitives import (
     Arc2D,
@@ -134,6 +135,120 @@ class ViewRange:
         return level_elevation + self.cut_height
 
 
+class DetailLevel(Enum):
+    """Level of detail for view rendering.
+
+    Controls visibility of small elements and line weight adjustments
+    based on the view scale. Maps to standard architectural drawing scales.
+    """
+
+    VERY_HIGH = "very_high"  # 1:1 to 1:20 - Show all details
+    HIGH = "high"            # 1:20 to 1:50 - Show most details
+    MEDIUM = "medium"        # 1:50 to 1:100 - Standard details
+    LOW = "low"              # 1:100 to 1:200 - Reduced details
+    VERY_LOW = "very_low"    # 1:200+ - Minimal details
+
+    @classmethod
+    def from_scale(cls, scale: "ViewScale") -> "DetailLevel":
+        """Automatically determine detail level from scale ratio.
+
+        Args:
+            scale: ViewScale to analyze
+
+        Returns:
+            Appropriate DetailLevel for the scale
+        """
+        ratio = scale.ratio
+
+        if ratio >= 0.05:     # 1:20 or larger
+            return cls.VERY_HIGH
+        elif ratio >= 0.02:   # 1:50
+            return cls.HIGH
+        elif ratio >= 0.01:   # 1:100
+            return cls.MEDIUM
+        elif ratio >= 0.005:  # 1:200
+            return cls.LOW
+        else:                 # 1:500 or smaller
+            return cls.VERY_LOW
+
+
+@dataclass
+class ScaleBehaviorConfig:
+    """Configuration for scale-dependent rendering behavior.
+
+    Controls how views render elements at different scales to maintain
+    visual clarity and appropriate level of detail.
+
+    Attributes:
+        detail_level: Level of detail to render
+        min_element_size: Minimum element size to show (mm)
+        min_line_length: Minimum line length to show (mm)
+        line_weight_factor: Multiplier for line weights (0.7 = 30% reduction)
+        show_small_details: Whether to show small details like hardware
+        simplify_geometry: Whether to simplify geometry (future enhancement)
+    """
+
+    detail_level: DetailLevel
+    min_element_size: float = 0.0
+    min_line_length: float = 0.0
+    line_weight_factor: float = 1.0
+    show_small_details: bool = True
+    simplify_geometry: bool = False
+
+    @classmethod
+    def for_detail_level(cls, level: DetailLevel) -> "ScaleBehaviorConfig":
+        """Create standard configuration for a detail level.
+
+        Provides industry-standard thresholds for each detail level
+        based on architectural drawing conventions.
+
+        Args:
+            level: DetailLevel to configure
+
+        Returns:
+            ScaleBehaviorConfig with appropriate settings
+        """
+        configs = {
+            DetailLevel.VERY_HIGH: cls(
+                detail_level=DetailLevel.VERY_HIGH,
+                min_element_size=0.0,
+                min_line_length=0.0,
+                line_weight_factor=1.0,
+                show_small_details=True,
+            ),
+            DetailLevel.HIGH: cls(
+                detail_level=DetailLevel.HIGH,
+                min_element_size=10.0,
+                min_line_length=5.0,
+                line_weight_factor=1.0,
+                show_small_details=True,
+            ),
+            DetailLevel.MEDIUM: cls(
+                detail_level=DetailLevel.MEDIUM,
+                min_element_size=50.0,
+                min_line_length=20.0,
+                line_weight_factor=0.9,
+                show_small_details=True,
+            ),
+            DetailLevel.LOW: cls(
+                detail_level=DetailLevel.LOW,
+                min_element_size=100.0,
+                min_line_length=50.0,
+                line_weight_factor=0.8,
+                show_small_details=False,
+            ),
+            DetailLevel.VERY_LOW: cls(
+                detail_level=DetailLevel.VERY_LOW,
+                min_element_size=200.0,
+                min_line_length=100.0,
+                line_weight_factor=0.7,
+                show_small_details=False,
+                simplify_geometry=True,
+            ),
+        }
+        return configs[level]
+
+
 @dataclass(frozen=True)
 class ViewScale:
     """Scale factor for views.
@@ -204,6 +319,50 @@ class ViewScale:
             Dimension in mm (model space)
         """
         return paper_dimension / self.ratio
+
+    def get_default_detail_level(self) -> DetailLevel:
+        """Get the recommended detail level for this scale.
+
+        Returns:
+            DetailLevel appropriate for this scale
+        """
+        return DetailLevel.from_scale(self)
+
+    def get_behavior_config(
+        self, override_level: Optional[DetailLevel] = None
+    ) -> ScaleBehaviorConfig:
+        """Get scale behavior configuration.
+
+        Args:
+            override_level: Optional detail level override
+
+        Returns:
+            ScaleBehaviorConfig with appropriate settings
+        """
+        level = override_level or self.get_default_detail_level()
+        return ScaleBehaviorConfig.for_detail_level(level)
+
+    @classmethod
+    def recommend_for_view_type(cls, view_type: str) -> "ViewScale":
+        """Recommend appropriate scale for a view type.
+
+        Provides standard scale recommendations based on architectural
+        drawing conventions for different view types.
+
+        Args:
+            view_type: Type of view (floor_plan, section, elevation, detail, site)
+
+        Returns:
+            Recommended ViewScale for the view type
+        """
+        recommendations = {
+            "floor_plan": cls.SCALE_1_100,
+            "section": cls.SCALE_1_50,
+            "elevation": cls.SCALE_1_100,
+            "detail": cls.SCALE_1_20,
+            "site": cls.SCALE_1_500,
+        }
+        return recommendations.get(view_type, cls.SCALE_1_100)
 
 
 # Initialize standard scales
