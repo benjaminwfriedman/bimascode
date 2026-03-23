@@ -185,11 +185,12 @@ def generate_floor_plan(level, walls, doors, windows, floors, output_path):
     # Create representation cache
     cache = RepresentationCache()
 
-    # Create floor plan view
+    # Create floor plan view with Revit-style view range
     view_range = ViewRange(
-        cut_height=1200,  # Cut at 1.2m above floor
-        top_clip=2700,
-        bottom_clip=0,
+        cut_height=1200,  # Cut at 1.2m above floor (4')
+        top=2700,  # Top of view at 2.7m (typical ceiling)
+        bottom=0,  # Bottom at floor level
+        view_depth=0,  # View depth at floor level
     )
 
     floor_plan = FloorPlanView(

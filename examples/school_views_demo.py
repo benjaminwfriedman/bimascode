@@ -273,8 +273,9 @@ def generate_floor_plan(level, spatial_index, cache, output_path):
 
     view_range = ViewRange(
         cut_height=1200,
-        top_clip=2700,
-        bottom_clip=0,
+        top=2700,
+        bottom=0,
+        view_depth=0,
     )
 
     floor_plan = FloorPlanView(

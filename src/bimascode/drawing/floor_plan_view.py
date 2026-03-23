@@ -93,12 +93,13 @@ class FloorPlanView(ViewBase):
             self._template.set_active_scale(self.scale)
 
         # Get the absolute Z range for this view
+        # Query from view_depth (lowest visible) to top (highest visible)
         level_elev = self.level.elevation_mm
-        z_min = level_elev + self.view_range.bottom_clip
-        z_max = level_elev + self.view_range.top_clip
-        cut_z = level_elev + self.view_range.cut_height
+        z_min = self.view_range.get_absolute_view_depth(level_elev)
+        z_max = self.view_range.get_absolute_top(level_elev)
+        cut_z = self.view_range.get_absolute_cut_height(level_elev)
 
-        # Query elements in the Z range
+        # Query elements in the visible Z range
         elements = spatial_index.query_z_range(z_min, z_max)
 
         # Filter by template visibility if a template is set
@@ -220,28 +221,35 @@ class FloorPlanView(ViewBase):
         return Layer.for_element_type(element_type)
 
     def _classify_element(self, element, cut_z: float) -> str:
-        """Classify an element relative to the cut plane.
+        """Classify an element for display based on view range.
+
+        Uses ViewRange.get_display_region() to classify elements according
+        to Revit's view range model:
+        - "cut": Heavy lines (element intersects cut plane)
+        - "above_cut": Medium lines (between cut and top)
+        - "below_cut": Medium lines (between bottom and cut)
+        - "beyond_bottom": Light lines (between view_depth and bottom)
+        - "hidden": Not visible
 
         Args:
             element: Element to classify
-            cut_z: Absolute Z coordinate of cut plane
+            cut_z: Absolute Z coordinate of cut plane (deprecated, uses view_range)
 
         Returns:
-            "cut", "below", or "above"
+            Display region name
         """
         if not isinstance(element, HasBoundingBox):
-            return "cut"
+            return "cut"  # Default for elements without bounding box
 
         bbox = element.get_bounding_box()
         if bbox is None:
             return "cut"
 
-        if bbox.max_z < cut_z:
-            return "below"
-        elif bbox.min_z > cut_z:
-            return "above"
-        else:
-            return "cut"
+        # Use ViewRange's display region classification
+        level_elev = self.level.elevation_mm
+        return self.view_range.get_display_region(
+            bbox.min_z, bbox.max_z, level_elev
+        )
 
     def _filter_by_scale(self, elements: List) -> List:
         """Filter elements based on scale behavior.

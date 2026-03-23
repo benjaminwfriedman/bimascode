@@ -31,23 +31,96 @@ if TYPE_CHECKING:
 class ViewRange:
     """Controls what's visible in a floor plan view.
 
-    In architectural floor plans, the view range defines:
-    - cut_height: Where the horizontal section is taken (typically 1200mm)
-    - top_clip: Maximum height to show (elements above are hidden)
-    - bottom_clip: Minimum height to show (typically level elevation)
-    - view_depth: How far below the cut plane to show elements
+    Follows Revit's view range model with five horizontal planes:
+    - Top: Upper limit of visibility (elements above are hidden)
+    - Cut Plane: Where the horizontal section cuts (heavy lines)
+    - Bottom: Lower limit for medium-weight visualization
+    - View Depth: Extended visibility below bottom (light lines)
+    - Level: The base reference (implied by FloorPlanView.level)
+
+    All offsets are measured from the associated level elevation.
+
+    Display behavior (matching Revit):
+    - Elements cut by cut plane → Heavy lines (1.4mm)
+    - Elements between cut and bottom → Medium lines (0.7mm)
+    - Elements between bottom and view depth → Light lines (0.35mm)
+    - Elements above top or below view depth → Hidden
 
     Attributes:
-        cut_height: Z coordinate of the section cut (mm above level)
-        top_clip: Top of visible range (mm above level)
-        bottom_clip: Bottom of visible range (mm above level)
-        view_depth: Depth below cut to show elements (mm)
+        cut_height: Cut plane offset from level (mm). Default 1200mm (4 feet).
+        top: Top plane offset from level (mm). Default 2400mm.
+        bottom: Bottom plane offset from level (mm). Default 0mm (at level).
+        view_depth: View depth plane offset from level (mm). Default 0mm.
+            When view_depth < bottom, it extends visibility below bottom.
+            Typically set same as bottom, or lower to show foundation elements.
+
+    Example:
+        >>> # Standard floor plan: cut at 1200mm, show up to 2400mm
+        >>> view_range = ViewRange(cut_height=1200, top=2400, bottom=0, view_depth=0)
+        >>>
+        >>> # Show basement: extend view depth below floor
+        >>> view_range = ViewRange(cut_height=1200, top=2400, bottom=0, view_depth=-1000)
     """
 
-    cut_height: float = 1200.0  # Standard cut at 1.2m above floor
-    top_clip: float = 2700.0  # Show up to 2.7m (below ceiling)
-    bottom_clip: float = 0.0  # Show from floor level
-    view_depth: float = 1200.0  # Show 1.2m below cut
+    cut_height: float = 1200.0  # Cut plane at 1.2m above floor (Revit default: 4')
+    top: float = 2400.0  # Top at 2.4m above floor
+    bottom: float = 0.0  # Bottom at floor level
+    view_depth: float = 0.0  # View depth at floor level (same as bottom)
+
+    # Backward compatibility properties
+    @property
+    def top_clip(self) -> float:
+        """Backward compatibility: top_clip is now 'top'."""
+        return self.top
+
+    @property
+    def bottom_clip(self) -> float:
+        """Backward compatibility: bottom_clip is now 'bottom'."""
+        return self.bottom
+
+    def get_absolute_top(self, level_elevation: float) -> float:
+        """Get absolute Z coordinate of top plane.
+
+        Args:
+            level_elevation: Level elevation in mm
+
+        Returns:
+            Absolute Z coordinate of top plane
+        """
+        return level_elevation + self.top
+
+    def get_absolute_bottom(self, level_elevation: float) -> float:
+        """Get absolute Z coordinate of bottom plane.
+
+        Args:
+            level_elevation: Level elevation in mm
+
+        Returns:
+            Absolute Z coordinate of bottom plane
+        """
+        return level_elevation + self.bottom
+
+    def get_absolute_view_depth(self, level_elevation: float) -> float:
+        """Get absolute Z coordinate of view depth plane.
+
+        Args:
+            level_elevation: Level elevation in mm
+
+        Returns:
+            Absolute Z coordinate of view depth plane
+        """
+        return level_elevation + self.view_depth
+
+    def get_absolute_cut_height(self, level_elevation: float) -> float:
+        """Get absolute Z coordinate of cut plane.
+
+        Args:
+            level_elevation: Level elevation in mm
+
+        Returns:
+            Absolute Z coordinate of cut plane
+        """
+        return level_elevation + self.cut_height
 
     def is_at_cut(self, z: float, level_elevation: float) -> bool:
         """Check if a Z coordinate is at the cut plane.
@@ -109,6 +182,9 @@ class ViewRange:
     ) -> bool:
         """Check if an element is within the visible range.
 
+        Elements are visible if they overlap with [view_depth, top].
+        This includes elements that are cut, above cut, or below cut.
+
         Args:
             z_min: Element's minimum Z coordinate
             z_max: Element's maximum Z coordinate
@@ -117,22 +193,80 @@ class ViewRange:
         Returns:
             True if element is visible in this view range
         """
-        abs_bottom = level_elevation + self.bottom_clip
-        abs_top = level_elevation + self.top_clip
+        abs_view_depth = level_elevation + self.view_depth
+        abs_top = level_elevation + self.top
 
-        # Element must overlap with [bottom_clip, top_clip]
-        return z_min <= abs_top and z_max >= abs_bottom
+        # Element must overlap with [view_depth, top]
+        return z_min <= abs_top and z_max >= abs_view_depth
 
-    def get_absolute_cut_height(self, level_elevation: float) -> float:
-        """Get absolute Z coordinate of cut plane.
+    def is_above_top(self, z_min: float, level_elevation: float) -> bool:
+        """Check if an element is entirely above the top plane (hidden).
 
         Args:
+            z_min: Element's minimum Z coordinate
             level_elevation: Level elevation in mm
 
         Returns:
-            Absolute Z coordinate
+            True if element is above top plane and not visible
         """
-        return level_elevation + self.cut_height
+        abs_top = level_elevation + self.top
+        return z_min > abs_top
+
+    def is_below_view_depth(self, z_max: float, level_elevation: float) -> bool:
+        """Check if an element is entirely below view depth plane (hidden).
+
+        Args:
+            z_max: Element's maximum Z coordinate
+            level_elevation: Level elevation in mm
+
+        Returns:
+            True if element is below view depth and not visible
+        """
+        abs_view_depth = level_elevation + self.view_depth
+        return z_max < abs_view_depth
+
+    def get_display_region(
+        self, z_min: float, z_max: float, level_elevation: float
+    ) -> str:
+        """Determine which display region an element belongs to.
+
+        This determines line weight according to Revit conventions:
+        - "cut": Element intersects cut plane → Heavy lines (1.4mm)
+        - "above_cut": Element between cut and top → Medium lines (0.7mm)
+        - "below_cut": Element between bottom and cut → Medium lines (0.7mm)
+        - "beyond_bottom": Element between view_depth and bottom → Light lines (0.35mm)
+        - "hidden": Element outside visible range
+
+        Args:
+            z_min: Element's minimum Z coordinate
+            z_max: Element's maximum Z coordinate
+            level_elevation: Level elevation in mm
+
+        Returns:
+            Display region name
+        """
+        if not self.is_visible(z_min, z_max, level_elevation):
+            return "hidden"
+
+        cut_z = level_elevation + self.cut_height
+        bottom_z = level_elevation + self.bottom
+
+        # Check if cut by plane
+        if z_min <= cut_z <= z_max:
+            return "cut"
+
+        # Above cut plane
+        if z_min > cut_z:
+            return "above_cut"
+
+        # Below cut plane - distinguish between bottom and view depth regions
+        if z_max < cut_z:
+            if z_max <= bottom_z:
+                return "beyond_bottom"  # Between view_depth and bottom
+            else:
+                return "below_cut"  # Between bottom and cut
+
+        return "hidden"
 
 
 class DetailLevel(Enum):

@@ -299,8 +299,9 @@ class ReflectedCeilingPlanView(ViewBase):
 
                 view_range = ViewRange(
                     cut_height=self.ceiling_height,
-                    top_clip=self.ceiling_height + 500,
-                    bottom_clip=self.ceiling_height - 100,
+                    top=self.ceiling_height + 500,
+                    bottom=self.ceiling_height - 100,
+                    view_depth=self.ceiling_height - 100,
                 )
 
                 linework = element.get_plan_representation(ceiling_z, view_range)
