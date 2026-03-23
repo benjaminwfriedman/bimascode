@@ -6,6 +6,7 @@ of building models at specified levels.
 
 from __future__ import annotations
 
+import math
 import time
 from typing import TYPE_CHECKING, List, Optional
 
@@ -87,18 +88,25 @@ class FloorPlanView(ViewBase):
         result = ViewResult(view_name=self.name)
         cache_hits = 0
 
-        # Get the absolute Z range for this view
-        level_elev = self.level.elevation_mm
-        z_min = level_elev + self.view_range.bottom_clip
-        z_max = level_elev + self.view_range.top_clip
-        cut_z = level_elev + self.view_range.cut_height
+        # Activate scale behavior in template
+        if self._template is not None:
+            self._template.set_active_scale(self.scale)
 
-        # Query elements in the Z range
+        # Get the absolute Z range for this view
+        # Query from view_depth (lowest visible) to top (highest visible)
+        level_elev = self.level.elevation_mm
+        z_min = self.view_range.get_absolute_view_depth(level_elev)
+        z_max = self.view_range.get_absolute_top(level_elev)
+        cut_z = self.view_range.get_absolute_cut_height(level_elev)
+
+        # Query elements in the visible Z range
         elements = spatial_index.query_z_range(z_min, z_max)
 
         # Filter by template visibility if a template is set
         if self._template is not None:
             elements = self._template.filter_visible(elements)
+            # Apply scale-based filtering
+            elements = self._filter_by_scale(elements)
 
         result.element_count = len(elements)
 
@@ -113,8 +121,14 @@ class FloorPlanView(ViewBase):
                 if representation_cache.get(element, cut_z) is not None:
                     cache_hits += 1
 
+                # Filter linework by scale
+                linework = self._filter_linework_by_scale(linework)
+
                 # Add linework to result
                 for item in linework:
+                    # Apply scale styling
+                    item = self._apply_scale_styling(element, item)
+
                     if isinstance(item, Line2D):
                         result.lines.append(item)
                     elif isinstance(item, Arc2D):
@@ -207,25 +221,154 @@ class FloorPlanView(ViewBase):
         return Layer.for_element_type(element_type)
 
     def _classify_element(self, element, cut_z: float) -> str:
-        """Classify an element relative to the cut plane.
+        """Classify an element for display based on view range.
+
+        Uses ViewRange.get_display_region() to classify elements according
+        to Revit's view range model:
+        - "cut": Heavy lines (element intersects cut plane)
+        - "above_cut": Medium lines (between cut and top)
+        - "below_cut": Medium lines (between bottom and cut)
+        - "beyond_bottom": Light lines (between view_depth and bottom)
+        - "hidden": Not visible
 
         Args:
             element: Element to classify
-            cut_z: Absolute Z coordinate of cut plane
+            cut_z: Absolute Z coordinate of cut plane (deprecated, uses view_range)
 
         Returns:
-            "cut", "below", or "above"
+            Display region name
         """
         if not isinstance(element, HasBoundingBox):
-            return "cut"
+            return "cut"  # Default for elements without bounding box
 
         bbox = element.get_bounding_box()
         if bbox is None:
             return "cut"
 
-        if bbox.max_z < cut_z:
-            return "below"
-        elif bbox.min_z > cut_z:
-            return "above"
-        else:
-            return "cut"
+        # Use ViewRange's display region classification
+        level_elev = self.level.elevation_mm
+        return self.view_range.get_display_region(
+            bbox.min_z, bbox.max_z, level_elev
+        )
+
+    def _filter_by_scale(self, elements: List) -> List:
+        """Filter elements based on scale behavior.
+
+        Args:
+            elements: Elements to filter
+
+        Returns:
+            Filtered list of elements
+        """
+        if self._template is None:
+            return elements
+
+        filtered = []
+        for element in elements:
+            size_hint = self._get_element_size_hint(element)
+            if self._template.should_show_element(element, size_hint):
+                filtered.append(element)
+
+        return filtered
+
+    def _get_element_size_hint(self, element) -> Optional[float]:
+        """Get size hint for element (width, diameter, etc.).
+
+        Args:
+            element: Element to analyze
+
+        Returns:
+            Size hint in mm, or None if unavailable
+        """
+        # Try common size attributes
+        if hasattr(element, 'width'):
+            return getattr(element, 'width')
+        elif hasattr(element, 'diameter'):
+            return getattr(element, 'diameter')
+        elif hasattr(element, 'thickness'):
+            return getattr(element, 'thickness')
+
+        # Fall back to bounding box diagonal
+        if isinstance(element, HasBoundingBox):
+            bbox = element.get_bounding_box()
+            if bbox is not None:
+                dx = bbox.max_x - bbox.min_x
+                dy = bbox.max_y - bbox.min_y
+                return math.sqrt(dx * dx + dy * dy)
+
+        return None
+
+    def _filter_linework_by_scale(self, linework: List) -> List:
+        """Filter line segments based on minimum length.
+
+        Args:
+            linework: List of 2D geometry items
+
+        Returns:
+            Filtered list
+        """
+        if self._template is None:
+            return linework
+
+        config = self._template.get_scale_behavior(self.scale)
+
+        if config.min_line_length <= 0:
+            return linework
+
+        filtered = []
+        for item in linework:
+            if isinstance(item, Line2D):
+                if item.length >= config.min_line_length:
+                    filtered.append(item)
+            elif isinstance(item, Arc2D):
+                if item.length >= config.min_line_length:
+                    filtered.append(item)
+            else:
+                # Keep polylines and hatches
+                filtered.append(item)
+
+        return filtered
+
+    def _apply_scale_styling(self, element, geometry_item):
+        """Apply scale-adjusted styling to geometry.
+
+        Args:
+            element: Source element
+            geometry_item: 2D geometry item
+
+        Returns:
+            Geometry item with adjusted style
+        """
+        if self._template is None or not hasattr(geometry_item, 'style'):
+            return geometry_item
+
+        adjusted_style = self._template.apply_scale_adjusted_style(
+            element, geometry_item.style
+        )
+
+        # Create new geometry with adjusted style
+        if isinstance(geometry_item, Line2D):
+            return Line2D(
+                start=geometry_item.start,
+                end=geometry_item.end,
+                style=adjusted_style,
+                layer=geometry_item.layer,
+            )
+        elif isinstance(geometry_item, Arc2D):
+            return Arc2D(
+                center=geometry_item.center,
+                radius=geometry_item.radius,
+                start_angle=geometry_item.start_angle,
+                end_angle=geometry_item.end_angle,
+                style=adjusted_style,
+                layer=geometry_item.layer,
+            )
+        elif isinstance(geometry_item, Polyline2D):
+            return Polyline2D(
+                points=geometry_item.points,
+                closed=geometry_item.closed,
+                style=adjusted_style,
+                layer=geometry_item.layer,
+            )
+
+        return geometry_item

@@ -557,8 +557,9 @@ def generate_floor_plan(level, spatial_index, cache, output_path, template=None)
 
     view_range = ViewRange(
         cut_height=1200,
-        top_clip=3500,     # Show beams above
-        bottom_clip=0,
+        top=3500,          # Show beams above
+        bottom=0,
+        view_depth=0,
     )
 
     floor_plan = FloorPlanView(

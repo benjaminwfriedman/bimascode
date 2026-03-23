@@ -20,22 +20,26 @@ class TestViewRange:
         """Test default view range values."""
         vr = ViewRange()
         assert vr.cut_height == 1200.0
-        assert vr.top_clip == 2700.0
-        assert vr.bottom_clip == 0.0
-        assert vr.view_depth == 1200.0
+        assert vr.top == 2400.0
+        assert vr.bottom == 0.0
+        assert vr.view_depth == 0.0
+
+        # Test backward compatibility properties
+        assert vr.top_clip == vr.top
+        assert vr.bottom_clip == vr.bottom
 
     def test_view_range_custom(self):
         """Test custom view range values."""
         vr = ViewRange(
             cut_height=1000,
-            top_clip=3000,
-            bottom_clip=-100,
-            view_depth=1500,
+            top=3000,
+            bottom=-100,
+            view_depth=-500,
         )
         assert vr.cut_height == 1000
-        assert vr.top_clip == 3000
-        assert vr.bottom_clip == -100
-        assert vr.view_depth == 1500
+        assert vr.top == 3000
+        assert vr.bottom == -100
+        assert vr.view_depth == -500
 
     def test_is_cut_by_plane(self):
         """Test is_cut_by_plane check."""
@@ -68,27 +72,81 @@ class TestViewRange:
         assert vr.is_below_cut(1500, level_elev) is False
 
     def test_is_visible(self):
-        """Test is_visible check."""
-        vr = ViewRange(bottom_clip=0, top_clip=2700)
+        """Test is_visible check with new top/bottom/view_depth model."""
+        vr = ViewRange(bottom=0, top=2700, view_depth=0)
         level_elev = 0
 
-        # Inside range
+        # Inside range [view_depth=0, top=2700]
         assert vr.is_visible(500, 2000, level_elev) is True
 
-        # Spanning range
+        # Spanning range (partially visible)
         assert vr.is_visible(-100, 500, level_elev) is True
 
-        # Above range
+        # Above top plane
         assert vr.is_visible(3000, 4000, level_elev) is False
 
-        # Below range
+        # Below view_depth plane
         assert vr.is_visible(-500, -100, level_elev) is False
+
+        # Test extended view depth
+        vr_extended = ViewRange(bottom=0, top=2700, view_depth=-1000)
+        # Element from -500 to -100 should now be visible
+        assert vr_extended.is_visible(-500, -100, level_elev) is True
 
     def test_absolute_cut_height(self):
         """Test absolute cut height calculation."""
         vr = ViewRange(cut_height=1200)
         level_elev = 3000
         assert vr.get_absolute_cut_height(level_elev) == 4200
+
+    def test_absolute_coordinates(self):
+        """Test all absolute coordinate methods."""
+        vr = ViewRange(cut_height=1200, top=2400, bottom=0, view_depth=-500)
+        level_elev = 1000
+
+        assert vr.get_absolute_cut_height(level_elev) == 2200
+        assert vr.get_absolute_top(level_elev) == 3400
+        assert vr.get_absolute_bottom(level_elev) == 1000
+        assert vr.get_absolute_view_depth(level_elev) == 500
+
+    def test_is_above_top(self):
+        """Test is_above_top check."""
+        vr = ViewRange(top=2400)
+        level_elev = 0
+
+        assert vr.is_above_top(2500, level_elev) is True
+        assert vr.is_above_top(2000, level_elev) is False
+
+    def test_is_below_view_depth(self):
+        """Test is_below_view_depth check."""
+        vr = ViewRange(view_depth=-500)
+        level_elev = 0
+
+        assert vr.is_below_view_depth(-600, level_elev) is True
+        assert vr.is_below_view_depth(-400, level_elev) is False
+
+    def test_get_display_region(self):
+        """Test display region classification (Revit-style)."""
+        vr = ViewRange(cut_height=1200, top=2400, bottom=0, view_depth=-500)
+        level_elev = 0
+
+        # Element cut by plane (z_min < cut < z_max)
+        assert vr.get_display_region(1000, 1500, level_elev) == "cut"
+
+        # Element entirely above cut plane
+        assert vr.get_display_region(1300, 2000, level_elev) == "above_cut"
+
+        # Element between bottom and cut
+        assert vr.get_display_region(100, 800, level_elev) == "below_cut"
+
+        # Element between view_depth and bottom (extended visibility)
+        assert vr.get_display_region(-400, -100, level_elev) == "beyond_bottom"
+
+        # Element above top plane (hidden)
+        assert vr.get_display_region(2500, 3000, level_elev) == "hidden"
+
+        # Element below view_depth (hidden)
+        assert vr.get_display_region(-800, -600, level_elev) == "hidden"
 
 
 class TestViewScale:

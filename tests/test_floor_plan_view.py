@@ -55,11 +55,11 @@ class TestFloorPlanView:
     def test_floor_plan_view_custom_range(self, simple_building):
         """Test floor plan view with custom view range."""
         _, level, _ = simple_building
-        view_range = ViewRange(cut_height=1000, top_clip=3000)
+        view_range = ViewRange(cut_height=1000, top=3000)
         view = FloorPlanView("Custom Plan", level, view_range=view_range)
 
         assert view.view_range.cut_height == 1000
-        assert view.view_range.top_clip == 3000
+        assert view.view_range.top == 3000
 
     def test_floor_plan_view_cut_height(self, simple_building):
         """Test cut height calculation."""

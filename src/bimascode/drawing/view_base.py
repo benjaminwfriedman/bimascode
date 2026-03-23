@@ -9,7 +9,8 @@ from __future__ import annotations
 import math
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, List, Optional, Tuple
+from enum import Enum
+from typing import TYPE_CHECKING, Dict, List, Optional, Tuple
 
 from bimascode.drawing.primitives import (
     Arc2D,
@@ -30,23 +31,96 @@ if TYPE_CHECKING:
 class ViewRange:
     """Controls what's visible in a floor plan view.
 
-    In architectural floor plans, the view range defines:
-    - cut_height: Where the horizontal section is taken (typically 1200mm)
-    - top_clip: Maximum height to show (elements above are hidden)
-    - bottom_clip: Minimum height to show (typically level elevation)
-    - view_depth: How far below the cut plane to show elements
+    Follows Revit's view range model with five horizontal planes:
+    - Top: Upper limit of visibility (elements above are hidden)
+    - Cut Plane: Where the horizontal section cuts (heavy lines)
+    - Bottom: Lower limit for medium-weight visualization
+    - View Depth: Extended visibility below bottom (light lines)
+    - Level: The base reference (implied by FloorPlanView.level)
+
+    All offsets are measured from the associated level elevation.
+
+    Display behavior (matching Revit):
+    - Elements cut by cut plane → Heavy lines (1.4mm)
+    - Elements between cut and bottom → Medium lines (0.7mm)
+    - Elements between bottom and view depth → Light lines (0.35mm)
+    - Elements above top or below view depth → Hidden
 
     Attributes:
-        cut_height: Z coordinate of the section cut (mm above level)
-        top_clip: Top of visible range (mm above level)
-        bottom_clip: Bottom of visible range (mm above level)
-        view_depth: Depth below cut to show elements (mm)
+        cut_height: Cut plane offset from level (mm). Default 1200mm (4 feet).
+        top: Top plane offset from level (mm). Default 2400mm.
+        bottom: Bottom plane offset from level (mm). Default 0mm (at level).
+        view_depth: View depth plane offset from level (mm). Default 0mm.
+            When view_depth < bottom, it extends visibility below bottom.
+            Typically set same as bottom, or lower to show foundation elements.
+
+    Example:
+        >>> # Standard floor plan: cut at 1200mm, show up to 2400mm
+        >>> view_range = ViewRange(cut_height=1200, top=2400, bottom=0, view_depth=0)
+        >>>
+        >>> # Show basement: extend view depth below floor
+        >>> view_range = ViewRange(cut_height=1200, top=2400, bottom=0, view_depth=-1000)
     """
 
-    cut_height: float = 1200.0  # Standard cut at 1.2m above floor
-    top_clip: float = 2700.0  # Show up to 2.7m (below ceiling)
-    bottom_clip: float = 0.0  # Show from floor level
-    view_depth: float = 1200.0  # Show 1.2m below cut
+    cut_height: float = 1200.0  # Cut plane at 1.2m above floor (Revit default: 4')
+    top: float = 2400.0  # Top at 2.4m above floor
+    bottom: float = 0.0  # Bottom at floor level
+    view_depth: float = 0.0  # View depth at floor level (same as bottom)
+
+    # Backward compatibility properties
+    @property
+    def top_clip(self) -> float:
+        """Backward compatibility: top_clip is now 'top'."""
+        return self.top
+
+    @property
+    def bottom_clip(self) -> float:
+        """Backward compatibility: bottom_clip is now 'bottom'."""
+        return self.bottom
+
+    def get_absolute_top(self, level_elevation: float) -> float:
+        """Get absolute Z coordinate of top plane.
+
+        Args:
+            level_elevation: Level elevation in mm
+
+        Returns:
+            Absolute Z coordinate of top plane
+        """
+        return level_elevation + self.top
+
+    def get_absolute_bottom(self, level_elevation: float) -> float:
+        """Get absolute Z coordinate of bottom plane.
+
+        Args:
+            level_elevation: Level elevation in mm
+
+        Returns:
+            Absolute Z coordinate of bottom plane
+        """
+        return level_elevation + self.bottom
+
+    def get_absolute_view_depth(self, level_elevation: float) -> float:
+        """Get absolute Z coordinate of view depth plane.
+
+        Args:
+            level_elevation: Level elevation in mm
+
+        Returns:
+            Absolute Z coordinate of view depth plane
+        """
+        return level_elevation + self.view_depth
+
+    def get_absolute_cut_height(self, level_elevation: float) -> float:
+        """Get absolute Z coordinate of cut plane.
+
+        Args:
+            level_elevation: Level elevation in mm
+
+        Returns:
+            Absolute Z coordinate of cut plane
+        """
+        return level_elevation + self.cut_height
 
     def is_at_cut(self, z: float, level_elevation: float) -> bool:
         """Check if a Z coordinate is at the cut plane.
@@ -108,6 +182,9 @@ class ViewRange:
     ) -> bool:
         """Check if an element is within the visible range.
 
+        Elements are visible if they overlap with [view_depth, top].
+        This includes elements that are cut, above cut, or below cut.
+
         Args:
             z_min: Element's minimum Z coordinate
             z_max: Element's maximum Z coordinate
@@ -116,22 +193,194 @@ class ViewRange:
         Returns:
             True if element is visible in this view range
         """
-        abs_bottom = level_elevation + self.bottom_clip
-        abs_top = level_elevation + self.top_clip
+        abs_view_depth = level_elevation + self.view_depth
+        abs_top = level_elevation + self.top
 
-        # Element must overlap with [bottom_clip, top_clip]
-        return z_min <= abs_top and z_max >= abs_bottom
+        # Element must overlap with [view_depth, top]
+        return z_min <= abs_top and z_max >= abs_view_depth
 
-    def get_absolute_cut_height(self, level_elevation: float) -> float:
-        """Get absolute Z coordinate of cut plane.
+    def is_above_top(self, z_min: float, level_elevation: float) -> bool:
+        """Check if an element is entirely above the top plane (hidden).
 
         Args:
+            z_min: Element's minimum Z coordinate
             level_elevation: Level elevation in mm
 
         Returns:
-            Absolute Z coordinate
+            True if element is above top plane and not visible
         """
-        return level_elevation + self.cut_height
+        abs_top = level_elevation + self.top
+        return z_min > abs_top
+
+    def is_below_view_depth(self, z_max: float, level_elevation: float) -> bool:
+        """Check if an element is entirely below view depth plane (hidden).
+
+        Args:
+            z_max: Element's maximum Z coordinate
+            level_elevation: Level elevation in mm
+
+        Returns:
+            True if element is below view depth and not visible
+        """
+        abs_view_depth = level_elevation + self.view_depth
+        return z_max < abs_view_depth
+
+    def get_display_region(
+        self, z_min: float, z_max: float, level_elevation: float
+    ) -> str:
+        """Determine which display region an element belongs to.
+
+        This determines line weight according to Revit conventions:
+        - "cut": Element intersects cut plane → Heavy lines (1.4mm)
+        - "above_cut": Element between cut and top → Medium lines (0.7mm)
+        - "below_cut": Element between bottom and cut → Medium lines (0.7mm)
+        - "beyond_bottom": Element between view_depth and bottom → Light lines (0.35mm)
+        - "hidden": Element outside visible range
+
+        Args:
+            z_min: Element's minimum Z coordinate
+            z_max: Element's maximum Z coordinate
+            level_elevation: Level elevation in mm
+
+        Returns:
+            Display region name
+        """
+        if not self.is_visible(z_min, z_max, level_elevation):
+            return "hidden"
+
+        cut_z = level_elevation + self.cut_height
+        bottom_z = level_elevation + self.bottom
+
+        # Check if cut by plane
+        if z_min <= cut_z <= z_max:
+            return "cut"
+
+        # Above cut plane
+        if z_min > cut_z:
+            return "above_cut"
+
+        # Below cut plane - distinguish between bottom and view depth regions
+        if z_max < cut_z:
+            if z_max <= bottom_z:
+                return "beyond_bottom"  # Between view_depth and bottom
+            else:
+                return "below_cut"  # Between bottom and cut
+
+        return "hidden"
+
+
+class DetailLevel(Enum):
+    """Level of detail for view rendering.
+
+    Controls visibility of small elements and line weight adjustments
+    based on the view scale. Maps to standard architectural drawing scales.
+    """
+
+    VERY_HIGH = "very_high"  # 1:1 to 1:20 - Show all details
+    HIGH = "high"            # 1:20 to 1:50 - Show most details
+    MEDIUM = "medium"        # 1:50 to 1:100 - Standard details
+    LOW = "low"              # 1:100 to 1:200 - Reduced details
+    VERY_LOW = "very_low"    # 1:200+ - Minimal details
+
+    @classmethod
+    def from_scale(cls, scale: "ViewScale") -> "DetailLevel":
+        """Automatically determine detail level from scale ratio.
+
+        Args:
+            scale: ViewScale to analyze
+
+        Returns:
+            Appropriate DetailLevel for the scale
+        """
+        ratio = scale.ratio
+
+        if ratio >= 0.05:     # 1:20 or larger
+            return cls.VERY_HIGH
+        elif ratio >= 0.02:   # 1:50
+            return cls.HIGH
+        elif ratio >= 0.01:   # 1:100
+            return cls.MEDIUM
+        elif ratio >= 0.005:  # 1:200
+            return cls.LOW
+        else:                 # 1:500 or smaller
+            return cls.VERY_LOW
+
+
+@dataclass
+class ScaleBehaviorConfig:
+    """Configuration for scale-dependent rendering behavior.
+
+    Controls how views render elements at different scales to maintain
+    visual clarity and appropriate level of detail.
+
+    Attributes:
+        detail_level: Level of detail to render
+        min_element_size: Minimum element size to show (mm)
+        min_line_length: Minimum line length to show (mm)
+        line_weight_factor: Multiplier for line weights (0.7 = 30% reduction)
+        show_small_details: Whether to show small details like hardware
+        simplify_geometry: Whether to simplify geometry (future enhancement)
+    """
+
+    detail_level: DetailLevel
+    min_element_size: float = 0.0
+    min_line_length: float = 0.0
+    line_weight_factor: float = 1.0
+    show_small_details: bool = True
+    simplify_geometry: bool = False
+
+    @classmethod
+    def for_detail_level(cls, level: DetailLevel) -> "ScaleBehaviorConfig":
+        """Create standard configuration for a detail level.
+
+        Provides industry-standard thresholds for each detail level
+        based on architectural drawing conventions.
+
+        Args:
+            level: DetailLevel to configure
+
+        Returns:
+            ScaleBehaviorConfig with appropriate settings
+        """
+        configs = {
+            DetailLevel.VERY_HIGH: cls(
+                detail_level=DetailLevel.VERY_HIGH,
+                min_element_size=0.0,
+                min_line_length=0.0,
+                line_weight_factor=1.0,
+                show_small_details=True,
+            ),
+            DetailLevel.HIGH: cls(
+                detail_level=DetailLevel.HIGH,
+                min_element_size=10.0,
+                min_line_length=5.0,
+                line_weight_factor=1.0,
+                show_small_details=True,
+            ),
+            DetailLevel.MEDIUM: cls(
+                detail_level=DetailLevel.MEDIUM,
+                min_element_size=50.0,
+                min_line_length=20.0,
+                line_weight_factor=0.9,
+                show_small_details=True,
+            ),
+            DetailLevel.LOW: cls(
+                detail_level=DetailLevel.LOW,
+                min_element_size=100.0,
+                min_line_length=50.0,
+                line_weight_factor=0.8,
+                show_small_details=False,
+            ),
+            DetailLevel.VERY_LOW: cls(
+                detail_level=DetailLevel.VERY_LOW,
+                min_element_size=200.0,
+                min_line_length=100.0,
+                line_weight_factor=0.7,
+                show_small_details=False,
+                simplify_geometry=True,
+            ),
+        }
+        return configs[level]
 
 
 @dataclass(frozen=True)
@@ -204,6 +453,50 @@ class ViewScale:
             Dimension in mm (model space)
         """
         return paper_dimension / self.ratio
+
+    def get_default_detail_level(self) -> DetailLevel:
+        """Get the recommended detail level for this scale.
+
+        Returns:
+            DetailLevel appropriate for this scale
+        """
+        return DetailLevel.from_scale(self)
+
+    def get_behavior_config(
+        self, override_level: Optional[DetailLevel] = None
+    ) -> ScaleBehaviorConfig:
+        """Get scale behavior configuration.
+
+        Args:
+            override_level: Optional detail level override
+
+        Returns:
+            ScaleBehaviorConfig with appropriate settings
+        """
+        level = override_level or self.get_default_detail_level()
+        return ScaleBehaviorConfig.for_detail_level(level)
+
+    @classmethod
+    def recommend_for_view_type(cls, view_type: str) -> "ViewScale":
+        """Recommend appropriate scale for a view type.
+
+        Provides standard scale recommendations based on architectural
+        drawing conventions for different view types.
+
+        Args:
+            view_type: Type of view (floor_plan, section, elevation, detail, site)
+
+        Returns:
+            Recommended ViewScale for the view type
+        """
+        recommendations = {
+            "floor_plan": cls.SCALE_1_100,
+            "section": cls.SCALE_1_50,
+            "elevation": cls.SCALE_1_100,
+            "detail": cls.SCALE_1_20,
+            "site": cls.SCALE_1_500,
+        }
+        return recommendations.get(view_type, cls.SCALE_1_100)
 
 
 # Initialize standard scales
