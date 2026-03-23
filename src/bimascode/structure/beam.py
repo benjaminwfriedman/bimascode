@@ -7,18 +7,20 @@ with IFC export support.
 
 from typing import Tuple, Optional, List, Union, TYPE_CHECKING
 from bimascode.core.type_instance import ElementInstance
+from bimascode.core.world_geometry import FreestandingElementMixin
 from bimascode.performance.bounding_box import BoundingBox
 from bimascode.spatial.level import Level
 from bimascode.utils.units import Length, normalize_length
 import math
 
 if TYPE_CHECKING:
+    from build123d import Location
     from bimascode.structure.beam_type import BeamType
     from bimascode.drawing.view_base import ViewRange
     from bimascode.drawing.primitives import Line2D, Arc2D, Polyline2D, Hatch2D
 
 
-class Beam(ElementInstance):
+class Beam(ElementInstance, FreestandingElementMixin):
     """
     A structural beam element.
 
@@ -156,57 +158,37 @@ class Beam(ElementInstance):
             (start[2] + end[2]) / 2
         )
 
-    def get_world_geometry(self):
-        """Get beam geometry transformed to world coordinates.
+    def _get_world_position(self) -> Tuple[float, float, float]:
+        """Get world position for beam geometry.
 
-        The base get_geometry() returns geometry in local beam coordinates
-        (origin at beam start, X along beam length, Y/Z centered). This method
-        transforms it to world coordinates using the beam's start point and orientation.
-
-        CRITICAL: locate() REPLACES transforms, it does NOT chain them!
-        Since create_geometry() applies an internal transform (shift to put start at origin),
-        we must compose that with the world transform using multiplication.
+        Beam Z includes both level elevation and the beam's local Z offset.
 
         Returns:
-            build123d geometry in world coordinates, or None
+            (x, y, z) at beam start point, with Z at level elevation + local Z
         """
-        import copy
-        from build123d import Location
-
-        local_geom = self.get_geometry()
-        if local_geom is None:
-            return None
-
-        # CRITICAL: Copy geometry before transforming!
-        # locate() modifies in place, which would corrupt the cached local geometry
-        geom_copy = copy.copy(local_geom)
-
         start = self.start_point
-        angle_deg = self.horizontal_angle_degrees
         level_z = self.level.elevation_mm
+        return (start[0], start[1], level_z + start[2])
 
-        # The local geometry has an internal transform from create_geometry():
-        # - Box centered at origin, then shifted by (length/2, 0, 0) to put start at origin
-        # This transform: Location((length/2, 0, 0))
-        #
-        # We need to compose with world transform:
-        # - Rotate by beam angle around Z
-        # - Translate to start point at level elevation + local Z offset
-        #
-        # Since locate() REPLACES transforms, we must multiply:
-        # combined = world_transform * local_transform
-        local_transform = Location((self.length / 2, 0, 0))
-        world_transform = Location(
-            (start[0], start[1], level_z + start[2]),
-            (0, 0, 1),
-            angle_deg
-        )
-        combined = world_transform * local_transform
+    def _get_world_rotation(self) -> float:
+        """Get world rotation for beam geometry.
 
-        # Apply the combined transform
-        world_geom = geom_copy.locate(combined)
+        Returns:
+            Beam horizontal angle in degrees
+        """
+        return self.horizontal_angle_degrees
 
-        return world_geom
+    def _get_local_transform(self) -> "Location":
+        """Get local transform for beam centering.
+
+        create_geometry() creates a box centered at origin. This transform
+        shifts the start to origin so the beam extends from start to end.
+
+        Returns:
+            Location transform to shift beam start to origin
+        """
+        from build123d import Location
+        return Location((self.length / 2, 0, 0))
 
     def set_start_point(self, point: Tuple[float, float, float]) -> None:
         """

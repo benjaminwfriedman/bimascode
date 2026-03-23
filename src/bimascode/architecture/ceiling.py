@@ -7,6 +7,7 @@ at a specified height above a level.
 
 from typing import List, Tuple, Optional, Union, TYPE_CHECKING
 from bimascode.core.type_instance import ElementInstance
+from bimascode.core.world_geometry import FreestandingElementMixin
 from bimascode.performance.bounding_box import BoundingBox
 from bimascode.spatial.level import Level
 from bimascode.utils.units import Length, normalize_length
@@ -17,7 +18,7 @@ if TYPE_CHECKING:
     from bimascode.drawing.primitives import Line2D, Arc2D, Polyline2D, Hatch2D
 
 
-class Ceiling(ElementInstance):
+class Ceiling(ElementInstance, FreestandingElementMixin):
     """
     A ceiling element.
 
@@ -145,42 +146,28 @@ class Ceiling(ElementInstance):
         z = self.elevation + self.thickness / 2
         return (cx, cy, z)
 
-    def get_world_geometry(self):
-        """Get ceiling geometry transformed to world coordinates.
+    def _get_world_position(self) -> Tuple[float, float, float]:
+        """Get world position for ceiling geometry.
 
-        The base get_geometry() returns geometry in local ceiling coordinates.
-
-        IMPORTANT: build123d's Polygon() automatically centers vertices at the
-        centroid, so the local geometry is shifted from the original boundary
-        coordinates. We need to translate by the centroid to restore correct
-        world positioning.
+        build123d's Polygon centers vertices at the centroid, so we translate
+        by the centroid to restore correct world positioning. Z is at ceiling
+        elevation (level + height - thickness).
 
         Returns:
-            build123d geometry in world coordinates, or None
+            (x, y, z) at ceiling centroid, with Z at ceiling elevation
         """
-        import copy
-        from build123d import Location
-
-        local_geom = self.get_geometry()
-        if local_geom is None:
-            return None
-
-        # CRITICAL: Copy geometry before transforming!
-        # locate() modifies in place, which would corrupt the cached local geometry
-        geom_copy = copy.copy(local_geom)
-
-        # Ceiling elevation (Z position)
-        z = self.elevation
-
-        # build123d Polygon centers the vertices at the centroid, so local geometry
-        # is offset from the original boundary coordinates. We need to translate
-        # by the centroid to put the ceiling back at the correct XY position.
         cx, cy = self.get_centroid()
+        return (cx, cy, self.elevation)
 
-        # Apply transform: translate to centroid XY and ceiling elevation Z
-        world_geom = geom_copy.locate(Location((cx, cy, z)))
+    def _get_world_rotation(self) -> float:
+        """Get world rotation for ceiling geometry.
 
-        return world_geom
+        Ceilings have no rotation (horizontal elements).
+
+        Returns:
+            0.0 (no rotation)
+        """
+        return 0.0
 
     def set_boundary(self, boundary: List[Tuple[float, float]]) -> None:
         """

@@ -7,18 +7,20 @@ They define position along the wall and sill height.
 
 from typing import Optional, List, Union, TYPE_CHECKING
 from bimascode.core.type_instance import ElementInstance
+from bimascode.core.world_geometry import HostedElementMixin
 from bimascode.performance.bounding_box import BoundingBox
 from bimascode.utils.units import Length, normalize_length
 import math
 
 if TYPE_CHECKING:
+    from build123d import Location
     from bimascode.architecture.window_type import WindowType
     from bimascode.architecture.wall import Wall
     from bimascode.drawing.view_base import ViewRange
     from bimascode.drawing.primitives import Line2D, Arc2D, Polyline2D, Hatch2D
 
 
-class Window(ElementInstance):
+class Window(ElementInstance, HostedElementMixin):
     """
     A window element hosted in a wall.
 
@@ -121,35 +123,34 @@ class Window(ElementInstance):
 
         return (x, y, z)
 
-    def get_world_geometry(self):
-        """Get window geometry transformed to world coordinates.
-
-        The base get_geometry() returns geometry in local window coordinates
-        (origin at bottom-left corner of frame). This method transforms it
-        to world coordinates using the host wall's position and rotation.
+    def _get_host_transform(self) -> "Location":
+        """Get the host wall's world transform.
 
         Returns:
-            build123d geometry in world coordinates, or None
+            Location for wall position/rotation at window's Z elevation
         """
-        import copy
         from build123d import Location
-
-        local_geom = self.get_geometry()
-        if local_geom is None:
-            return None
-
-        # CRITICAL: Copy geometry before transforming!
-        # locate() modifies in place, which would corrupt the cached local geometry
-        geom_copy = copy.copy(local_geom)
 
         wall = self._host_wall
         wall_start = wall.start_point
         wall_angle_deg = wall.angle_degrees
+        z = wall.level.elevation_mm + self.sill_height
 
-        offset = self.offset
-        sill = self.sill_height
-        wall_thickness = wall.width
-        z = wall.level.elevation_mm + sill
+        return Location(
+            (wall_start[0], wall_start[1], z),
+            (0, 0, 1),
+            wall_angle_deg
+        )
+
+    def _get_local_transform(self) -> "Location":
+        """Get window's position within the host wall.
+
+        Window is positioned by offset along wall and centered in wall thickness.
+
+        Returns:
+            Location for window position in wall-local coordinates
+        """
+        from build123d import Location
 
         # Window local geometry: origin at bottom-left of frame, extends +X (width), +Y (depth), +Z (height)
         # Window frame_depth is how deep the window is (Y extent in window local coords)
@@ -166,19 +167,7 @@ class Window(ElementInstance):
         # - Window local origin (Y=0) should map to wall-local Y = -frame_depth/2
         y_offset = -frame_depth / 2
 
-        # Position window in wall-local coordinates
-        local_position = Location((offset, y_offset, 0))
-
-        # Wall-to-world transform: rotate by wall angle around Z, then translate
-        world_transform = Location(
-            (wall_start[0], wall_start[1], z),
-            (0, 0, 1),
-            wall_angle_deg
-        )
-
-        # Compose transforms: world_transform * local_position
-        combined_transform = world_transform * local_position
-        return geom_copy.locate(combined_transform)
+        return Location((self.offset, y_offset, 0))
 
     def set_offset(self, offset: Length | float) -> None:
         """

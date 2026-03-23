@@ -7,18 +7,20 @@ and IFC export.
 
 from typing import Tuple, Optional, List, Union, TYPE_CHECKING
 from bimascode.core.type_instance import ElementInstance
+from bimascode.core.world_geometry import FreestandingElementMixin
 from bimascode.performance.bounding_box import BoundingBox
 from bimascode.spatial.level import Level
 from bimascode.utils.units import Length, normalize_length
 import math
 
 if TYPE_CHECKING:
+    from build123d import Location
     from bimascode.structure.column_type import ColumnType
     from bimascode.drawing.view_base import ViewRange
     from bimascode.drawing.primitives import Line2D, Arc2D, Polyline2D, Hatch2D
 
 
-class StructuralColumn(ElementInstance):
+class StructuralColumn(ElementInstance, FreestandingElementMixin):
     """
     A structural column element.
 
@@ -136,58 +138,34 @@ class StructuralColumn(ElementInstance):
         z = self.level.elevation_mm + self.height
         return (pos[0], pos[1], z)
 
-    def get_world_geometry(self):
-        """Get column geometry transformed to world coordinates.
-
-        The base get_geometry() returns geometry in local column coordinates
-        (origin at base center, Z upward). This method transforms it to world
-        coordinates using the column's position, level elevation, and rotation.
-
-        CRITICAL: locate() REPLACES transforms, it does NOT chain them!
-        Since create_geometry() applies an internal transform (shift to put base at Z=0),
-        we must compose that with the world transform using multiplication.
+    def _get_world_position(self) -> Tuple[float, float, float]:
+        """Get world position for column geometry.
 
         Returns:
-            build123d geometry in world coordinates, or None
+            (x, y, z) at column base center, with Z at level elevation
         """
-        import copy
-        from build123d import Location
-
-        local_geom = self.get_geometry()
-        if local_geom is None:
-            return None
-
-        # CRITICAL: Copy geometry before transforming!
-        # locate() modifies in place, which would corrupt the cached local geometry
-        geom_copy = copy.copy(local_geom)
-
-        # Column placement is at base center
         pos = self.position
-        z = self.level.elevation_mm
-        rotation_deg = self.rotation
+        return (pos[0], pos[1], self.level.elevation_mm)
 
-        # The local geometry has an internal transform from create_geometry():
-        # - Box centered at origin, then shifted by (0, 0, height/2) to put base at Z=0
-        # This transform: Location((0, 0, height/2))
-        #
-        # We need to compose with world transform:
-        # - Rotate by column rotation around Z
-        # - Translate to (pos_x, pos_y, level_elevation)
-        #
-        # Since locate() REPLACES transforms, we must multiply:
-        # combined = world_transform * local_transform
-        local_transform = Location((0, 0, self.height / 2))
-        world_transform = Location(
-            (pos[0], pos[1], z),
-            (0, 0, 1),
-            rotation_deg
-        )
-        combined = world_transform * local_transform
+    def _get_world_rotation(self) -> float:
+        """Get world rotation for column geometry.
 
-        # Apply the combined transform
-        world_geom = geom_copy.locate(combined)
+        Returns:
+            Column rotation in degrees
+        """
+        return self.rotation
 
-        return world_geom
+    def _get_local_transform(self) -> "Location":
+        """Get local transform for column centering.
+
+        create_geometry() creates a box centered at origin. This transform
+        shifts the base to Z=0 so the column extends upward from the base point.
+
+        Returns:
+            Location transform to shift column base to Z=0
+        """
+        from build123d import Location
+        return Location((0, 0, self.height / 2))
 
     def get_center_3d(self) -> Tuple[float, float, float]:
         """
