@@ -596,7 +596,7 @@ def generate_section(name, spatial_index, cache, point, normal, output_path, hei
         depth=30000,
         height_range=height_range,
         scale=ViewScale.SCALE_1_50,
-        show_hidden_lines=True,
+        show_hidden_lines=False,
     )
 
     result = section.generate(spatial_index, cache)
