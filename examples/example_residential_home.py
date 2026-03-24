@@ -37,6 +37,8 @@ from bimascode.architecture.floor_type import FloorType, LayerFunction
 from bimascode.architecture.window_type import WindowType
 from bimascode.drawing.dxf_exporter import DXFExporter
 from bimascode.drawing.floor_plan_view import FloorPlanView
+from bimascode.drawing.line_styles import LineStyle
+from bimascode.drawing.primitives import LinearDimension2D, Point2D
 from bimascode.drawing.section_view import SectionView
 from bimascode.drawing.view_base import ViewRange, ViewScale
 from bimascode.performance.representation_cache import RepresentationCache
@@ -647,7 +649,146 @@ def create_roof(building, types):
     return roof_level, [roof]
 
 
-def generate_floor_plan(name, level, spatial_index, cache, output_path):
+def add_ground_floor_dimensions(result):
+    """Add dimensions to ground floor plan."""
+    dim_offset = 800  # Offset from building edge
+
+    # Overall building dimensions (south edge)
+    result.dimensions.append(
+        LinearDimension2D(
+            start=Point2D(0, 0),
+            end=Point2D(BUILDING_LENGTH, 0),
+            offset=-dim_offset,
+            style=LineStyle.dimension(),
+        )
+    )
+
+    # Overall building dimensions (west edge)
+    result.dimensions.append(
+        LinearDimension2D(
+            start=Point2D(0, 0),
+            end=Point2D(0, BUILDING_WIDTH),
+            offset=-dim_offset,
+            style=LineStyle.dimension(),
+        )
+    )
+
+    # Room widths along south wall
+    dining_width = 6000
+    powder_width = 3000
+
+    # Dining room width
+    result.dimensions.append(
+        LinearDimension2D(
+            start=Point2D(0, 0),
+            end=Point2D(dining_width, 0),
+            offset=-dim_offset * 2,
+            style=LineStyle.dimension(),
+        )
+    )
+
+    # Powder room width
+    result.dimensions.append(
+        LinearDimension2D(
+            start=Point2D(dining_width, 0),
+            end=Point2D(dining_width + powder_width, 0),
+            offset=-dim_offset * 2,
+            style=LineStyle.dimension(),
+        )
+    )
+
+    # Entry width
+    result.dimensions.append(
+        LinearDimension2D(
+            start=Point2D(dining_width + powder_width, 0),
+            end=Point2D(BUILDING_LENGTH, 0),
+            offset=-dim_offset * 2,
+            style=LineStyle.dimension(),
+        )
+    )
+
+    # Room depths along west wall
+    dining_depth = 6000
+
+    # Dining/kitchen depth
+    result.dimensions.append(
+        LinearDimension2D(
+            start=Point2D(0, 0),
+            end=Point2D(0, dining_depth),
+            offset=-dim_offset * 2,
+            style=LineStyle.dimension(),
+        )
+    )
+
+    # Garage depth
+    result.dimensions.append(
+        LinearDimension2D(
+            start=Point2D(0, dining_depth),
+            end=Point2D(0, BUILDING_WIDTH),
+            offset=-dim_offset * 2,
+            style=LineStyle.dimension(),
+        )
+    )
+
+
+def add_upper_floor_dimensions(result):
+    """Add dimensions to upper floor plan."""
+    dim_offset = 800
+
+    # Overall building dimensions (south edge)
+    result.dimensions.append(
+        LinearDimension2D(
+            start=Point2D(0, 0),
+            end=Point2D(BUILDING_LENGTH, 0),
+            offset=-dim_offset,
+            style=LineStyle.dimension(),
+        )
+    )
+
+    # Overall building dimensions (west edge)
+    result.dimensions.append(
+        LinearDimension2D(
+            start=Point2D(0, 0),
+            end=Point2D(0, BUILDING_WIDTH),
+            offset=-dim_offset,
+            style=LineStyle.dimension(),
+        )
+    )
+
+    # Bedroom widths along south wall
+    bed2_width = 6000
+    laundry_width = 3000
+    bed3_width = 6000
+
+    result.dimensions.append(
+        LinearDimension2D(
+            start=Point2D(0, 0),
+            end=Point2D(bed2_width, 0),
+            offset=-dim_offset * 2,
+            style=LineStyle.dimension(),
+        )
+    )
+
+    result.dimensions.append(
+        LinearDimension2D(
+            start=Point2D(bed2_width, 0),
+            end=Point2D(bed2_width + laundry_width, 0),
+            offset=-dim_offset * 2,
+            style=LineStyle.dimension(),
+        )
+    )
+
+    result.dimensions.append(
+        LinearDimension2D(
+            start=Point2D(bed2_width + laundry_width, 0),
+            end=Point2D(BUILDING_LENGTH, 0),
+            offset=-dim_offset * 2,
+            style=LineStyle.dimension(),
+        )
+    )
+
+
+def generate_floor_plan(name, level, spatial_index, cache, output_path, add_dimensions_fn=None):
     """Generate and export a floor plan."""
     print(f"  Generating {name}...")
 
@@ -655,7 +796,12 @@ def generate_floor_plan(name, level, spatial_index, cache, output_path):
     floor_plan = FloorPlanView(name=name, level=level, view_range=view_range)
     result = floor_plan.generate(spatial_index, cache)
 
+    # Add dimensions if function provided
+    if add_dimensions_fn:
+        add_dimensions_fn(result)
+
     print(f"    Elements: {result.element_count}, Geometry: {result.total_geometry_count}")
+    print(f"    Dimensions: {len(result.dimensions)}")
 
     exporter = DXFExporter()
     exporter.export(result, str(output_path))
@@ -761,10 +907,20 @@ def main():
 
     # Floor plans
     generate_floor_plan(
-        "Ground Floor Plan", ground, g_index, cache, output_dir / "ground_floor_plan.dxf"
+        "Ground Floor Plan",
+        ground,
+        g_index,
+        cache,
+        output_dir / "ground_floor_plan.dxf",
+        add_dimensions_fn=add_ground_floor_dimensions,
     )
     generate_floor_plan(
-        "Upper Floor Plan", upper, u_index, cache, output_dir / "upper_floor_plan.dxf"
+        "Upper Floor Plan",
+        upper,
+        u_index,
+        cache,
+        output_dir / "upper_floor_plan.dxf",
+        add_dimensions_fn=add_upper_floor_dimensions,
     )
 
     # Sections (combine both floors)

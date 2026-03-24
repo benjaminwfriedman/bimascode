@@ -165,6 +165,15 @@ class LineStyle:
             is_cut=False,
         )
 
+    @classmethod
+    def dimension(cls) -> LineStyle:
+        """Dimension line style (thin continuous)."""
+        return cls(
+            weight=LineWeight.EXTRA_FINE,
+            type=LineType.CONTINUOUS,
+            is_cut=False,
+        )
+
     def with_color(self, color: tuple[int, int, int]) -> LineStyle:
         """Return a copy with the specified color."""
         return LineStyle(

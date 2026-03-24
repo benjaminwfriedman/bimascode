@@ -8,14 +8,20 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Protocol, Union, runtime_checkable
 
-from bimascode.drawing.primitives import Arc2D, Hatch2D, Line2D, Polyline2D
+from bimascode.drawing.primitives import (
+    Arc2D,
+    Hatch2D,
+    Line2D,
+    LinearDimension2D,
+    Polyline2D,
+)
 
 if TYPE_CHECKING:
     from bimascode.drawing.view_base import ViewRange
 
 
 # Type alias for 2D geometry primitives that elements can return
-Linework2D = Union[Line2D, Arc2D, Polyline2D, Hatch2D]
+Linework2D = Union[Line2D, Arc2D, Polyline2D, Hatch2D, LinearDimension2D]
 
 
 @runtime_checkable
