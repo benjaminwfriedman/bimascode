@@ -328,6 +328,14 @@ exporter = DXFExporter()
 exporter.export(result, "floor_plan.dxf")
 ```
 
+## Committing
+- We run
+    - black
+    - ruff
+    - tests
+
+- We don't credit claude
+
 ## Notes
 
 - All dimensions internally stored in millimeters
