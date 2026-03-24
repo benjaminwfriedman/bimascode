@@ -2,7 +2,6 @@
 Tests for structural beams and beam types.
 """
 
-
 import pytest
 
 from bimascode.spatial.building import Building

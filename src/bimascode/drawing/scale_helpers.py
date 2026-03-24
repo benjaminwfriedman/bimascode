@@ -4,7 +4,6 @@ Provides high-level utilities for configuring scale-dependent
 rendering without needing low-level details.
 """
 
-
 from bimascode.drawing.view_base import (
     DetailLevel,
     ScaleBehaviorConfig,

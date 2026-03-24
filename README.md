@@ -103,13 +103,69 @@ pip install -e ".[dev,viz]"
 
 ## Examples
 
-See the [examples/](./examples) directory:
+The library includes complete example scripts demonstrating real-world building scenarios. Each generates IFC models for 3D viewing and DXF floor plans for 2D documentation.
 
-| Example | Description |
-|---------|-------------|
-| `sprint6_demo.py` | Simple house with walls, doors, windows → IFC + DXF |
-| `school_floor_plan.py` | School with 16 classrooms, lobby, corridors |
-| `office_world_geometry_demo.py` | Office with exposed structural grid, view templates |
+### Office Building
+
+A 2-floor commercial building (30m x 20m) with:
+- Ground floor: Reception, 4 meeting rooms, open workspace
+- First floor: 6 private offices, 2 conference rooms
+- Central elevator/stair core
+- Steel structural grid (6m x 5m) with columns and beams
+- Architectural and structural view templates with differentiated line weights
+
+```bash
+python examples/example_office_building.py
+```
+
+<p align="center">
+  <img src="assets/office-3d.png" alt="Office Building 3D" width="600">
+</p>
+
+### Residential Home
+
+A 2-floor family home (15m x 12m) with:
+- Ground floor: Living room, dining room, kitchen, powder room, 2-car garage
+- Upper floor: Master suite with ensuite, 2 bedrooms, shared bathroom, laundry
+- Picture windows, sliding doors, varied window types
+- North-south and east-west building sections
+
+```bash
+python examples/example_residential_home.py
+```
+
+<p align="center">
+  <img src="assets/home-floor-plan.png" alt="Home Floor Plan" width="600">
+</p>
+
+### School Building
+
+A single-story H-shaped elementary school (~90m x 45m) with:
+- East and west classroom wings (8 classrooms each)
+- Central lobby with diagonal entry walls
+- Admin offices and library
+- Gymnasium (18m x 24m) and cafeteria (18m x 15m)
+- Boys and girls restrooms in each wing
+- Automatic wall join processing for complex intersections
+
+```bash
+python examples/example_school_building.py
+```
+
+<p align="center">
+  <img src="assets/school-3d.png" alt="School Building 3D" width="600">
+</p>
+
+### All Examples
+
+| Example | Description | Output |
+|---------|-------------|--------|
+| `example_office_building.py` | Commercial office with structural grid | IFC + 4 DXF plans + 2 sections |
+| `example_residential_home.py` | 2-story family home | IFC + 2 DXF plans + 2 sections |
+| `example_school_building.py` | H-shaped elementary school | IFC + DXF floor plan |
+| `sprint6_demo.py` | Simple house tutorial | IFC + DXF |
+| `school_floor_plan.py` | Alternative school layout | IFC + DXF |
+| `office_world_geometry_demo.py` | Office with view templates | IFC + DXF |
 
 ## Documentation
 

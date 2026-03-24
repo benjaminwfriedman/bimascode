@@ -455,9 +455,7 @@ class ViewScale:
         """
         return DetailLevel.from_scale(self)
 
-    def get_behavior_config(
-        self, override_level: DetailLevel | None = None
-    ) -> ScaleBehaviorConfig:
+    def get_behavior_config(self, override_level: DetailLevel | None = None) -> ScaleBehaviorConfig:
         """Get scale behavior configuration.
 
         Args:
