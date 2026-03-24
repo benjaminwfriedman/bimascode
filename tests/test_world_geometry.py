@@ -4,7 +4,6 @@ These tests verify that FreestandingElementMixin and HostedElementMixin
 correctly transform local geometry to world coordinates.
 """
 
-
 import pytest
 
 from bimascode.architecture import Wall, create_basic_wall_type

@@ -4,7 +4,6 @@ Comprehensive test suite for the enhanced view scale system,
 including DetailLevel, ScaleBehaviorConfig, and AI agent helpers.
 """
 
-
 from bimascode.drawing.floor_plan_view import FloorPlanView
 from bimascode.drawing.line_styles import LineStyle, LineWeight
 from bimascode.drawing.scale_helpers import (

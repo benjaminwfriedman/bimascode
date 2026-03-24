@@ -6,7 +6,6 @@ For Sprint 4, only rectangular profiles are implemented.
 Full AISC catalog is Sprint 10 scope.
 """
 
-
 from build123d import Face, Rectangle
 
 from bimascode.utils.units import Length, normalize_length
