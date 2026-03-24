@@ -10,7 +10,14 @@ import math
 from typing import TYPE_CHECKING
 
 from bimascode.drawing.line_styles import Layer, LineType, LineWeight
-from bimascode.drawing.primitives import Arc2D, Hatch2D, Line2D, Polyline2D, ViewResult
+from bimascode.drawing.primitives import (
+    Arc2D,
+    Hatch2D,
+    Line2D,
+    LinearDimension2D,
+    Polyline2D,
+    ViewResult,
+)
 
 if TYPE_CHECKING:
     pass
@@ -107,6 +114,7 @@ class DXFExporter:
         self._export_arcs(msp, view_result.arcs, scale)
         self._export_polylines(msp, view_result.polylines, scale)
         self._export_hatches(msp, view_result.hatches, scale)
+        self._export_dimensions(msp, view_result.dimensions, scale)
 
         # Save file
         doc.saveas(filepath)
@@ -125,6 +133,8 @@ class DXFExporter:
             layers.add(polyline.layer)
         for hatch in view_result.hatches:
             layers.add(hatch.layer)
+        for dim in view_result.dimensions:
+            layers.add(dim.layer)
 
         # Create layers with standard AIA colors
         layer_colors = {
@@ -137,6 +147,7 @@ class DXFExporter:
             Layer.COLUMN: 3,  # Green
             Layer.BEAM: 3,  # Green
             Layer.ANNOTATION: 7,  # White
+            Layer.DIMENSION: 7,  # White
             "0": 7,  # Default layer
         }
 
@@ -279,6 +290,31 @@ class DXFExporter:
             points = [(p.x * scale, p.y * scale) for p in hatch_obj.boundary]
             hatch.paths.add_polyline_path(points, is_closed=True)
 
+    def _export_dimensions(
+        self,
+        msp,
+        dimensions: list[LinearDimension2D],
+        scale: float,
+    ) -> None:
+        """Export LinearDimension2D objects to DXF DIMENSION entities."""
+        for dim in dimensions:
+            dim_override = msp.add_aligned_dim(
+                p1=(dim.start.x * scale, dim.start.y * scale),
+                p2=(dim.end.x * scale, dim.end.y * scale),
+                distance=dim.offset * scale,
+                text=dim.text,
+                dimstyle="Standard",
+                override={
+                    "dimtxt": 150,  # Text height in drawing units (mm)
+                    "dimdec": dim.precision,  # Decimal places
+                    "dimasz": 100,  # Arrow size
+                    "dimexe": 50,  # Extension line extension
+                    "dimexo": 50,  # Extension line offset from origin
+                },
+                dxfattribs={"layer": dim.layer},
+            )
+            dim_override.render()
+
     def export_multiple(
         self,
         views: list[tuple[ViewResult, tuple[float, float]]],
@@ -315,6 +351,8 @@ class DXFExporter:
                 all_layers.add(polyline.layer)
             for hatch in view_result.hatches:
                 all_layers.add(hatch.layer)
+            for dim in view_result.dimensions:
+                all_layers.add(dim.layer)
 
         # Setup layers and line types
         for layer_name in all_layers:
@@ -331,6 +369,7 @@ class DXFExporter:
             self._export_arcs(msp, translated.arcs, scale)
             self._export_polylines(msp, translated.polylines, scale)
             self._export_hatches(msp, translated.hatches, scale)
+            self._export_dimensions(msp, translated.dimensions, scale)
 
         # Save file
         doc.saveas(filepath)

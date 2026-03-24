@@ -30,6 +30,7 @@ from bimascode.drawing.primitives import (
     Geometry2D,
     Hatch2D,
     Line2D,
+    LinearDimension2D,
     Point2D,
     Polyline2D,
     ViewResult,
@@ -70,6 +71,7 @@ __all__ = [
     "Arc2D",
     "Polyline2D",
     "Hatch2D",
+    "LinearDimension2D",
     "ViewResult",
     "Geometry2D",
     # Line styles

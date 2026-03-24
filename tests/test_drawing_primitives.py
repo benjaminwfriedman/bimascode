@@ -11,6 +11,7 @@ from bimascode.drawing.primitives import (
     Arc2D,
     Hatch2D,
     Line2D,
+    LinearDimension2D,
     Point2D,
     Polyline2D,
     ViewResult,
@@ -256,6 +257,124 @@ class TestHatch2D:
         assert hatch2.boundary[0].y == 50
 
 
+class TestLinearDimension2D:
+    """Tests for LinearDimension2D class."""
+
+    def test_dimension_creation(self):
+        """Test creating a dimension."""
+        dim = LinearDimension2D(
+            start=Point2D(0, 0),
+            end=Point2D(1000, 0),
+            offset=500,
+            style=LineStyle.dimension(),
+        )
+        assert dim.start.x == 0
+        assert dim.end.x == 1000
+        assert dim.offset == 500
+        assert dim.layer == "G-ANNO-DIMS"
+
+    def test_dimension_frozen(self):
+        """Test that LinearDimension2D is immutable."""
+        dim = LinearDimension2D(
+            start=Point2D(0, 0),
+            end=Point2D(1000, 0),
+            offset=500,
+            style=LineStyle.dimension(),
+        )
+        with pytest.raises(AttributeError):
+            dim.offset = 600
+
+    def test_dimension_distance(self):
+        """Test dimension distance calculation."""
+        dim = LinearDimension2D(
+            start=Point2D(0, 0),
+            end=Point2D(3000, 4000),
+            offset=500,
+            style=LineStyle.dimension(),
+        )
+        assert dim.distance == 5000.0
+
+    def test_dimension_midpoint(self):
+        """Test dimension midpoint."""
+        dim = LinearDimension2D(
+            start=Point2D(0, 0),
+            end=Point2D(100, 100),
+            offset=50,
+            style=LineStyle.dimension(),
+        )
+        mid = dim.midpoint
+        assert mid.x == 50
+        assert mid.y == 50
+
+    def test_dimension_angle(self):
+        """Test dimension angle calculation."""
+        dim = LinearDimension2D(
+            start=Point2D(0, 0),
+            end=Point2D(100, 100),
+            offset=50,
+            style=LineStyle.dimension(),
+        )
+        assert pytest.approx(dim.angle, abs=1e-10) == math.pi / 4
+
+    def test_dimension_angle_vertical(self):
+        """Test dimension angle for vertical dimension."""
+        dim = LinearDimension2D(
+            start=Point2D(0, 0),
+            end=Point2D(0, 100),
+            offset=50,
+            style=LineStyle.dimension(),
+        )
+        assert pytest.approx(dim.angle, abs=1e-10) == math.pi / 2
+
+    def test_dimension_translate(self):
+        """Test dimension translation."""
+        dim = LinearDimension2D(
+            start=Point2D(0, 0),
+            end=Point2D(100, 0),
+            offset=50,
+            style=LineStyle.dimension(),
+        )
+        dim2 = dim.translate(50, 50)
+        assert dim2.start.x == 50
+        assert dim2.start.y == 50
+        assert dim2.end.x == 150
+        assert dim2.end.y == 50
+        # Original unchanged
+        assert dim.start.x == 0
+
+    def test_dimension_default_text(self):
+        """Test default dimension text is auto-calculate marker."""
+        dim = LinearDimension2D(
+            start=Point2D(0, 0),
+            end=Point2D(1000, 0),
+            offset=500,
+            style=LineStyle.dimension(),
+        )
+        assert dim.text == "<>"
+
+    def test_dimension_custom_text(self):
+        """Test dimension with custom text."""
+        dim = LinearDimension2D(
+            start=Point2D(0, 0),
+            end=Point2D(1000, 0),
+            offset=500,
+            text="1.0m",
+            style=LineStyle.dimension(),
+        )
+        assert dim.text == "1.0m"
+
+    def test_dimension_precision(self):
+        """Test dimension precision setting."""
+        dim = LinearDimension2D(
+            start=Point2D(0, 0),
+            end=Point2D(1000, 0),
+            offset=500,
+            precision=2,
+            style=LineStyle.dimension(),
+        )
+        assert dim.precision == 2
+
+
 class TestViewResult:
     """Tests for ViewResult class."""
 
@@ -342,3 +461,75 @@ class TestViewResult:
         translated = result.translate(50, 50)
         assert translated.lines[0].start.x == 50
         assert translated.lines[0].start.y == 50
+
+    def test_view_result_with_dimensions(self):
+        """Test ViewResult can hold dimensions."""
+        result = ViewResult()
+        dim = LinearDimension2D(
+            start=Point2D(0, 0),
+            end=Point2D(1000, 0),
+            offset=500,
+            style=LineStyle.dimension(),
+        )
+        result.dimensions.append(dim)
+        assert len(result.dimensions) == 1
+        assert result.total_geometry_count == 1
+
+    def test_view_result_extend_with_dimensions(self):
+        """Test extending ViewResult with dimensions."""
+        result1 = ViewResult()
+        result1.dimensions.append(
+            LinearDimension2D(
+                start=Point2D(0, 0),
+                end=Point2D(100, 0),
+                offset=50,
+                style=LineStyle.dimension(),
+            )
+        )
+
+        result2 = ViewResult()
+        result2.dimensions.append(
+            LinearDimension2D(
+                start=Point2D(100, 0),
+                end=Point2D(200, 0),
+                offset=50,
+                style=LineStyle.dimension(),
+            )
+        )
+
+        result1.extend(result2)
+        assert len(result1.dimensions) == 2
+
+    def test_view_result_translate_with_dimensions(self):
+        """Test translating ViewResult with dimensions."""
+        result = ViewResult()
+        result.dimensions.append(
+            LinearDimension2D(
+                start=Point2D(0, 0),
+                end=Point2D(100, 0),
+                offset=50,
+                style=LineStyle.dimension(),
+            )
+        )
+        translated = result.translate(50, 50)
+        assert translated.dimensions[0].start.x == 50
+        assert translated.dimensions[0].start.y == 50
+
+    def test_view_result_bounds_with_dimensions(self):
+        """Test ViewResult bounds include dimensions."""
+        result = ViewResult()
+        result.dimensions.append(
+            LinearDimension2D(
+                start=Point2D(0, 0),
+                end=Point2D(100, 0),
+                offset=50,  # Positive offset means dimension line is above
+                style=LineStyle.dimension(),
+            )
+        )
+        bounds = result.get_bounds()
+        assert bounds is not None
+        # Bounds should include dimension line position (offset above)
+        assert bounds[0] == 0  # min_x
+        assert bounds[2] == 100  # max_x
+        # Y should extend to include offset
+        assert bounds[3] == 50  # max_y (offset)
