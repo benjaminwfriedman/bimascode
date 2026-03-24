@@ -28,6 +28,24 @@ class IFCExporter:
         self.schema = schema
         self._ifc_file = None
 
+    def _set_file_header(self) -> None:
+        """
+        Set IFC file header to match Bonsai/professional standards.
+
+        Sets:
+        - File description with ViewDefinition[DesignTransferView]
+        - Implementation level: 2;1
+        - Authorization: Nobody
+        """
+        header = self._ifc_file.header
+
+        # Set file description with view definition
+        header.file_description.description = ('ViewDefinition[DesignTransferView]',)
+        header.file_description.implementation_level = '2;1'
+
+        # Set authorization
+        header.file_name.authorization = 'Nobody'
+
     def export(self, building: "Building", filepath: str) -> None:
         """
         Export a building model to IFC file.
@@ -49,6 +67,9 @@ class IFCExporter:
 
         # Create IFC file
         self._ifc_file = ifcopenshell.file(schema=self.schema)
+
+        # Set proper header information
+        self._set_file_header()
 
         # Create project hierarchy
         self._create_project_hierarchy(building)
@@ -117,22 +138,15 @@ class IFCExporter:
             units
         )
 
-        # Create default geometric representation context
-        context = ifc.createIfcGeometricRepresentationContext(
-            None,  # ContextIdentifier
-            "Model",  # ContextType
-            3,  # CoordinateSpaceDimension
-            1.0e-5,  # Precision
-            ifc.createIfcAxis2Placement3D(
-                ifc.createIfcCartesianPoint((0.0, 0.0, 0.0)),
-                ifc.createIfcDirection((0.0, 0.0, 1.0)),
-                ifc.createIfcDirection((1.0, 0.0, 0.0))
-            ),
-            None  # TrueNorth
-        )
+        # Create representation contexts (Model 3D and Plan 2D)
+        contexts = self._create_representation_contexts(building)
 
-        # Update project with context
-        ifc_project.RepresentationContexts = [context]
+        # Update project with contexts
+        ifc_project.RepresentationContexts = contexts
+
+        # Store contexts for later use
+        building._ifc_model_context = contexts[0]  # Model (3D)
+        building._ifc_plan_context = contexts[1] if len(contexts) > 1 else None  # Plan (2D)
 
         # Create site
         site_placement = ifc.createIfcLocalPlacement(
@@ -227,6 +241,168 @@ class IFCExporter:
             [ifc_building]
         )
 
+    def _create_representation_contexts(self, building: "Building"):
+        """
+        Create representation contexts matching Bonsai/professional IFC setup.
+
+        Creates:
+        - Model context (3D) with subcontexts: Body, Axis, Box, Annotation, Profile
+        - Plan context (2D) with subcontexts: Axis, Body, Annotation
+
+        Args:
+            building: Building instance
+
+        Returns:
+            List of representation contexts [Model, Plan]
+        """
+        ifc = self._ifc_file
+
+        # =====================================================================
+        # Model Context (3D)
+        # =====================================================================
+        model_context = ifc.createIfcGeometricRepresentationContext(
+            None,  # ContextIdentifier
+            "Model",  # ContextType
+            3,  # CoordinateSpaceDimension
+            1.0e-5,  # Precision
+            ifc.createIfcAxis2Placement3D(
+                ifc.createIfcCartesianPoint((0.0, 0.0, 0.0)),
+                ifc.createIfcDirection((0.0, 0.0, 1.0)),
+                ifc.createIfcDirection((1.0, 0.0, 0.0))
+            ),
+            None  # TrueNorth
+        )
+
+        # Model subcontexts
+        # SubContext attributes: ParentContext, TargetScale, TargetView, UserDefinedTargetView
+        # ContextIdentifier and ContextType are inherited from GeometricRepresentationContext
+        model_body = ifc.create_entity("IfcGeometricRepresentationSubContext",
+            ContextIdentifier="Body",
+            ContextType="Model",
+            ParentContext=model_context,
+            TargetScale=None,
+            TargetView="MODEL_VIEW",
+            UserDefinedTargetView=None
+        )
+
+        model_axis = ifc.create_entity("IfcGeometricRepresentationSubContext",
+            ContextIdentifier="Axis",
+            ContextType="Model",
+            ParentContext=model_context,
+            TargetScale=None,
+            TargetView="GRAPH_VIEW",
+            UserDefinedTargetView=None
+        )
+
+        model_box = ifc.create_entity("IfcGeometricRepresentationSubContext",
+            ContextIdentifier="Box",
+            ContextType="Model",
+            ParentContext=model_context,
+            TargetScale=None,
+            TargetView="MODEL_VIEW",
+            UserDefinedTargetView=None
+        )
+
+        # Annotation subcontexts for different views
+        model_annotation_section = ifc.create_entity("IfcGeometricRepresentationSubContext",
+            ContextIdentifier="Annotation",
+            ContextType="Model",
+            ParentContext=model_context,
+            TargetScale=None,
+            TargetView="SECTION_VIEW",
+            UserDefinedTargetView=None
+        )
+
+        model_annotation_elevation = ifc.create_entity("IfcGeometricRepresentationSubContext",
+            ContextIdentifier="Annotation",
+            ContextType="Model",
+            ParentContext=model_context,
+            TargetScale=None,
+            TargetView="ELEVATION_VIEW",
+            UserDefinedTargetView=None
+        )
+
+        model_annotation_model = ifc.create_entity("IfcGeometricRepresentationSubContext",
+            ContextIdentifier="Annotation",
+            ContextType="Model",
+            ParentContext=model_context,
+            TargetScale=None,
+            TargetView="MODEL_VIEW",
+            UserDefinedTargetView=None
+        )
+
+        model_annotation_plan = ifc.create_entity("IfcGeometricRepresentationSubContext",
+            ContextIdentifier="Annotation",
+            ContextType="Model",
+            ParentContext=model_context,
+            TargetScale=None,
+            TargetView="PLAN_VIEW",
+            UserDefinedTargetView=None
+        )
+
+        model_profile = ifc.create_entity("IfcGeometricRepresentationSubContext",
+            ContextIdentifier="Profile",
+            ContextType="Model",
+            ParentContext=model_context,
+            TargetScale=None,
+            TargetView="ELEVATION_VIEW",
+            UserDefinedTargetView=None
+        )
+
+        # =====================================================================
+        # Plan Context (2D)
+        # =====================================================================
+        plan_context = ifc.createIfcGeometricRepresentationContext(
+            None,  # ContextIdentifier
+            "Plan",  # ContextType
+            2,  # CoordinateSpaceDimension
+            1.0e-5,  # Precision
+            ifc.createIfcAxis2Placement2D(
+                ifc.createIfcCartesianPoint((0.0, 0.0)),
+                ifc.createIfcDirection((1.0, 0.0))
+            ),
+            None  # TrueNorth
+        )
+
+        # Plan subcontexts
+        plan_axis = ifc.create_entity("IfcGeometricRepresentationSubContext",
+            ContextIdentifier="Axis",
+            ContextType="Plan",
+            ParentContext=plan_context,
+            TargetScale=None,
+            TargetView="GRAPH_VIEW",
+            UserDefinedTargetView=None
+        )
+
+        plan_body = ifc.create_entity("IfcGeometricRepresentationSubContext",
+            ContextIdentifier="Body",
+            ContextType="Plan",
+            ParentContext=plan_context,
+            TargetScale=None,
+            TargetView="PLAN_VIEW",
+            UserDefinedTargetView=None
+        )
+
+        plan_annotation = ifc.create_entity("IfcGeometricRepresentationSubContext",
+            ContextIdentifier="Annotation",
+            ContextType="Plan",
+            ParentContext=plan_context,
+            TargetScale=None,
+            TargetView="PLAN_VIEW",
+            UserDefinedTargetView=None
+        )
+
+        plan_annotation_reflected = ifc.create_entity("IfcGeometricRepresentationSubContext",
+            ContextIdentifier="Annotation",
+            ContextType="Plan",
+            ParentContext=plan_context,
+            TargetScale=None,
+            TargetView="REFLECTED_PLAN_VIEW",
+            UserDefinedTargetView=None
+        )
+
+        return [model_context, plan_context]
+
     def _create_units(self, building: "Building"):
         """
         Create IFC unit assignment based on building's unit system.
@@ -258,9 +434,21 @@ class IFCExporter:
             area_unit = ifc.createIfcSIUnit(None, "AREAUNIT", None, "SQUARE_METRE")
             volume_unit = ifc.createIfcSIUnit(None, "VOLUMEUNIT", None, "CUBIC_METRE")
 
-        angle_unit = ifc.createIfcSIUnit(None, "PLANEANGLEUNIT", None, "RADIAN")
+        # Create degree unit for plane angles (matching Bonsai setup)
+        # 1 degree = π/180 radians ≈ 0.017453292519943295
+        radian_unit = ifc.createIfcSIUnit(None, "PLANEANGLEUNIT", None, "RADIAN")
+        degree_conversion = ifc.createIfcMeasureWithUnit(
+            ifc.createIfcPlaneAngleMeasure(0.017453292519943295),
+            radian_unit
+        )
+        degree_unit = ifc.createIfcConversionBasedUnit(
+            ifc.createIfcDimensionalExponents(0, 0, 0, 0, 0, 0, 0),
+            "PLANEANGLEUNIT",
+            "degree",
+            degree_conversion
+        )
 
-        return ifc.createIfcUnitAssignment([length_unit, area_unit, volume_unit, angle_unit])
+        return ifc.createIfcUnitAssignment([length_unit, area_unit, volume_unit, degree_unit])
 
     def _export_levels(self, building: "Building") -> None:
         """
