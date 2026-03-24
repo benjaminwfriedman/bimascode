@@ -8,10 +8,10 @@ intersections and processed to adjust wall geometry for clean connections.
 HIGH RISK: Wall join processing is complex and may have edge cases.
 """
 
-from typing import List, Dict, Tuple, Optional, TYPE_CHECKING
-from enum import Enum
-from dataclasses import dataclass
 import math
+from dataclasses import dataclass
+from enum import Enum
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from bimascode.architecture.wall import Wall
@@ -19,36 +19,39 @@ if TYPE_CHECKING:
 
 class JoinType(Enum):
     """Type of wall join."""
-    L_JUNCTION = "L"      # Corner - both walls end at intersection
-    T_JUNCTION = "T"      # T-intersection - one wall ends at another's side
-    CROSS = "X"           # Cross - walls pass through each other
+
+    L_JUNCTION = "L"  # Corner - both walls end at intersection
+    T_JUNCTION = "T"  # T-intersection - one wall ends at another's side
+    CROSS = "X"  # Cross - walls pass through each other
 
 
 class EndCapType(Enum):
     """How wall ends are trimmed at joins."""
-    FLUSH = "flush"           # Cut at centerline intersection
-    EXTERIOR = "exterior"     # Extend to outer face of joining wall
-    INTERIOR = "interior"     # Cut at inner face of joining wall
+
+    FLUSH = "flush"  # Cut at centerline intersection
+    EXTERIOR = "exterior"  # Extend to outer face of joining wall
+    INTERIOR = "interior"  # Cut at inner face of joining wall
 
 
 @dataclass
 class WallJoin:
     """Represents a join between two walls."""
-    wall_a: 'Wall'
-    wall_b: 'Wall'
+
+    wall_a: "Wall"
+    wall_b: "Wall"
     join_type: JoinType
-    intersection_point: Tuple[float, float]
+    intersection_point: tuple[float, float]
     # Which end of each wall is at the join (0=start, 1=end, -1=mid)
     wall_a_end: int  # 0=start, 1=end, -1=neither (passes through)
     wall_b_end: int  # 0=start, 1=end, -1=neither (passes through)
 
 
 def line_intersection(
-    p1: Tuple[float, float],
-    p2: Tuple[float, float],
-    p3: Tuple[float, float],
-    p4: Tuple[float, float]
-) -> Optional[Tuple[float, float]]:
+    p1: tuple[float, float],
+    p2: tuple[float, float],
+    p3: tuple[float, float],
+    p4: tuple[float, float],
+) -> tuple[float, float] | None:
     """
     Find the intersection point of two lines.
 
@@ -69,13 +72,10 @@ def line_intersection(
 
     t = ((p1[0] - p3[0]) * (p3[1] - p4[1]) - (p1[1] - p3[1]) * (p3[0] - p4[0])) / denom
 
-    return (
-        p1[0] + t * (p2[0] - p1[0]),
-        p1[1] + t * (p2[1] - p1[1])
-    )
+    return (p1[0] + t * (p2[0] - p1[0]), p1[1] + t * (p2[1] - p1[1]))
 
 
-def point_distance(p1: Tuple[float, float], p2: Tuple[float, float]) -> float:
+def point_distance(p1: tuple[float, float], p2: tuple[float, float]) -> float:
     """Calculate distance between two points."""
     dx = p2[0] - p1[0]
     dy = p2[1] - p1[1]
@@ -83,10 +83,10 @@ def point_distance(p1: Tuple[float, float], p2: Tuple[float, float]) -> float:
 
 
 def point_on_segment(
-    point: Tuple[float, float],
-    seg_start: Tuple[float, float],
-    seg_end: Tuple[float, float],
-    tolerance: float = 1.0  # 1mm tolerance
+    point: tuple[float, float],
+    seg_start: tuple[float, float],
+    seg_end: tuple[float, float],
+    tolerance: float = 1.0,  # 1mm tolerance
 ) -> bool:
     """Check if a point lies on a line segment (within tolerance)."""
     # Calculate distances
@@ -98,7 +98,7 @@ def point_on_segment(
     return abs(d_start + d_end - seg_length) < tolerance
 
 
-def get_wall_centerline(wall: 'Wall') -> Tuple[Tuple[float, float], Tuple[float, float]]:
+def get_wall_centerline(wall: "Wall") -> tuple[tuple[float, float], tuple[float, float]]:
     """
     Get the centerline of a wall (offset by half width perpendicular to wall).
 
@@ -117,7 +117,7 @@ def get_wall_centerline(wall: 'Wall') -> Tuple[Tuple[float, float], Tuple[float,
 class WallJoinDetector:
     """Detects wall joins based on centerline intersections."""
 
-    def __init__(self, walls: List['Wall'], tolerance: float = 50.0):
+    def __init__(self, walls: list["Wall"], tolerance: float = 50.0):
         """
         Initialize detector.
 
@@ -128,7 +128,7 @@ class WallJoinDetector:
         self.walls = walls
         self.tolerance = tolerance
 
-    def detect_joins(self) -> List[WallJoin]:
+    def detect_joins(self) -> list[WallJoin]:
         """
         Detect all wall joins.
 
@@ -139,7 +139,7 @@ class WallJoinDetector:
 
         # Compare each pair of walls
         for i, wall_a in enumerate(self.walls):
-            for wall_b in self.walls[i + 1:]:
+            for wall_b in self.walls[i + 1 :]:
                 # Skip if walls are on different levels
                 if wall_a.level != wall_b.level:
                     continue
@@ -150,7 +150,7 @@ class WallJoinDetector:
 
         return joins
 
-    def _detect_join(self, wall_a: 'Wall', wall_b: 'Wall') -> Optional[WallJoin]:
+    def _detect_join(self, wall_a: "Wall", wall_b: "Wall") -> WallJoin | None:
         """
         Detect if two walls join.
 
@@ -219,14 +219,14 @@ class WallJoinDetector:
             join_type=join_type,
             intersection_point=intersection,
             wall_a_end=wall_a_end,
-            wall_b_end=wall_b_end
+            wall_b_end=wall_b_end,
         )
 
 
 class WallJoinProcessor:
     """Processes wall joins to calculate trim adjustments."""
 
-    def __init__(self, joins: List[WallJoin], end_cap_type: EndCapType = EndCapType.FLUSH):
+    def __init__(self, joins: list[WallJoin], end_cap_type: EndCapType = EndCapType.FLUSH):
         """
         Initialize processor.
 
@@ -237,21 +237,21 @@ class WallJoinProcessor:
         self.joins = joins
         self.end_cap_type = end_cap_type
 
-    def process_joins(self) -> Dict['Wall', Dict]:
+    def process_joins(self) -> dict["Wall", dict]:
         """
         Process all joins and calculate trim adjustments.
 
         Returns:
             Dict mapping walls to their trim adjustments
         """
-        adjustments: Dict['Wall', Dict] = {}
+        adjustments: dict[Wall, dict] = {}
 
         for join in self.joins:
             self._process_join(join, adjustments)
 
         return adjustments
 
-    def _process_join(self, join: WallJoin, adjustments: Dict['Wall', Dict]) -> None:
+    def _process_join(self, join: WallJoin, adjustments: dict["Wall", dict]) -> None:
         """
         Process a single join.
 
@@ -264,9 +264,9 @@ class WallJoinProcessor:
 
         # Initialize adjustments if not present
         if wall_a not in adjustments:
-            adjustments[wall_a] = {'start_offset': 0.0, 'end_offset': 0.0}
+            adjustments[wall_a] = {"start_offset": 0.0, "end_offset": 0.0}
         if wall_b not in adjustments:
-            adjustments[wall_b] = {'start_offset': 0.0, 'end_offset': 0.0}
+            adjustments[wall_b] = {"start_offset": 0.0, "end_offset": 0.0}
 
         # Determine priority: structural > non-structural, thicker > thinner
         a_priority = self._get_wall_priority(wall_a)
@@ -279,7 +279,7 @@ class WallJoinProcessor:
         elif join.join_type == JoinType.CROSS:
             self._process_cross(join, adjustments, a_priority, b_priority)
 
-    def _get_wall_priority(self, wall: 'Wall') -> int:
+    def _get_wall_priority(self, wall: "Wall") -> int:
         """
         Calculate wall priority for join processing.
 
@@ -303,11 +303,7 @@ class WallJoinProcessor:
         return priority
 
     def _process_l_junction(
-        self,
-        join: WallJoin,
-        adjustments: Dict['Wall', Dict],
-        a_priority: int,
-        b_priority: int
+        self, join: WallJoin, adjustments: dict["Wall", dict], a_priority: int, b_priority: int
     ) -> None:
         """Process an L-junction (corner)."""
         wall_a = join.wall_a
@@ -341,11 +337,7 @@ class WallJoinProcessor:
                 self._apply_extension(adjustments[wall_b], join.wall_b_end, -trim)
 
     def _process_t_junction(
-        self,
-        join: WallJoin,
-        adjustments: Dict['Wall', Dict],
-        a_priority: int,
-        b_priority: int
+        self, join: WallJoin, adjustments: dict["Wall", dict], a_priority: int, b_priority: int
     ) -> None:
         """Process a T-junction."""
         # The wall that ends (not passing through) gets trimmed/extended
@@ -375,11 +367,7 @@ class WallJoinProcessor:
             self._apply_extension(adj, ending_end, -trim)
 
     def _process_cross(
-        self,
-        join: WallJoin,
-        adjustments: Dict['Wall', Dict],
-        a_priority: int,
-        b_priority: int
+        self, join: WallJoin, adjustments: dict["Wall", dict], a_priority: int, b_priority: int
     ) -> None:
         """Process a cross intersection."""
         # For crosses, lower priority wall is typically "cut" by higher priority
@@ -387,12 +375,7 @@ class WallJoinProcessor:
         # For now, we don't apply any adjustments (walls pass through each other)
         pass
 
-    def _apply_extension(
-        self,
-        adj: Dict,
-        end: int,
-        amount: float
-    ) -> None:
+    def _apply_extension(self, adj: dict, end: int, amount: float) -> None:
         """
         Apply extension/trim to a wall's adjustments.
 
@@ -403,17 +386,15 @@ class WallJoinProcessor:
         """
         if end == 0:
             # Extending start means moving it back (negative direction)
-            adj['start_offset'] = min(adj['start_offset'], -amount)
+            adj["start_offset"] = min(adj["start_offset"], -amount)
         elif end == 1:
             # Extending end means moving it forward (positive direction)
-            adj['end_offset'] = max(adj['end_offset'], amount)
+            adj["end_offset"] = max(adj["end_offset"], amount)
 
 
 def detect_and_process_wall_joins(
-    walls: List['Wall'],
-    end_cap_type: EndCapType = EndCapType.FLUSH,
-    tolerance: float = 50.0
-) -> Dict['Wall', Dict]:
+    walls: list["Wall"], end_cap_type: EndCapType = EndCapType.FLUSH, tolerance: float = 50.0
+) -> dict["Wall", dict]:
     """
     Convenience function to detect and process wall joins.
 

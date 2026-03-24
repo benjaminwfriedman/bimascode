@@ -2,8 +2,7 @@
 Unit tests for the Type/Instance parameter model.
 """
 
-import pytest
-from bimascode.core.type_instance import ElementType, ElementInstance, copy_parameters
+from bimascode.core.type_instance import ElementInstance, ElementType, copy_parameters
 
 
 # Test implementations of abstract classes
@@ -22,6 +21,7 @@ class MockType(ElementType):
 
 class MockInstance(ElementInstance):
     """Mock element instance for testing."""
+
     pass
 
 
@@ -176,7 +176,7 @@ class TestTypeInstancePropagation:
         inst1 = MockInstance(type1)
 
         # Build geometry
-        geom1 = inst1.get_geometry()
+        inst1.get_geometry()
         assert inst1._geometry_valid
 
         # Change type parameter
@@ -191,7 +191,7 @@ class TestTypeInstancePropagation:
         inst1 = MockInstance(type1)
 
         # Build geometry
-        geom1 = inst1.get_geometry()
+        inst1.get_geometry()
         assert inst1._geometry_valid
 
         # Change instance parameter
@@ -221,8 +221,8 @@ class TestGeometryManagement:
         type1 = MockType("Type A")
         inst1 = MockInstance(type1)
 
-        geom1 = inst1.get_geometry()
-        geom2 = inst1.get_geometry(force_rebuild=True)
+        inst1.get_geometry()
+        inst1.get_geometry(force_rebuild=True)
 
         # Geometry should be rebuilt (different object in real scenario)
         assert inst1._geometry_valid
@@ -232,7 +232,7 @@ class TestGeometryManagement:
         type1 = MockType("Type A", width=250.0)
         inst1 = MockInstance(type1)
 
-        geom1 = inst1.get_geometry()
+        inst1.get_geometry()
         assert inst1._geometry_valid
 
         # Change parameter
@@ -240,7 +240,7 @@ class TestGeometryManagement:
         assert not inst1._geometry_valid
 
         # Get geometry again - should rebuild
-        geom2 = inst1.get_geometry()
+        inst1.get_geometry()
         assert inst1._geometry_valid
 
 

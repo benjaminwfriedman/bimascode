@@ -3,9 +3,10 @@ Unit tests for Grid Lines.
 """
 
 import pytest
+
 from bimascode.spatial.building import Building
-from bimascode.spatial.level import Level
 from bimascode.spatial.grid import GridLine, create_orthogonal_grid
+from bimascode.spatial.level import Level
 from bimascode.utils.units import Length
 
 
@@ -58,9 +59,9 @@ class TestGridLine:
     def test_multiple_grids(self):
         """Test adding multiple grid lines."""
         building = Building("Test")
-        grid_a = GridLine(building, "A", (0, 0), (0, 12000))
-        grid_b = GridLine(building, "B", (6000, 0), (6000, 12000))
-        grid_1 = GridLine(building, "1", (0, 0), (12000, 0))
+        GridLine(building, "A", (0, 0), (0, 12000))
+        GridLine(building, "B", (6000, 0), (6000, 12000))
+        GridLine(building, "1", (0, 0), (12000, 0))
 
         assert len(building.grids) == 3
 
@@ -79,7 +80,7 @@ class TestOrthogonalGrid:
             y_grid_labels=["1", "2", "3"],
             y_grid_positions=[0, 6000, 12000],
             x_extent=(0, 12000),
-            y_extent=(0, 12000)
+            y_extent=(0, 12000),
         )
 
         # 3 vertical + 3 horizontal = 6 total
@@ -97,7 +98,7 @@ class TestOrthogonalGrid:
             y_grid_labels=["1", "2"],
             y_grid_positions=[0, 6000],
             x_extent=(0, 6000),
-            y_extent=(0, 6000)
+            y_extent=(0, 6000),
         )
 
         labels = [g.label for g in building.grids]
@@ -117,7 +118,7 @@ class TestOrthogonalGrid:
             y_grid_labels=["1", "2"],
             y_grid_positions=[0, 6000],
             x_extent=(0, 6000),
-            y_extent=(0, 6000)
+            y_extent=(0, 6000),
         )
 
         # Find vertical grids (should have same X coordinate for start and end)
@@ -150,6 +151,7 @@ class TestGridIFCExport:
             # Verify with ifcopenshell
             try:
                 import ifcopenshell
+
                 ifc_file = ifcopenshell.open(str(filepath))
 
                 grids = ifc_file.by_type("IfcGrid")
@@ -181,7 +183,7 @@ class TestGridIFCExport:
             y_grid_labels=["1", "2"],
             y_grid_positions=[0, 6000],
             x_extent=(0, 12000),
-            y_extent=(0, 6000)
+            y_extent=(0, 6000),
         )
 
         with tempfile.TemporaryDirectory() as tmpdir:

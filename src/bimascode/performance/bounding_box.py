@@ -7,7 +7,6 @@ testing capabilities for use with spatial indexing.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Tuple
 
 
 @dataclass(frozen=True)
@@ -49,7 +48,7 @@ class BoundingBox:
             object.__setattr__(self, "max_z", old_min_z)
 
     @property
-    def as_tuple(self) -> Tuple[float, float, float, float, float, float]:
+    def as_tuple(self) -> tuple[float, float, float, float, float, float]:
         """Return bounding box as a 6-tuple for R-tree compatibility.
 
         Returns:
@@ -58,7 +57,7 @@ class BoundingBox:
         return (self.min_x, self.min_y, self.min_z, self.max_x, self.max_y, self.max_z)
 
     @property
-    def center(self) -> Tuple[float, float, float]:
+    def center(self) -> tuple[float, float, float]:
         """Return the center point of the bounding box.
 
         Returns:
@@ -71,7 +70,7 @@ class BoundingBox:
         )
 
     @property
-    def size(self) -> Tuple[float, float, float]:
+    def size(self) -> tuple[float, float, float]:
         """Return the dimensions of the bounding box.
 
         Returns:
@@ -231,9 +230,7 @@ class BoundingBox:
         return cls(min(xs), min(ys), min(zs), max(xs), max(ys), max(zs))
 
     @classmethod
-    def from_polygon_2d(
-        cls, boundary: list, z_min: float, z_max: float
-    ) -> BoundingBox:
+    def from_polygon_2d(cls, boundary: list, z_min: float, z_max: float) -> BoundingBox:
         """Create a bounding box from a 2D polygon boundary and Z range.
 
         Args:

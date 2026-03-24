@@ -2,12 +2,13 @@
 Material definition and management for BIM elements.
 """
 
-from typing import Optional, Dict, Any, Tuple
 from enum import Enum
+from typing import Any
 
 
 class MaterialCategory(Enum):
     """Standard material categories."""
+
     CONCRETE = "Concrete"
     STEEL = "Steel"
     WOOD = "Wood"
@@ -33,21 +34,21 @@ class Material:
     def __init__(
         self,
         name: str,
-        category: Optional[MaterialCategory] = None,
-        description: Optional[str] = None,
+        category: MaterialCategory | None = None,
+        description: str | None = None,
         # Physical properties
-        density: Optional[float] = None,  # kg/m³
-        thermal_conductivity: Optional[float] = None,  # W/(m·K)
-        specific_heat: Optional[float] = None,  # J/(kg·K)
+        density: float | None = None,  # kg/m³
+        thermal_conductivity: float | None = None,  # W/(m·K)
+        specific_heat: float | None = None,  # J/(kg·K)
         # Acoustic properties
-        sound_transmission_class: Optional[int] = None,  # STC rating
+        sound_transmission_class: int | None = None,  # STC rating
         # Visual properties
-        color: Optional[Tuple[int, int, int]] = None,  # RGB (0-255)
+        color: tuple[int, int, int] | None = None,  # RGB (0-255)
         transparency: float = 0.0,  # 0.0 = opaque, 1.0 = transparent
         # Cost and sustainability
-        cost_per_unit: Optional[float] = None,  # currency per m³
-        embodied_carbon: Optional[float] = None,  # kgCO2e per kg
-        recyclable: bool = False
+        cost_per_unit: float | None = None,  # currency per m³
+        embodied_carbon: float | None = None,  # kgCO2e per kg
+        recyclable: bool = False,
     ):
         """
         Create a material definition.
@@ -88,7 +89,7 @@ class Material:
         self.recyclable = recyclable
 
         # Custom properties dictionary
-        self._custom_properties: Dict[str, Any] = {}
+        self._custom_properties: dict[str, Any] = {}
 
     def set_property(self, name: str, value: Any) -> None:
         """
@@ -114,7 +115,7 @@ class Material:
         return self._custom_properties.get(name, default)
 
     @property
-    def properties(self) -> Dict[str, Any]:
+    def properties(self) -> dict[str, Any]:
         """Get all custom properties."""
         return self._custom_properties.copy()
 
@@ -130,9 +131,7 @@ class Material:
         """
         # Create the base material
         ifc_material = ifc_file.createIfcMaterial(
-            self.name,
-            self.description,
-            self.category.value if self.category else None
+            self.name, self.description, self.category.value if self.category else None
         )
 
         # Create property set for physical properties if any are defined
@@ -144,7 +143,7 @@ class Material:
                     "Density",
                     "Material density",
                     ifc_file.createIfcMassDensityMeasure(self.density),
-                    None
+                    None,
                 )
             )
 
@@ -154,7 +153,7 @@ class Material:
                     "ThermalConductivity",
                     "Thermal conductivity",
                     ifc_file.createIfcThermalConductivityMeasure(self.thermal_conductivity),
-                    None
+                    None,
                 )
             )
 
@@ -164,7 +163,7 @@ class Material:
                     "SpecificHeat",
                     "Specific heat capacity",
                     ifc_file.createIfcSpecificHeatCapacityMeasure(self.specific_heat),
-                    None
+                    None,
                 )
             )
 
@@ -174,7 +173,7 @@ class Material:
                     "SoundTransmissionClass",
                     "STC rating",
                     ifc_file.createIfcInteger(self.sound_transmission_class),
-                    None
+                    None,
                 )
             )
 
@@ -184,7 +183,7 @@ class Material:
                     "CostPerUnit",
                     "Cost per cubic meter",
                     ifc_file.createIfcReal(self.cost_per_unit),
-                    None
+                    None,
                 )
             )
 
@@ -194,7 +193,7 @@ class Material:
                     "EmbodiedCarbon",
                     "Embodied carbon kgCO2e per kg",
                     ifc_file.createIfcReal(self.embodied_carbon),
-                    None
+                    None,
                 )
             )
 
@@ -203,7 +202,7 @@ class Material:
                 "Recyclable",
                 "Whether material is recyclable",
                 ifc_file.createIfcBoolean(self.recyclable),
-                None
+                None,
             )
         )
 
@@ -222,20 +221,14 @@ class Material:
 
             properties.append(
                 ifc_file.createIfcPropertySingleValue(
-                    key,
-                    f"Custom property: {key}",
-                    ifc_value,
-                    None
+                    key, f"Custom property: {key}", ifc_value, None
                 )
             )
 
         # Create property set if we have properties
         if properties:
-            property_set = ifc_file.createIfcMaterialProperties(
-                self.name + "_Properties",
-                self.description,
-                properties,
-                ifc_material
+            ifc_file.createIfcMaterialProperties(
+                self.name + "_Properties", self.description, properties, ifc_material
             )
 
         return ifc_material
@@ -274,7 +267,7 @@ class MaterialLibrary:
             specific_heat=880,  # J/(kg·K)
             color=(192, 192, 192),  # Gray
             embodied_carbon=0.15,  # kgCO2e/kg (typical for concrete)
-            recyclable=True
+            recyclable=True,
         )
 
     @staticmethod
@@ -294,7 +287,7 @@ class MaterialLibrary:
             specific_heat=490,  # J/(kg·K)
             color=(128, 128, 128),  # Dark gray
             embodied_carbon=2.5,  # kgCO2e/kg (typical for steel)
-            recyclable=True
+            recyclable=True,
         )
 
     @staticmethod
@@ -314,7 +307,7 @@ class MaterialLibrary:
             specific_heat=1600,  # J/(kg·K)
             color=(210, 180, 140),  # Tan
             embodied_carbon=-0.5,  # Negative carbon (carbon storage)
-            recyclable=True
+            recyclable=True,
         )
 
     @staticmethod
@@ -329,7 +322,7 @@ class MaterialLibrary:
             specific_heat=840,  # J/(kg·K)
             color=(178, 34, 34),  # Firebrick red
             embodied_carbon=0.24,  # kgCO2e/kg
-            recyclable=True
+            recyclable=True,
         )
 
     @staticmethod
@@ -350,7 +343,7 @@ class MaterialLibrary:
             color=(200, 230, 255),  # Light blue
             transparency=0.7,
             embodied_carbon=0.85,  # kgCO2e/kg
-            recyclable=True
+            recyclable=True,
         )
 
     @staticmethod
@@ -365,7 +358,7 @@ class MaterialLibrary:
             specific_heat=840,  # J/(kg·K)
             color=(255, 255, 200),  # Light yellow
             embodied_carbon=1.2,  # kgCO2e/kg
-            recyclable=True
+            recyclable=True,
         )
 
     @staticmethod
@@ -380,5 +373,5 @@ class MaterialLibrary:
             specific_heat=1090,  # J/(kg·K)
             color=(255, 255, 255),  # White
             embodied_carbon=0.39,  # kgCO2e/kg
-            recyclable=True
+            recyclable=True,
         )

@@ -2,10 +2,10 @@
 Building / Site Hierarchy implementation.
 """
 
-from typing import Optional, List, Union
+from typing import Optional
 
 from ..core.element import Element
-from ..utils.units import UnitSystem, LengthUnit
+from ..utils.units import LengthUnit, UnitSystem
 
 
 class Building(Element):
@@ -19,9 +19,9 @@ class Building(Element):
     def __init__(
         self,
         name: str,
-        address: Optional[str] = None,
-        description: Optional[str] = None,
-        unit_system: Union[str, UnitSystem] = UnitSystem.METRIC
+        address: str | None = None,
+        description: str | None = None,
+        unit_system: str | UnitSystem = UnitSystem.METRIC,
     ):
         """
         Create a new building.
@@ -48,9 +48,9 @@ class Building(Element):
             self._length_unit = LengthUnit.INCH
 
         # Collections
-        self._levels: List["Level"] = []  # noqa: F821
-        self._grids: List = []
-        self._elements: List = []
+        self._levels: list[Level] = []  # noqa: F821
+        self._grids: list = []
+        self._elements: list = []
 
         # IFC entities (populated during export)
         self._ifc_file = None
@@ -70,12 +70,12 @@ class Building(Element):
         return self._length_unit
 
     @property
-    def levels(self) -> List["Level"]:  # noqa: F821
+    def levels(self) -> list["Level"]:  # noqa: F821
         """Get all levels in the building."""
         return self._levels.copy()
 
     @property
-    def grids(self) -> List:
+    def grids(self) -> list:
         """Get all grid lines in the building."""
         return self._grids.copy()
 
@@ -138,7 +138,7 @@ class Building(Element):
         exporter = IFCExporter(schema=schema)
         exporter.export(self, filepath)
 
-    def get_rooms(self) -> List:
+    def get_rooms(self) -> list:
         """
         Get all rooms in the building across all levels.
 
@@ -180,17 +180,29 @@ class Building(Element):
         try:
             import pandas as pd
         except ImportError:
-            raise ImportError("pandas is required for room_schedule(). Install with: pip install pandas")
+            raise ImportError(
+                "pandas is required for room_schedule(). Install with: pip install pandas"
+            )
 
         rooms = self.get_rooms()
 
         if not rooms:
             # Return empty DataFrame with correct columns
-            return pd.DataFrame(columns=[
-                "number", "name", "level", "area_m2", "area_sqft",
-                "volume_m3", "height_m", "perimeter_m",
-                "floor_finish", "wall_finish", "ceiling_finish"
-            ])
+            return pd.DataFrame(
+                columns=[
+                    "number",
+                    "name",
+                    "level",
+                    "area_m2",
+                    "area_sqft",
+                    "volume_m3",
+                    "height_m",
+                    "perimeter_m",
+                    "floor_finish",
+                    "wall_finish",
+                    "ceiling_finish",
+                ]
+            )
 
         # Convert rooms to dictionaries
         data = [room.to_dict() for room in rooms]

@@ -3,18 +3,19 @@ Tests for structural columns and column types.
 """
 
 import pytest
+
 from bimascode.spatial.building import Building
 from bimascode.spatial.level import Level
-from bimascode.structure.profile import (
-    RectangularProfile,
-    create_square_profile,
-)
+from bimascode.structure.column import StructuralColumn
 from bimascode.structure.column_type import (
     ColumnType,
     create_rectangular_column_type,
     create_square_column_type,
 )
-from bimascode.structure.column import StructuralColumn
+from bimascode.structure.profile import (
+    RectangularProfile,
+    create_square_profile,
+)
 from bimascode.utils.materials import MaterialLibrary
 
 
@@ -122,12 +123,7 @@ class TestStructuralColumn:
         building, level = setup_building
         column_type = setup_column_type
 
-        column = StructuralColumn(
-            column_type,
-            level,
-            position=(1000, 1000),
-            height=3000.0
-        )
+        column = StructuralColumn(column_type, level, position=(1000, 1000), height=3000.0)
 
         assert column.type == column_type
         assert column.level == level
@@ -139,11 +135,7 @@ class TestStructuralColumn:
         building, level = setup_building
         column_type = setup_column_type
 
-        column = StructuralColumn(
-            column_type,
-            level,
-            position=(1000, 1000)
-        )
+        column = StructuralColumn(column_type, level, position=(1000, 1000))
 
         assert column.height == 3000.0  # Default height
 
@@ -152,12 +144,7 @@ class TestStructuralColumn:
         building, level = setup_building
         column_type = setup_column_type
 
-        column = StructuralColumn(
-            column_type,
-            level,
-            position=(1000, 1000),
-            height=3000.0
-        )
+        column = StructuralColumn(column_type, level, position=(1000, 1000), height=3000.0)
 
         assert column.width == 400.0
         assert column.depth == 400.0
@@ -167,12 +154,7 @@ class TestStructuralColumn:
         building, level = setup_building
         column_type = setup_column_type
 
-        column = StructuralColumn(
-            column_type,
-            level,
-            position=(1000, 1000),
-            height=3000.0
-        )
+        column = StructuralColumn(column_type, level, position=(1000, 1000), height=3000.0)
 
         # Volume = area * height = 160000 * 3000 = 480,000,000 mm³
         assert abs(column.volume - 480_000_000.0) < 1.0
@@ -184,12 +166,7 @@ class TestStructuralColumn:
         building, level = setup_building
         column_type = setup_column_type
 
-        column = StructuralColumn(
-            column_type,
-            level,
-            position=(1000, 2000),
-            height=3000.0
-        )
+        column = StructuralColumn(column_type, level, position=(1000, 2000), height=3000.0)
 
         base = column.get_base_center()
         assert base == (1000, 2000, 0)  # At level elevation
@@ -199,12 +176,7 @@ class TestStructuralColumn:
         building, level = setup_building
         column_type = setup_column_type
 
-        column = StructuralColumn(
-            column_type,
-            level,
-            position=(1000, 2000),
-            height=3000.0
-        )
+        column = StructuralColumn(column_type, level, position=(1000, 2000), height=3000.0)
 
         top = column.get_top_center()
         assert top == (1000, 2000, 3000)
@@ -215,11 +187,7 @@ class TestStructuralColumn:
         column_type = setup_column_type
 
         column = StructuralColumn(
-            column_type,
-            level,
-            position=(1000, 1000),
-            height=3000.0,
-            rotation=45.0
+            column_type, level, position=(1000, 1000), height=3000.0, rotation=45.0
         )
 
         assert column.rotation == 45.0
@@ -229,12 +197,7 @@ class TestStructuralColumn:
         building, level = setup_building
         column_type = setup_column_type
 
-        column = StructuralColumn(
-            column_type,
-            level,
-            position=(1000, 1000),
-            height=3000.0
-        )
+        column = StructuralColumn(column_type, level, position=(1000, 1000), height=3000.0)
 
         assert column in level.elements
 
@@ -243,12 +206,7 @@ class TestStructuralColumn:
         building, level = setup_building
         column_type = setup_column_type
 
-        column = StructuralColumn(
-            column_type,
-            level,
-            position=(1000, 1000),
-            height=3000.0
-        )
+        column = StructuralColumn(column_type, level, position=(1000, 1000), height=3000.0)
 
         geom = column.get_geometry()
         assert geom is not None
@@ -265,12 +223,7 @@ class TestColumnIFC:
 
         profile = RectangularProfile(400, 400)
         column_type = ColumnType("Square Column", profile)
-        column = StructuralColumn(
-            column_type,
-            level,
-            position=(1000, 1000),
-            height=3000.0
-        )
+        column = StructuralColumn(column_type, level, position=(1000, 1000), height=3000.0)
 
         return building, level, column
 

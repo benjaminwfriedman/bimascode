@@ -3,6 +3,7 @@ Tests for rooms/spaces.
 """
 
 import pytest
+
 from bimascode.spatial.building import Building
 from bimascode.spatial.level import Level
 from bimascode.spatial.room import Room
@@ -26,7 +27,7 @@ class TestRoom:
             name="Office",
             number="101",
             boundary=[(0, 0), (5000, 0), (5000, 4000), (0, 4000)],
-            level=level
+            level=level,
         )
 
         assert room.name == "Office"
@@ -42,7 +43,7 @@ class TestRoom:
             name="Office",
             number="101",
             boundary=[(0, 0), (5000, 0), (5000, 4000), (0, 4000)],
-            level=level
+            level=level,
         )
 
         # Area should be 20,000,000 mm² = 20 m²
@@ -59,7 +60,7 @@ class TestRoom:
             number="101",
             boundary=[(0, 0), (5000, 0), (5000, 4000), (0, 4000)],
             level=level,
-            floor_to_ceiling_height=2700.0
+            floor_to_ceiling_height=2700.0,
         )
 
         assert abs(room.volume_m3 - 54.0) < 0.01
@@ -73,7 +74,7 @@ class TestRoom:
             number="100",
             boundary=[(0, 0), (10000, 0), (10000, 8000), (0, 8000)],
             level=level,
-            floor_to_ceiling_height=4000.0
+            floor_to_ceiling_height=4000.0,
         )
 
         assert room.floor_to_ceiling_height == 4000.0
@@ -88,7 +89,7 @@ class TestRoom:
             name="Office",
             number="101",
             boundary=[(0, 0), (5000, 0), (5000, 4000), (0, 4000)],
-            level=level
+            level=level,
         )
 
         assert abs(room.perimeter - 18000.0) < 1.0
@@ -102,7 +103,7 @@ class TestRoom:
             name="Office",
             number="101",
             boundary=[(0, 0), (5000, 0), (5000, 4000), (0, 4000)],
-            level=level
+            level=level,
         )
 
         cx, cy = room.get_centroid()
@@ -120,7 +121,7 @@ class TestRoom:
             level=level,
             floor_finish="Carpet",
             wall_finish="Paint - Eggshell",
-            ceiling_finish="Acoustic Tile"
+            ceiling_finish="Acoustic Tile",
         )
 
         assert room.floor_finish == "Carpet"
@@ -136,7 +137,7 @@ class TestRoom:
             number="101",
             boundary=[(0, 0), (5000, 0), (5000, 4000), (0, 4000)],
             level=level,
-            floor_finish="Carpet"
+            floor_finish="Carpet",
         )
 
         data = room.to_dict()
@@ -155,7 +156,7 @@ class TestRoom:
             name="Office",
             number="101",
             boundary=[(0, 0), (5000, 0), (5000, 4000), (0, 4000)],
-            level=level
+            level=level,
         )
 
         assert room in level.elements
@@ -165,17 +166,9 @@ class TestRoom:
         building, level = setup_building
 
         # L-shaped room: 5x4 + 3x2 = 20 + 6 = 26 m²
-        boundary = [
-            (0, 0), (5000, 0), (5000, 2000),
-            (8000, 2000), (8000, 4000), (0, 4000)
-        ]
+        boundary = [(0, 0), (5000, 0), (5000, 2000), (8000, 2000), (8000, 4000), (0, 4000)]
 
-        room = Room(
-            name="L-Room",
-            number="102",
-            boundary=boundary,
-            level=level
-        )
+        room = Room(name="L-Room", number="102", boundary=boundary, level=level)
 
         # Note: This is approximately 26 m² for an L-shape
         assert room.area_m2 > 20.0  # Should be more than a simple rectangle
@@ -195,7 +188,7 @@ class TestRoomSchedule:
             number="101",
             boundary=[(0, 0), (5000, 0), (5000, 4000), (0, 4000)],
             level=level,
-            floor_finish="Carpet"
+            floor_finish="Carpet",
         )
 
         room2 = Room(
@@ -203,7 +196,7 @@ class TestRoomSchedule:
             number="102",
             boundary=[(5500, 0), (10000, 0), (10000, 5000), (5500, 5000)],
             level=level,
-            floor_finish="Hardwood"
+            floor_finish="Hardwood",
         )
 
         return building, level, [room1, room2]
@@ -254,7 +247,7 @@ class TestRoomIFC:
             level=level,
             floor_finish="Carpet",
             wall_finish="Paint",
-            ceiling_finish="Acoustic"
+            ceiling_finish="Acoustic",
         )
 
         return building, level, room

@@ -5,19 +5,21 @@ Doors are hosted in walls and create openings (voids) in their host.
 They define position along the wall and sill height.
 """
 
-from typing import Optional, List, Union, TYPE_CHECKING
+import math
+from typing import TYPE_CHECKING, Union
+
 from bimascode.core.type_instance import ElementInstance
 from bimascode.core.world_geometry import HostedElementMixin
 from bimascode.performance.bounding_box import BoundingBox
 from bimascode.utils.units import Length, normalize_length
-import math
 
 if TYPE_CHECKING:
     from build123d import Location
+
     from bimascode.architecture.door_type import DoorType
     from bimascode.architecture.wall import Wall
+    from bimascode.drawing.primitives import Arc2D, Hatch2D, Line2D, Polyline2D
     from bimascode.drawing.view_base import ViewRange
-    from bimascode.drawing.primitives import Line2D, Arc2D, Polyline2D, Hatch2D
 
 
 class Door(ElementInstance, HostedElementMixin):
@@ -30,11 +32,11 @@ class Door(ElementInstance, HostedElementMixin):
 
     def __init__(
         self,
-        door_type: 'DoorType',
-        host_wall: 'Wall',
+        door_type: "DoorType",
+        host_wall: "Wall",
         offset: Length | float,
         sill_height: Length | float = 0.0,
-        name: Optional[str] = None
+        name: str | None = None,
     ):
         """
         Create a door.
@@ -55,11 +57,11 @@ class Door(ElementInstance, HostedElementMixin):
         self.set_parameter("sill_height", normalize_length(sill_height).mm, override=False)
 
         # Register with host wall
-        if hasattr(host_wall, 'add_hosted_element'):
+        if hasattr(host_wall, "add_hosted_element"):
             host_wall.add_hosted_element(self)
 
     @property
-    def host_wall(self) -> 'Wall':
+    def host_wall(self) -> "Wall":
         """Get the host wall."""
         return self._host_wall
 
@@ -131,11 +133,7 @@ class Door(ElementInstance, HostedElementMixin):
         wall_angle_deg = wall.angle_degrees
         z = wall.level.elevation_mm + self.sill_height
 
-        return Location(
-            (wall_start[0], wall_start[1], z),
-            (0, 0, 1),
-            wall_angle_deg
-        )
+        return Location((wall_start[0], wall_start[1], z), (0, 0, 1), wall_angle_deg)
 
     def _get_local_transform(self) -> "Location":
         """Get door's position within the host wall.
@@ -249,12 +247,11 @@ class Door(ElementInstance, HostedElementMixin):
         opening_axis_placement = ifc_file.createIfcAxis2Placement3D(
             opening_location,
             ifc_file.createIfcDirection((0.0, 0.0, 1.0)),
-            ifc_file.createIfcDirection((1.0, 0.0, 0.0))
+            ifc_file.createIfcDirection((1.0, 0.0, 0.0)),
         )
 
         opening_placement = ifc_file.createIfcLocalPlacement(
-            ifc_wall.ObjectPlacement,
-            opening_axis_placement
+            ifc_wall.ObjectPlacement, opening_axis_placement
         )
 
         # Create opening element
@@ -265,7 +262,7 @@ class Door(ElementInstance, HostedElementMixin):
             Name=f"{self.name}_Opening",
             Description="Door opening",
             ObjectPlacement=opening_placement,
-            PredefinedType="OPENING"
+            PredefinedType="OPENING",
         )
 
         # Create opening geometry (void box)
@@ -274,17 +271,19 @@ class Door(ElementInstance, HostedElementMixin):
             # Create a simple box representation for the opening
             opening_box = ifc_file.create_entity(
                 "IfcBoundingBox",
-                Corner=ifc_file.createIfcCartesianPoint((-self.width/2, -wall.width/2 - 1, -self.height/2)),
+                Corner=ifc_file.createIfcCartesianPoint(
+                    (-self.width / 2, -wall.width / 2 - 1, -self.height / 2)
+                ),
                 XDim=self.width,
                 YDim=wall.width + 2,
-                ZDim=self.height
+                ZDim=self.height,
             )
 
             box_representation = ifc_file.createIfcShapeRepresentation(
                 ifc_file.by_type("IfcGeometricRepresentationContext")[0],
                 "Body",
                 "BoundingBox",
-                [opening_box]
+                [opening_box],
             )
 
             opening_shape = ifc_file.createIfcProductDefinitionShape(
@@ -299,32 +298,22 @@ class Door(ElementInstance, HostedElementMixin):
             f"{self.name}VoidsWall",
             None,
             ifc_wall,
-            ifc_opening
+            ifc_opening,
         )
 
         # Create door element
         # Door placement is at the bottom-left corner of the frame
-        door_location = ifc_file.createIfcCartesianPoint(
-            (float(offset), 0.0, float(sill))
-        )
+        door_location = ifc_file.createIfcCartesianPoint((float(offset), 0.0, float(sill)))
 
         door_axis_placement = ifc_file.createIfcAxis2Placement3D(
             door_location,
             ifc_file.createIfcDirection((0.0, 0.0, 1.0)),
-            ifc_file.createIfcDirection((1.0, 0.0, 0.0))
+            ifc_file.createIfcDirection((1.0, 0.0, 0.0)),
         )
 
         door_placement = ifc_file.createIfcLocalPlacement(
-            ifc_wall.ObjectPlacement,
-            door_axis_placement
+            ifc_wall.ObjectPlacement, door_axis_placement
         )
-
-        # Map operation type
-        operation_map = {
-            "SINGLE_SWING_LEFT": "SINGLE_SWING_LEFT",
-            "SINGLE_SWING_RIGHT": "SINGLE_SWING_RIGHT",
-            "DOUBLE_DOOR_SINGLE_SWING": "DOUBLE_DOOR_SINGLE_SWING",
-        }
 
         ifc_door = ifc_file.create_entity(
             "IfcDoor",
@@ -335,7 +324,7 @@ class Door(ElementInstance, HostedElementMixin):
             ObjectPlacement=door_placement,
             OverallHeight=self.height,
             OverallWidth=self.width,
-            PredefinedType="DOOR"
+            PredefinedType="DOOR",
         )
 
         # Create door geometry
@@ -347,7 +336,7 @@ class Door(ElementInstance, HostedElementMixin):
                     ifc_file.by_type("IfcGeometricRepresentationContext")[0],
                     "Body",
                     "Brep",
-                    [ifc_brep]
+                    [ifc_brep],
                 )
 
                 product_shape = ifc_file.createIfcProductDefinitionShape(
@@ -362,7 +351,7 @@ class Door(ElementInstance, HostedElementMixin):
             f"{self.name}FillsOpening",
             None,
             ifc_opening,
-            ifc_door
+            ifc_door,
         )
 
         # Associate with building storey
@@ -372,7 +361,7 @@ class Door(ElementInstance, HostedElementMixin):
             f"Door{self.name}Container",
             None,
             [ifc_door],
-            ifc_building_storey
+            ifc_building_storey,
         )
 
         # Associate with door type
@@ -383,7 +372,7 @@ class Door(ElementInstance, HostedElementMixin):
             None,
             None,
             [ifc_door],
-            door_type_ifc
+            door_type_ifc,
         )
 
         return ifc_door
@@ -441,7 +430,7 @@ class Door(ElementInstance, HostedElementMixin):
         self,
         cut_height: float,
         view_range: "ViewRange",
-    ) -> List[Union["Line2D", "Arc2D", "Polyline2D", "Hatch2D"]]:
+    ) -> list[Union["Line2D", "Arc2D", "Polyline2D", "Hatch2D"]]:
         """Generate floor plan linework for this door.
 
         Creates a door swing arc and door panel rectangle.
@@ -453,10 +442,10 @@ class Door(ElementInstance, HostedElementMixin):
         Returns:
             List of 2D geometry primitives
         """
-        from bimascode.drawing.primitives import Point2D, Line2D, Arc2D
-        from bimascode.drawing.line_styles import LineStyle, Layer
+        from bimascode.drawing.line_styles import Layer, LineStyle
+        from bimascode.drawing.primitives import Arc2D, Line2D, Point2D
 
-        result: List[Union["Line2D", "Arc2D", "Polyline2D", "Hatch2D"]] = []
+        result: list[Line2D | Arc2D | Polyline2D | Hatch2D] = []
 
         # Check if door is at the cut plane (doors typically start at floor)
         bbox = self.get_bounding_box()
@@ -480,9 +469,6 @@ class Door(ElementInstance, HostedElementMixin):
         offset = self.offset
         width = self.width
 
-        # Panel thickness (simplified - 45mm)
-        panel_thickness = 45.0
-
         # Door panel hinge point (at one side of opening)
         hinge_x = wall_start[0] + offset * cos_a
         hinge_y = wall_start[1] + offset * sin_a
@@ -499,9 +485,7 @@ class Door(ElementInstance, HostedElementMixin):
             radius=width,
             start_angle=wall_angle,
             end_angle=wall_angle + math.pi / 2,
-            style=LineStyle.visible().with_weight(
-                LineStyle.visible().weight
-            ),
+            style=LineStyle.visible().with_weight(LineStyle.visible().weight),
             layer=Layer.DOOR,
         )
         result.append(swing_arc)

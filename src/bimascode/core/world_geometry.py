@@ -30,7 +30,7 @@ Usage:
 
 import copy
 from abc import abstractmethod
-from typing import TYPE_CHECKING, Any, Optional, Tuple
+from typing import TYPE_CHECKING, Any, Optional
 
 if TYPE_CHECKING:
     from build123d import Location
@@ -52,7 +52,7 @@ class FreestandingElementMixin:
         - _get_local_transform() -> Location for internal centering (Column, Beam)
     """
 
-    def get_world_geometry(self) -> Optional[Any]:
+    def get_world_geometry(self) -> Any | None:
         """Get geometry transformed to world coordinates.
 
         Returns:
@@ -89,7 +89,7 @@ class FreestandingElementMixin:
             return geom_copy.locate(world_transform)
 
     @abstractmethod
-    def _get_world_position(self) -> Tuple[float, float, float]:
+    def _get_world_position(self) -> tuple[float, float, float]:
         """Get the world position (x, y, z) for this element.
 
         Z should include level elevation.
@@ -134,13 +134,12 @@ class HostedElementMixin:
         - _get_local_transform() -> Location (position within host)
     """
 
-    def get_world_geometry(self) -> Optional[Any]:
+    def get_world_geometry(self) -> Any | None:
         """Get geometry transformed to world coordinates.
 
         Returns:
             build123d geometry in world coordinates, or None if no local geometry
         """
-        from build123d import Location
 
         local_geom = self.get_geometry()
         if local_geom is None:

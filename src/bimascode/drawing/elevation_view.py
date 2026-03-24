@@ -8,12 +8,10 @@ from __future__ import annotations
 
 import math
 import time
-from typing import TYPE_CHECKING, List, Optional, Tuple
+from typing import TYPE_CHECKING
 
 from bimascode.drawing.hlr_processor import get_hlr_processor
-from bimascode.drawing.line_styles import Layer, LineStyle
 from bimascode.drawing.primitives import Arc2D, Hatch2D, Line2D, Polyline2D, ViewResult
-from bimascode.drawing.protocols import HasBoundingBox
 from bimascode.drawing.view_base import ViewBase, ViewCropRegion, ViewScale
 from bimascode.performance.bounding_box import BoundingBox
 
@@ -31,9 +29,9 @@ class ElevationDirection:
     """
 
     NORTH = (0, -1, 0)  # View of North face (viewer looks South)
-    SOUTH = (0, 1, 0)   # View of South face (viewer looks North)
-    EAST = (-1, 0, 0)   # View of East face (viewer looks West)
-    WEST = (1, 0, 0)    # View of West face (viewer looks East)
+    SOUTH = (0, 1, 0)  # View of South face (viewer looks North)
+    EAST = (-1, 0, 0)  # View of East face (viewer looks West)
+    WEST = (1, 0, 0)  # View of West face (viewer looks East)
 
 
 class ElevationView(ViewBase):
@@ -56,13 +54,13 @@ class ElevationView(ViewBase):
     def __init__(
         self,
         name: str,
-        direction: Tuple[float, float, float],
-        origin: Optional[Tuple[float, float, float]] = None,
+        direction: tuple[float, float, float],
+        origin: tuple[float, float, float] | None = None,
         depth: float = 100000.0,
         front_clip_depth: float = 1000.0,
-        height_range: Optional[Tuple[float, float]] = None,
+        height_range: tuple[float, float] | None = None,
         scale: ViewScale = ViewScale.SCALE_1_100,
-        crop_region: Optional[ViewCropRegion] = None,
+        crop_region: ViewCropRegion | None = None,
         template=None,
         show_hidden_lines: bool = False,
     ):
@@ -92,14 +90,14 @@ class ElevationView(ViewBase):
         self._template = template
         self.show_hidden_lines = show_hidden_lines
 
-    def _normalize(self, v: Tuple[float, float, float]) -> Tuple[float, float, float]:
+    def _normalize(self, v: tuple[float, float, float]) -> tuple[float, float, float]:
         """Normalize a vector."""
         length = math.sqrt(v[0] ** 2 + v[1] ** 2 + v[2] ** 2)
         if length < 1e-10:
             return (0, 1, 0)
         return (v[0] / length, v[1] / length, v[2] / length)
 
-    def _get_view_bbox(self, spatial_index) -> Optional[BoundingBox]:
+    def _get_view_bbox(self, spatial_index) -> BoundingBox | None:
         """Get bounding box for elements in the elevation view.
 
         The bounding box is limited by front_clip_depth to only include
@@ -144,7 +142,7 @@ class ElevationView(ViewBase):
 
         return BoundingBox(min_x, min_y, min_z, max_x, max_y, max_z)
 
-    def _get_up_vector(self) -> Tuple[float, float, float]:
+    def _get_up_vector(self) -> tuple[float, float, float]:
         """Get the up vector for the view based on direction."""
         dx, dy, dz = self.direction
 
@@ -232,7 +230,7 @@ class ReflectedCeilingPlanView(ViewBase):
         level,
         ceiling_height: float = 2700.0,
         scale: ViewScale = ViewScale.SCALE_1_100,
-        crop_region: Optional[ViewCropRegion] = None,
+        crop_region: ViewCropRegion | None = None,
         template=None,
     ):
         """Create a reflected ceiling plan view.
@@ -285,8 +283,7 @@ class ReflectedCeilingPlanView(ViewBase):
 
         # Filter to ceiling-related elements only
         ceiling_elements = [
-            e for e in elements
-            if type(e).__name__ in ("Ceiling", "Beam", "Light", "Sprinkler")
+            e for e in elements if type(e).__name__ in ("Ceiling", "Beam", "Light", "Sprinkler")
         ]
 
         result.element_count = len(ceiling_elements)

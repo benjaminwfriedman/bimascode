@@ -1,14 +1,15 @@
 """Tests for SpatialIndex class."""
 
 import pytest
+
+from bimascode.architecture.floor import Floor
+from bimascode.architecture.floor_type import FloorType
+from bimascode.architecture.wall import Wall
+from bimascode.architecture.wall_type import LayerFunction, WallType
 from bimascode.performance.bounding_box import BoundingBox
 from bimascode.performance.spatial_index import SpatialIndex
 from bimascode.spatial.building import Building
 from bimascode.spatial.level import Level
-from bimascode.architecture.wall import Wall
-from bimascode.architecture.wall_type import WallType, LayerFunction
-from bimascode.architecture.floor import Floor
-from bimascode.architecture.floor_type import FloorType
 from bimascode.utils.materials import Material, MaterialLibrary
 
 
@@ -116,7 +117,7 @@ class TestSpatialIndexQueries:
                     (i * 2000 + 1000, j * 2000),
                     level,
                     height=3000,
-                    name=f"Wall_{i}_{j}"
+                    name=f"Wall_{i}_{j}",
                 )
                 walls.append(wall)
                 idx.insert(wall)
@@ -241,11 +242,7 @@ class TestSpatialIndexWithMultipleElementTypes:
         concrete = Material("Concrete")
         floor_type = FloorType("Slab")
         floor_type.add_layer(concrete, 200, LayerFunction.STRUCTURE, structural=True)
-        floor = Floor(
-            floor_type,
-            [(0, 0), (5000, 0), (5000, 5000), (0, 5000)],
-            level
-        )
+        floor = Floor(floor_type, [(0, 0), (5000, 0), (5000, 5000), (0, 5000)], level)
 
         idx.insert(wall)
         idx.insert(floor)

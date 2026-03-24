@@ -3,6 +3,7 @@ Unit tests for Material system.
 """
 
 import pytest
+
 from bimascode.utils.materials import Material, MaterialCategory, MaterialLibrary
 
 
@@ -21,7 +22,7 @@ class TestMaterial:
             "Concrete C30/37",
             category=MaterialCategory.CONCRETE,
             density=2400,
-            thermal_conductivity=1.4
+            thermal_conductivity=1.4,
         )
 
         assert mat.name == "Concrete C30/37"
@@ -191,8 +192,6 @@ class TestMaterialIFCExport:
 
     def test_material_to_ifc(self):
         """Test exporting material to IFC."""
-        import tempfile
-        from pathlib import Path
 
         try:
             import ifcopenshell
@@ -202,7 +201,7 @@ class TestMaterialIFCExport:
                 category=MaterialCategory.CONCRETE,
                 density=2400,
                 thermal_conductivity=1.4,
-                recyclable=True
+                recyclable=True,
             )
 
             # Create minimal IFC file
@@ -219,22 +218,17 @@ class TestMaterialIFCExport:
 
     def test_material_properties_export(self):
         """Test that material properties are exported."""
-        import tempfile
-        from pathlib import Path
 
         try:
             import ifcopenshell
 
             mat = Material(
-                "Test Material",
-                density=2400,
-                thermal_conductivity=1.4,
-                specific_heat=880
+                "Test Material", density=2400, thermal_conductivity=1.4, specific_heat=880
             )
             mat.set_property("custom_prop", "test_value")
 
             ifc_file = ifcopenshell.file(schema="IFC4")
-            ifc_mat = mat.to_ifc(ifc_file)
+            mat.to_ifc(ifc_file)
 
             # Check that material properties were created
             mat_props = ifc_file.by_type("IfcMaterialProperties")

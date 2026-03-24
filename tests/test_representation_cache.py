@@ -1,12 +1,12 @@
 """Tests for RepresentationCache class."""
 
-import pytest
 import time
-from bimascode.performance.representation_cache import RepresentationCache, CachedRepresentation
+
+from bimascode.architecture.wall import Wall
+from bimascode.architecture.wall_type import LayerFunction, WallType
+from bimascode.performance.representation_cache import CachedRepresentation, RepresentationCache
 from bimascode.spatial.building import Building
 from bimascode.spatial.level import Level
-from bimascode.architecture.wall import Wall
-from bimascode.architecture.wall_type import WallType, LayerFunction
 from bimascode.utils.materials import MaterialLibrary
 
 
@@ -277,7 +277,7 @@ class TestCachedRepresentation:
             cut_height=1200.0,
             linework=MockLinework([]),
             timestamp=time.time(),
-            element_modified=time.time()
+            element_modified=time.time(),
         )
 
         # Cache is valid if element hasn't been modified since
@@ -292,7 +292,7 @@ class TestCachedRepresentation:
             cut_height=1200.0,
             linework=MockLinework([]),
             timestamp=old_time,
-            element_modified=old_time
+            element_modified=old_time,
         )
 
         # Cache is stale if element was modified after

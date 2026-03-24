@@ -7,11 +7,11 @@ through building models.
 from __future__ import annotations
 
 import time
-from typing import TYPE_CHECKING, List, Optional, Tuple
+from typing import TYPE_CHECKING
 
 from bimascode.drawing.hlr_processor import get_hlr_processor
 from bimascode.drawing.line_styles import Layer, LineStyle
-from bimascode.drawing.primitives import Arc2D, Hatch2D, Line2D, Point2D, Polyline2D, ViewResult
+from bimascode.drawing.primitives import Arc2D, Hatch2D, Line2D, Polyline2D, ViewResult
 from bimascode.drawing.protocols import HasBoundingBox, HasGeometry
 from bimascode.drawing.section_cutter import get_section_cutter
 from bimascode.drawing.view_base import ViewBase, ViewCropRegion, ViewScale
@@ -48,12 +48,12 @@ class SectionView(ViewBase):
     def __init__(
         self,
         name: str,
-        plane_point: Tuple[float, float, float],
-        plane_normal: Tuple[float, float, float],
+        plane_point: tuple[float, float, float],
+        plane_normal: tuple[float, float, float],
         depth: float = 50000.0,
-        height_range: Optional[Tuple[float, float]] = None,
+        height_range: tuple[float, float] | None = None,
         scale: ViewScale = ViewScale.SCALE_1_50,
-        crop_region: Optional[ViewCropRegion] = None,
+        crop_region: ViewCropRegion | None = None,
         template=None,
         show_hidden_lines: bool = True,
     ):
@@ -79,7 +79,7 @@ class SectionView(ViewBase):
         self._template = template
         self.show_hidden_lines = show_hidden_lines
 
-    def _normalize(self, v: Tuple[float, float, float]) -> Tuple[float, float, float]:
+    def _normalize(self, v: tuple[float, float, float]) -> tuple[float, float, float]:
         """Normalize a vector."""
         import math
 
@@ -239,13 +239,13 @@ class SectionView(ViewBase):
 
         return result
 
-    def _process_cut_element(self, element, cutter) -> List:
+    def _process_cut_element(self, element, cutter) -> list:
         """Process an element that is cut by the section plane."""
         if not isinstance(element, HasGeometry):
             return []
 
         # Use world geometry if available (includes transform to world coordinates)
-        if hasattr(element, 'get_world_geometry'):
+        if hasattr(element, "get_world_geometry"):
             geometry = element.get_world_geometry()
         else:
             geometry = element.get_geometry()
@@ -264,7 +264,7 @@ class SectionView(ViewBase):
 
         return linework
 
-    def _add_linework(self, result: ViewResult, linework: List) -> None:
+    def _add_linework(self, result: ViewResult, linework: list) -> None:
         """Add linework to view result."""
         for item in linework:
             if isinstance(item, Line2D):

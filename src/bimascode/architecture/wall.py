@@ -5,19 +5,19 @@ This module implements straight walls with support for hosted elements
 (doors, windows) and wall joins.
 """
 
-from typing import Tuple, Optional, List, TYPE_CHECKING, Union
+import math
+from typing import TYPE_CHECKING, Union
+
 from bimascode.core.type_instance import ElementInstance
 from bimascode.core.world_geometry import FreestandingElementMixin
 from bimascode.performance.bounding_box import BoundingBox
 from bimascode.spatial.level import Level
 from bimascode.utils.units import Length, normalize_length
-import math
 
 if TYPE_CHECKING:
-    from bimascode.architecture.door import Door
-    from bimascode.architecture.window import Window
+    from bimascode.architecture.wall_type import WallType
+    from bimascode.drawing.primitives import Arc2D, Hatch2D, Line2D, Polyline2D
     from bimascode.drawing.view_base import ViewRange
-    from bimascode.drawing.primitives import Line2D, Arc2D, Polyline2D, Hatch2D
 
 
 class Wall(ElementInstance, FreestandingElementMixin):
@@ -30,13 +30,13 @@ class Wall(ElementInstance, FreestandingElementMixin):
 
     def __init__(
         self,
-        wall_type: 'WallType',
-        start_point: Tuple[float, float],
-        end_point: Tuple[float, float],
+        wall_type: "WallType",
+        start_point: tuple[float, float],
+        end_point: tuple[float, float],
         level: Level,
-        height: Optional[Length | float] = None,
+        height: Length | float | None = None,
         structural: bool = False,
-        name: Optional[str] = None
+        name: str | None = None,
     ):
         """
         Create a wall.
@@ -55,7 +55,7 @@ class Wall(ElementInstance, FreestandingElementMixin):
         self.level = level
 
         # Hosted elements (doors, windows)
-        self._hosted_elements: List = []
+        self._hosted_elements: list = []
 
         # Wall join trim adjustments
         self._trim_adjustments: dict = {}
@@ -74,16 +74,16 @@ class Wall(ElementInstance, FreestandingElementMixin):
         self.set_parameter("height", normalize_length(height).mm, override=False)
 
         # Register with level
-        if hasattr(level, 'add_element'):
+        if hasattr(level, "add_element"):
             level.add_element(self)
 
     @property
-    def start_point(self) -> Tuple[float, float]:
+    def start_point(self) -> tuple[float, float]:
         """Get wall start point."""
         return self.get_parameter("start_point")
 
     @property
-    def end_point(self) -> Tuple[float, float]:
+    def end_point(self) -> tuple[float, float]:
         """Get wall end point."""
         return self.get_parameter("end_point")
 
@@ -135,7 +135,7 @@ class Wall(ElementInstance, FreestandingElementMixin):
         """Get wall angle in degrees."""
         return math.degrees(self.angle)
 
-    def _get_world_position(self) -> Tuple[float, float, float]:
+    def _get_world_position(self) -> tuple[float, float, float]:
         """Get world position for wall geometry.
 
         Returns:
@@ -168,16 +168,16 @@ class Wall(ElementInstance, FreestandingElementMixin):
         return self._structural or len(self.type.get_structural_layers()) > 0
 
     @property
-    def hosted_elements(self) -> List:
+    def hosted_elements(self) -> list:
         """Get all hosted elements (doors, windows)."""
         return self._hosted_elements.copy()
 
     @property
-    def openings(self) -> List:
+    def openings(self) -> list:
         """Get opening geometries from hosted elements."""
         opening_geoms = []
         for element in self._hosted_elements:
-            if hasattr(element, 'get_opening_geometry'):
+            if hasattr(element, "get_opening_geometry"):
                 opening_geoms.append(element.get_opening_geometry())
         return opening_geoms
 
@@ -203,7 +203,7 @@ class Wall(ElementInstance, FreestandingElementMixin):
             self._hosted_elements.remove(element)
             self.invalidate_geometry()
 
-    def get_midpoint(self) -> Tuple[float, float]:
+    def get_midpoint(self) -> tuple[float, float]:
         """
         Get the midpoint of the wall.
 
@@ -212,12 +212,9 @@ class Wall(ElementInstance, FreestandingElementMixin):
         """
         start = self.start_point
         end = self.end_point
-        return (
-            (start[0] + end[0]) / 2,
-            (start[1] + end[1]) / 2
-        )
+        return ((start[0] + end[0]) / 2, (start[1] + end[1]) / 2)
 
-    def get_center_3d(self) -> Tuple[float, float, float]:
+    def get_center_3d(self) -> tuple[float, float, float]:
         """
         Get the 3D center point of the wall.
 
@@ -236,7 +233,7 @@ class Wall(ElementInstance, FreestandingElementMixin):
         self.set_parameter("end_point", start, override=False)
         self.invalidate_geometry()
 
-    def set_start_point(self, point: Tuple[float, float]) -> None:
+    def set_start_point(self, point: tuple[float, float]) -> None:
         """
         Set the wall start point.
 
@@ -246,7 +243,7 @@ class Wall(ElementInstance, FreestandingElementMixin):
         self.set_parameter("start_point", point, override=False)
         self.invalidate_geometry()
 
-    def set_end_point(self, point: Tuple[float, float]) -> None:
+    def set_end_point(self, point: tuple[float, float]) -> None:
         """
         Set the wall end point.
 
@@ -286,7 +283,7 @@ class Wall(ElementInstance, FreestandingElementMixin):
             GlobalId=self.guid,
             Name=self.name,
             Description=f"{self.type.name} wall",
-            PredefinedType=predefined_type
+            PredefinedType=predefined_type,
         )
 
         # Set placement (local to building storey)
@@ -296,12 +293,11 @@ class Wall(ElementInstance, FreestandingElementMixin):
         axis_placement = ifc_file.createIfcAxis2Placement3D(
             location,
             ifc_file.createIfcDirection((0.0, 0.0, 1.0)),
-            ifc_file.createIfcDirection((math.cos(self.angle), math.sin(self.angle), 0.0))
+            ifc_file.createIfcDirection((math.cos(self.angle), math.sin(self.angle), 0.0)),
         )
 
         local_placement = ifc_file.createIfcLocalPlacement(
-            ifc_building_storey.ObjectPlacement,
-            axis_placement
+            ifc_building_storey.ObjectPlacement, axis_placement
         )
 
         ifc_wall.ObjectPlacement = local_placement
@@ -321,14 +317,12 @@ class Wall(ElementInstance, FreestandingElementMixin):
                     ifc_file.by_type("IfcGeometricRepresentationContext")[0],
                     "Body",
                     "Brep",
-                    [ifc_brep]
+                    [ifc_brep],
                 )
 
                 # Create product definition shape
                 product_shape = ifc_file.createIfcProductDefinitionShape(
-                    None,
-                    None,
-                    [shape_representation]
+                    None, None, [shape_representation]
                 )
 
                 ifc_wall.Representation = product_shape
@@ -340,7 +334,7 @@ class Wall(ElementInstance, FreestandingElementMixin):
             f"Wall{self.name}Container",
             None,
             [ifc_wall],
-            ifc_building_storey
+            ifc_building_storey,
         )
 
         # Associate with material layer set
@@ -352,7 +346,7 @@ class Wall(ElementInstance, FreestandingElementMixin):
             ForLayerSet=material_layer_set,
             LayerSetDirection="AXIS2",
             DirectionSense="POSITIVE",
-            OffsetFromReferenceLine=0.0
+            OffsetFromReferenceLine=0.0,
         )
 
         ifc_file.createIfcRelAssociatesMaterial(
@@ -361,7 +355,7 @@ class Wall(ElementInstance, FreestandingElementMixin):
             None,
             None,
             [ifc_wall],
-            material_layer_set_usage
+            material_layer_set_usage,
         )
 
         return ifc_wall
@@ -396,7 +390,7 @@ class Wall(ElementInstance, FreestandingElementMixin):
         self,
         cut_height: float,
         view_range: "ViewRange",
-    ) -> List[Union["Line2D", "Arc2D", "Polyline2D", "Hatch2D"]]:
+    ) -> list[Union["Line2D", "Arc2D", "Polyline2D", "Hatch2D"]]:
         """Generate floor plan linework for this wall.
 
         Creates polylines representing the wall outline, accounting for:
@@ -410,8 +404,8 @@ class Wall(ElementInstance, FreestandingElementMixin):
         Returns:
             List of 2D geometry primitives
         """
-        from bimascode.drawing.primitives import Point2D, Line2D, Polyline2D, Hatch2D
-        from bimascode.drawing.line_styles import LineStyle, Layer
+        from bimascode.drawing.line_styles import Layer, LineStyle
+        from bimascode.drawing.primitives import Hatch2D, Point2D, Polyline2D
 
         # Check if wall is cut by the section plane
         bbox = self.get_bounding_box()
@@ -442,9 +436,9 @@ class Wall(ElementInstance, FreestandingElementMixin):
         # end_offset: positive = extend end forward, negative = trim end back
         start_offset = 0.0
         end_offset = 0.0
-        if hasattr(self, '_trim_adjustments') and self._trim_adjustments:
-            start_offset = self._trim_adjustments.get('start_offset', 0.0)
-            end_offset = self._trim_adjustments.get('end_offset', 0.0)
+        if hasattr(self, "_trim_adjustments") and self._trim_adjustments:
+            start_offset = self._trim_adjustments.get("start_offset", 0.0)
+            end_offset = self._trim_adjustments.get("end_offset", 0.0)
 
         # Adjusted start and end points along centerline
         adj_start_x = start[0] + start_offset * cos_a
@@ -455,17 +449,17 @@ class Wall(ElementInstance, FreestandingElementMixin):
         # Collect openings (doors/windows) that are cut by the section plane
         openings = []
         for element in self._hosted_elements:
-            elem_bbox = element.get_bounding_box() if hasattr(element, 'get_bounding_box') else None
+            elem_bbox = element.get_bounding_box() if hasattr(element, "get_bounding_box") else None
             if elem_bbox and elem_bbox.min_z <= cut_height <= elem_bbox.max_z:
                 # Opening is cut - get its position along wall
-                offset = element.offset if hasattr(element, 'offset') else 0
-                width = element.width if hasattr(element, 'width') else 0
+                offset = element.offset if hasattr(element, "offset") else 0
+                width = element.width if hasattr(element, "width") else 0
                 openings.append((offset, offset + width))
 
         # Sort openings by start position
         openings.sort(key=lambda x: x[0])
 
-        result: List[Union["Line2D", "Arc2D", "Polyline2D", "Hatch2D"]] = []
+        result: list[Line2D | Arc2D | Polyline2D | Hatch2D] = []
 
         # If no openings, draw wall as single polyline
         if not openings:

@@ -5,7 +5,8 @@ This module implements ceilings as horizontal covering elements
 at a specified height above a level.
 """
 
-from typing import List, Tuple, Optional, Union, TYPE_CHECKING
+from typing import TYPE_CHECKING, Union
+
 from bimascode.core.type_instance import ElementInstance
 from bimascode.core.world_geometry import FreestandingElementMixin
 from bimascode.performance.bounding_box import BoundingBox
@@ -14,8 +15,8 @@ from bimascode.utils.units import Length, normalize_length
 
 if TYPE_CHECKING:
     from bimascode.architecture.ceiling_type import CeilingType
+    from bimascode.drawing.primitives import Arc2D, Hatch2D, Line2D, Polyline2D
     from bimascode.drawing.view_base import ViewRange
-    from bimascode.drawing.primitives import Line2D, Arc2D, Polyline2D, Hatch2D
 
 
 class Ceiling(ElementInstance, FreestandingElementMixin):
@@ -29,11 +30,11 @@ class Ceiling(ElementInstance, FreestandingElementMixin):
 
     def __init__(
         self,
-        ceiling_type: 'CeilingType',
-        boundary: List[Tuple[float, float]],
+        ceiling_type: "CeilingType",
+        boundary: list[tuple[float, float]],
         level: Level,
         height: Length | float = 2700.0,
-        name: Optional[str] = None
+        name: str | None = None,
     ):
         """
         Create a ceiling.
@@ -54,11 +55,11 @@ class Ceiling(ElementInstance, FreestandingElementMixin):
         self.set_parameter("height", normalize_length(height).mm, override=False)
 
         # Register with level
-        if hasattr(level, 'add_element'):
+        if hasattr(level, "add_element"):
             level.add_element(self)
 
     @property
-    def boundary(self) -> List[Tuple[float, float]]:
+    def boundary(self) -> list[tuple[float, float]]:
         """Get ceiling boundary polygon."""
         return self.get_parameter("boundary")
 
@@ -118,7 +119,7 @@ class Ceiling(ElementInstance, FreestandingElementMixin):
         """Get ceiling area in square meters."""
         return self.area / 1_000_000.0
 
-    def get_centroid(self) -> Tuple[float, float]:
+    def get_centroid(self) -> tuple[float, float]:
         """
         Calculate the centroid of the ceiling boundary.
 
@@ -135,7 +136,7 @@ class Ceiling(ElementInstance, FreestandingElementMixin):
 
         return (x_sum / n, y_sum / n)
 
-    def get_center_3d(self) -> Tuple[float, float, float]:
+    def get_center_3d(self) -> tuple[float, float, float]:
         """
         Get the 3D center point of the ceiling.
 
@@ -146,7 +147,7 @@ class Ceiling(ElementInstance, FreestandingElementMixin):
         z = self.elevation + self.thickness / 2
         return (cx, cy, z)
 
-    def _get_world_position(self) -> Tuple[float, float, float]:
+    def _get_world_position(self) -> tuple[float, float, float]:
         """Get world position for ceiling geometry.
 
         build123d's Polygon centers vertices at the centroid, so we translate
@@ -169,7 +170,7 @@ class Ceiling(ElementInstance, FreestandingElementMixin):
         """
         return 0.0
 
-    def set_boundary(self, boundary: List[Tuple[float, float]]) -> None:
+    def set_boundary(self, boundary: list[tuple[float, float]]) -> None:
         """
         Set the ceiling boundary.
 
@@ -206,24 +207,25 @@ class Ceiling(ElementInstance, FreestandingElementMixin):
             GlobalId=self.guid,
             Name=self.name,
             Description=f"{self.type.name} ceiling",
-            PredefinedType="CEILING"
+            PredefinedType="CEILING",
         )
 
         # Set placement (at ceiling height above level)
         centroid = self.get_centroid()
         # Position at bottom of ceiling (elevation)
         z_offset = self.height - self.thickness
-        location = ifc_file.createIfcCartesianPoint((float(centroid[0]), float(centroid[1]), float(z_offset)))
+        location = ifc_file.createIfcCartesianPoint(
+            (float(centroid[0]), float(centroid[1]), float(z_offset))
+        )
 
         axis_placement = ifc_file.createIfcAxis2Placement3D(
             location,
             ifc_file.createIfcDirection((0.0, 0.0, 1.0)),
-            ifc_file.createIfcDirection((1.0, 0.0, 0.0))
+            ifc_file.createIfcDirection((1.0, 0.0, 0.0)),
         )
 
         local_placement = ifc_file.createIfcLocalPlacement(
-            ifc_building_storey.ObjectPlacement,
-            axis_placement
+            ifc_building_storey.ObjectPlacement, axis_placement
         )
 
         ifc_covering.ObjectPlacement = local_placement
@@ -243,14 +245,12 @@ class Ceiling(ElementInstance, FreestandingElementMixin):
                     ifc_file.by_type("IfcGeometricRepresentationContext")[0],
                     "Body",
                     "Brep",
-                    [ifc_brep]
+                    [ifc_brep],
                 )
 
                 # Create product definition shape
                 product_shape = ifc_file.createIfcProductDefinitionShape(
-                    None,
-                    None,
-                    [shape_representation]
+                    None, None, [shape_representation]
                 )
 
                 ifc_covering.Representation = product_shape
@@ -262,7 +262,7 @@ class Ceiling(ElementInstance, FreestandingElementMixin):
             f"Ceiling{self.name}Container",
             None,
             [ifc_covering],
-            ifc_building_storey
+            ifc_building_storey,
         )
 
         # Associate with covering type
@@ -273,7 +273,7 @@ class Ceiling(ElementInstance, FreestandingElementMixin):
             None,
             None,
             [ifc_covering],
-            ifc_covering_type
+            ifc_covering_type,
         )
 
         # Associate with material if present
@@ -285,7 +285,7 @@ class Ceiling(ElementInstance, FreestandingElementMixin):
                 None,
                 None,
                 [ifc_covering],
-                ifc_material
+                ifc_material,
             )
 
         return ifc_covering
@@ -297,16 +297,14 @@ class Ceiling(ElementInstance, FreestandingElementMixin):
             BoundingBox encompassing the ceiling geometry
         """
         return BoundingBox.from_polygon_2d(
-            self.boundary,
-            self.elevation,  # Bottom of ceiling
-            self.top_elevation  # Top of ceiling
+            self.boundary, self.elevation, self.top_elevation  # Bottom of ceiling  # Top of ceiling
         )
 
     def get_plan_representation(
         self,
         cut_height: float,
         view_range: "ViewRange",
-    ) -> List[Union["Line2D", "Arc2D", "Polyline2D", "Hatch2D"]]:
+    ) -> list[Union["Line2D", "Arc2D", "Polyline2D", "Hatch2D"]]:
         """Generate floor plan linework for this ceiling.
 
         Ceilings are typically shown in Reflected Ceiling Plans (RCP),
@@ -320,10 +318,10 @@ class Ceiling(ElementInstance, FreestandingElementMixin):
         Returns:
             List of 2D geometry primitives
         """
+        from bimascode.drawing.line_styles import Layer, LineStyle
         from bimascode.drawing.primitives import Point2D, Polyline2D
-        from bimascode.drawing.line_styles import LineStyle, Layer
 
-        result: List[Union["Line2D", "Arc2D", "Polyline2D", "Hatch2D"]] = []
+        result: list[Line2D | Arc2D | Polyline2D | Hatch2D] = []
 
         # Ceilings are above the cut plane - show with dashed above-cut style
         bbox = self.get_bounding_box()

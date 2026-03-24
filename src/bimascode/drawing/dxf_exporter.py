@@ -7,7 +7,7 @@ to DXF format using ezdxf library.
 from __future__ import annotations
 
 import math
-from typing import TYPE_CHECKING, Dict, List, Optional, Tuple
+from typing import TYPE_CHECKING
 
 from bimascode.drawing.line_styles import Layer, LineType, LineWeight
 from bimascode.drawing.primitives import Arc2D, Hatch2D, Line2D, Polyline2D, ViewResult
@@ -162,7 +162,7 @@ class DXFExporter:
                     description=f"{name} line type",
                 )
 
-    def _get_dxf_attributes(self, style) -> Dict:
+    def _get_dxf_attributes(self, style) -> dict:
         """Get DXF entity attributes from a LineStyle."""
         attrs = {}
 
@@ -185,7 +185,7 @@ class DXFExporter:
     def _export_lines(
         self,
         msp,
-        lines: List[Line2D],
+        lines: list[Line2D],
         scale: float,
     ) -> None:
         """Export Line2D objects to DXF."""
@@ -202,7 +202,7 @@ class DXFExporter:
     def _export_arcs(
         self,
         msp,
-        arcs: List[Arc2D],
+        arcs: list[Arc2D],
         scale: float,
     ) -> None:
         """Export Arc2D objects to DXF."""
@@ -225,7 +225,7 @@ class DXFExporter:
     def _export_polylines(
         self,
         msp,
-        polylines: List[Polyline2D],
+        polylines: list[Polyline2D],
         scale: float,
     ) -> None:
         """Export Polyline2D objects to DXF."""
@@ -254,7 +254,7 @@ class DXFExporter:
     def _export_hatches(
         self,
         msp,
-        hatches: List[Hatch2D],
+        hatches: list[Hatch2D],
         scale: float,
     ) -> None:
         """Export Hatch2D objects to DXF."""
@@ -281,7 +281,7 @@ class DXFExporter:
 
     def export_multiple(
         self,
-        views: List[Tuple[ViewResult, Tuple[float, float]]],
+        views: list[tuple[ViewResult, tuple[float, float]]],
         filepath: str,
         scale: float = 1.0,
     ) -> bool:
@@ -338,7 +338,7 @@ class DXFExporter:
 
 
 # Global exporter instance
-_dxf_exporter: Optional[DXFExporter] = None
+_dxf_exporter: DXFExporter | None = None
 
 
 def get_dxf_exporter() -> DXFExporter:

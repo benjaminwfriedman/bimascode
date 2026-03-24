@@ -5,11 +5,17 @@ This module implements the CeilingType class which defines ceiling
 assemblies with thickness and material properties.
 """
 
-from typing import Optional, List
-from build123d import Box, Polygon as BD_Polygon, extrude, Location
+from typing import TYPE_CHECKING
+
+from build123d import Polygon as BD_Polygon
+from build123d import extrude
+
 from bimascode.core.type_instance import ElementType
 from bimascode.utils.materials import Material
 from bimascode.utils.units import Length, normalize_length
+
+if TYPE_CHECKING:
+    from bimascode.architecture.ceiling import Ceiling
 
 
 class CeilingType(ElementType):
@@ -24,8 +30,8 @@ class CeilingType(ElementType):
         self,
         name: str,
         thickness: Length | float = 15.0,
-        material: Optional[Material] = None,
-        description: Optional[str] = None
+        material: Material | None = None,
+        description: str | None = None,
     ):
         """
         Create a ceiling type.
@@ -48,7 +54,7 @@ class CeilingType(ElementType):
         """Get ceiling thickness in millimeters."""
         return self.get_parameter("thickness")
 
-    def create_geometry(self, instance: 'Ceiling'):
+    def create_geometry(self, instance: "Ceiling"):
         """
         Create 3D geometry for a ceiling instance.
 
@@ -82,6 +88,7 @@ class CeilingType(ElementType):
     def _generate_guid(self) -> str:
         """Generate a unique IFC GUID."""
         import uuid
+
         return str(uuid.uuid4())
 
     def to_ifc(self, ifc_file):
@@ -102,19 +109,14 @@ class CeilingType(ElementType):
             GlobalId=self.guid,
             Name=self.name,
             Description=self.description,
-            PredefinedType="CEILING"
+            PredefinedType="CEILING",
         )
 
         # Associate material if present
         if self.material:
             ifc_material = self.material.to_ifc(ifc_file)
             ifc_file.createIfcRelAssociatesMaterial(
-                self._generate_guid(),
-                None,
-                None,
-                None,
-                [ifc_covering_type],
-                ifc_material
+                self._generate_guid(), None, None, None, [ifc_covering_type], ifc_material
             )
 
         return ifc_covering_type
@@ -125,9 +127,7 @@ class CeilingType(ElementType):
 
 # Common ceiling type constructors
 def create_gypsum_ceiling_type(
-    name: str,
-    thickness: Length | float = 15.0,
-    material: Optional[Material] = None
+    name: str, thickness: Length | float = 15.0, material: Material | None = None
 ) -> CeilingType:
     """
     Create a standard gypsum board ceiling type.
@@ -144,14 +144,12 @@ def create_gypsum_ceiling_type(
         name=name,
         thickness=thickness,
         material=material,
-        description=f"{name} - Gypsum Board Ceiling"
+        description=f"{name} - Gypsum Board Ceiling",
     )
 
 
 def create_suspended_ceiling_type(
-    name: str,
-    thickness: Length | float = 20.0,
-    material: Optional[Material] = None
+    name: str, thickness: Length | float = 20.0, material: Material | None = None
 ) -> CeilingType:
     """
     Create a suspended/drop ceiling type.
@@ -165,8 +163,5 @@ def create_suspended_ceiling_type(
         CeilingType for suspended ceiling
     """
     return CeilingType(
-        name=name,
-        thickness=thickness,
-        material=material,
-        description=f"{name} - Suspended Ceiling"
+        name=name, thickness=thickness, material=material, description=f"{name} - Suspended Ceiling"
     )

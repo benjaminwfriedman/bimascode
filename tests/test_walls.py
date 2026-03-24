@@ -2,12 +2,19 @@
 Unit tests for Wall and WallType classes.
 """
 
-import pytest
 import math
-from bimascode.architecture import WallType, Wall, Layer, LayerFunction, create_basic_wall_type, create_stud_wall_type
-from bimascode.utils.materials import MaterialLibrary, Material, MaterialCategory
+
+from bimascode.architecture import (
+    Layer,
+    LayerFunction,
+    Wall,
+    WallType,
+    create_basic_wall_type,
+    create_stud_wall_type,
+)
 from bimascode.spatial.building import Building
 from bimascode.spatial.level import Level
+from bimascode.utils.materials import MaterialLibrary
 
 
 class TestLayer:
@@ -26,6 +33,7 @@ class TestLayer:
     def test_layer_with_length_unit(self):
         """Test layer with Length object."""
         from bimascode.utils.units import Length
+
         material = MaterialLibrary.concrete()
         thickness = Length(0.2, "m")
         layer = Layer(material, thickness, LayerFunction.STRUCTURE)
@@ -142,7 +150,7 @@ class TestWallType:
             interior_finish=gypsum,
             interior_finish_thickness=12.5,
             exterior_finish=gypsum,
-            exterior_finish_thickness=12.5
+            exterior_finish_thickness=12.5,
         )
 
         assert wall_type.name == "Stud Wall"

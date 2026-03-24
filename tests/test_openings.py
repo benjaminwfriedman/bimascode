@@ -3,17 +3,17 @@ Tests for floor and roof openings.
 """
 
 import pytest
-from bimascode.spatial.building import Building
-from bimascode.spatial.level import Level
-from bimascode.architecture.floor_type import FloorType, create_concrete_floor_type
+
 from bimascode.architecture.floor import Floor
-from bimascode.architecture.roof import Roof
+from bimascode.architecture.floor_type import create_concrete_floor_type
 from bimascode.architecture.opening import (
     Opening,
-    create_rectangular_opening,
     create_circular_opening,
+    create_rectangular_opening,
 )
-from bimascode.utils.materials import MaterialLibrary
+from bimascode.architecture.roof import Roof
+from bimascode.spatial.building import Building
+from bimascode.spatial.level import Level
 
 
 class TestOpening:
@@ -107,12 +107,7 @@ class TestOpening:
         """Test rectangular opening convenience function."""
         building, level, floor = setup_floor
 
-        opening = create_rectangular_opening(
-            floor,
-            center=(3000, 3000),
-            width=2000,
-            length=2000
-        )
+        opening = create_rectangular_opening(floor, center=(3000, 3000), width=2000, length=2000)
 
         assert abs(opening.area_m2 - 4.0) < 0.01
         centroid = opening.get_centroid()
@@ -122,14 +117,10 @@ class TestOpening:
     def test_circular_opening_helper(self, setup_floor):
         """Test circular opening convenience function."""
         import math
+
         building, level, floor = setup_floor
 
-        opening = create_circular_opening(
-            floor,
-            center=(3000, 3000),
-            radius=500,
-            segments=32
-        )
+        opening = create_circular_opening(floor, center=(3000, 3000), radius=500, segments=32)
 
         # Area should be approximately pi * r^2
         expected_area = math.pi * 0.5 * 0.5  # m^2
@@ -191,8 +182,8 @@ class TestFloorOpenings:
             (5000, 5000),
         ]
 
-        opening1 = floor.add_opening(opening1_boundary, name="Stair Opening")
-        opening2 = floor.add_opening(opening2_boundary, name="Shaft Opening")
+        floor.add_opening(opening1_boundary, name="Stair Opening")
+        floor.add_opening(opening2_boundary, name="Shaft Opening")
 
         assert len(floor.openings) == 2
 

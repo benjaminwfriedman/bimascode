@@ -4,10 +4,7 @@ Comprehensive test suite for the enhanced view scale system,
 including DetailLevel, ScaleBehaviorConfig, and AI agent helpers.
 """
 
-import pytest
 
-from bimascode.spatial.building import Building
-from bimascode.spatial.level import Level
 from bimascode.drawing.floor_plan_view import FloorPlanView
 from bimascode.drawing.line_styles import LineStyle, LineWeight
 from bimascode.drawing.scale_helpers import (
@@ -20,6 +17,8 @@ from bimascode.drawing.view_base import (
     ViewScale,
 )
 from bimascode.drawing.view_templates import ViewTemplate
+from bimascode.spatial.building import Building
+from bimascode.spatial.level import Level
 
 
 class TestDetailLevel:
@@ -142,17 +141,9 @@ class TestViewScaleEnhancements:
 
     def test_get_default_detail_level(self):
         """Test automatic detail level determination."""
-        assert (
-            ViewScale.SCALE_1_50.get_default_detail_level() == DetailLevel.HIGH
-        )
-        assert (
-            ViewScale.SCALE_1_100.get_default_detail_level()
-            == DetailLevel.MEDIUM
-        )
-        assert (
-            ViewScale.SCALE_1_500.get_default_detail_level()
-            == DetailLevel.VERY_LOW
-        )
+        assert ViewScale.SCALE_1_50.get_default_detail_level() == DetailLevel.HIGH
+        assert ViewScale.SCALE_1_100.get_default_detail_level() == DetailLevel.MEDIUM
+        assert ViewScale.SCALE_1_500.get_default_detail_level() == DetailLevel.VERY_LOW
 
     def test_get_behavior_config(self):
         """Test behavior config retrieval."""
@@ -163,29 +154,17 @@ class TestViewScaleEnhancements:
 
     def test_get_behavior_config_with_override(self):
         """Test behavior config with override level."""
-        config = ViewScale.SCALE_1_100.get_behavior_config(
-            override_level=DetailLevel.LOW
-        )
+        config = ViewScale.SCALE_1_100.get_behavior_config(override_level=DetailLevel.LOW)
 
         assert config.detail_level == DetailLevel.LOW
         assert config.min_element_size == 100.0
 
     def test_recommend_for_view_type(self):
         """Test scale recommendations."""
-        assert (
-            ViewScale.recommend_for_view_type("floor_plan")
-            == ViewScale.SCALE_1_100
-        )
-        assert (
-            ViewScale.recommend_for_view_type("section") == ViewScale.SCALE_1_50
-        )
-        assert (
-            ViewScale.recommend_for_view_type("elevation")
-            == ViewScale.SCALE_1_100
-        )
-        assert (
-            ViewScale.recommend_for_view_type("detail") == ViewScale.SCALE_1_20
-        )
+        assert ViewScale.recommend_for_view_type("floor_plan") == ViewScale.SCALE_1_100
+        assert ViewScale.recommend_for_view_type("section") == ViewScale.SCALE_1_50
+        assert ViewScale.recommend_for_view_type("elevation") == ViewScale.SCALE_1_100
+        assert ViewScale.recommend_for_view_type("detail") == ViewScale.SCALE_1_20
         assert ViewScale.recommend_for_view_type("site") == ViewScale.SCALE_1_500
 
 
@@ -219,9 +198,7 @@ class TestViewTemplateScaleBehavior:
             line_weight_factor=0.85,
         )
 
-        template.set_scale_behavior(
-            ViewScale.SCALE_1_100, DetailLevel.MEDIUM, custom_config
-        )
+        template.set_scale_behavior(ViewScale.SCALE_1_100, DetailLevel.MEDIUM, custom_config)
 
         config = template.get_scale_behavior(ViewScale.SCALE_1_100)
         assert config.min_element_size == 75.0
@@ -271,9 +248,7 @@ class TestViewTemplateScaleBehavior:
     def test_line_weight_adjustment(self):
         """Test automatic line weight adjustment."""
         template = ViewTemplate("Test")
-        template.set_scale_behavior(
-            ViewScale.SCALE_1_500, DetailLevel.VERY_LOW
-        )
+        template.set_scale_behavior(ViewScale.SCALE_1_500, DetailLevel.VERY_LOW)
         template.set_active_scale(ViewScale.SCALE_1_500)
 
         style = LineStyle.default()
@@ -388,9 +363,7 @@ class TestScaleConfigurator:
 
     def test_get_visibility_thresholds(self):
         """Test per-category visibility thresholds."""
-        thresholds = ScaleConfigurator.get_visibility_thresholds(
-            ViewScale.SCALE_1_200
-        )
+        thresholds = ScaleConfigurator.get_visibility_thresholds(ViewScale.SCALE_1_200)
 
         # Structural elements have no threshold
         assert thresholds["Wall"] == 0.0
@@ -419,12 +392,8 @@ class TestMultiScaleTemplateSet:
         templates = create_multi_scale_template_set("floor_plan")
 
         # Each should have appropriate detail level
-        config_50 = templates[ViewScale.SCALE_1_50].get_scale_behavior(
-            ViewScale.SCALE_1_50
-        )
-        config_500 = templates[ViewScale.SCALE_1_500].get_scale_behavior(
-            ViewScale.SCALE_1_500
-        )
+        config_50 = templates[ViewScale.SCALE_1_50].get_scale_behavior(ViewScale.SCALE_1_50)
+        config_500 = templates[ViewScale.SCALE_1_500].get_scale_behavior(ViewScale.SCALE_1_500)
 
         assert config_50.detail_level == DetailLevel.HIGH
         assert config_500.detail_level == DetailLevel.VERY_LOW
@@ -448,9 +417,7 @@ class TestIntegration:
         building = Building("Test Building")
         level = Level(building, "Ground", 0.0)
         template = ViewTemplate.floor_plan_scaled(ViewScale.SCALE_1_500)
-        view = FloorPlanView(
-            "Test Plan", level, scale=ViewScale.SCALE_1_500, template=template
-        )
+        view = FloorPlanView("Test Plan", level, scale=ViewScale.SCALE_1_500, template=template)
 
         assert view.scale == ViewScale.SCALE_1_500
         assert view._template == template

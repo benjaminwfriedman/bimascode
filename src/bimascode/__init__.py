@@ -5,30 +5,29 @@ BIM as Code - A Python library for programmatic Building Information Modeling.
 __version__ = "0.1.0"
 
 # Core classes
-from .core import Element, ElementType, ElementInstance
+# Architecture
+from .architecture import (
+    Floor,
+    FloorType,
+    Layer,
+    LayerFunction,
+    Roof,
+    Wall,
+    WallType,
+)
+from .core import Element, ElementInstance, ElementType
 
 # Spatial organization
 from .spatial import Building, Level
 
-# Architecture
-from .architecture import (
-    WallType,
-    Wall,
-    FloorType,
-    Floor,
-    Roof,
-    Layer,
-    LayerFunction,
-)
-
 # Units
 from .utils import (
-    UnitSystem,
-    LengthUnit,
-    Length,
-    Area,
-    Volume,
     Angle,
+    Area,
+    Length,
+    LengthUnit,
+    UnitSystem,
+    Volume,
 )
 
 __all__ = [

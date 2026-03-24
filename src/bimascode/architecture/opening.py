@@ -5,14 +5,15 @@ Openings are voids in horizontal elements (floors, roofs) for
 stairs, shafts, skylights, and other penetrations.
 """
 
-from typing import List, Tuple, Optional, TYPE_CHECKING
-from build123d import extrude, Polygon, Location, Compound
+from typing import TYPE_CHECKING
+
+from build123d import Compound, Location, Polygon, extrude
+
 from bimascode.core.element import Element
 from bimascode.utils.units import Length, normalize_length
 
 if TYPE_CHECKING:
-    from bimascode.architecture.floor import Floor
-    from bimascode.architecture.roof import Roof
+    pass
 
 
 class Opening(Element):
@@ -26,10 +27,10 @@ class Opening(Element):
     def __init__(
         self,
         host_element,
-        boundary: List[Tuple[float, float]],
-        depth: Optional[Length | float] = None,
-        name: Optional[str] = None,
-        description: Optional[str] = None
+        boundary: list[tuple[float, float]],
+        depth: Length | float | None = None,
+        name: str | None = None,
+        description: str | None = None,
     ):
         """
         Create an opening.
@@ -58,7 +59,7 @@ class Opening(Element):
         return self._host_element
 
     @property
-    def boundary(self) -> List[Tuple[float, float]]:
+    def boundary(self) -> list[tuple[float, float]]:
         """Get the opening boundary polygon."""
         return self._boundary.copy()
 
@@ -93,7 +94,7 @@ class Opening(Element):
         """Get opening area in square meters."""
         return self.area / 1_000_000.0
 
-    def get_centroid(self) -> Tuple[float, float]:
+    def get_centroid(self) -> tuple[float, float]:
         """
         Calculate the centroid of the opening boundary.
 
@@ -132,7 +133,7 @@ class Opening(Element):
 
         return Compound(children=[opening_solid])
 
-    def set_boundary(self, boundary: List[Tuple[float, float]]) -> None:
+    def set_boundary(self, boundary: list[tuple[float, float]]) -> None:
         """
         Set the opening boundary.
 
@@ -177,12 +178,11 @@ class Opening(Element):
         opening_axis_placement = ifc_file.createIfcAxis2Placement3D(
             opening_location,
             ifc_file.createIfcDirection((0.0, 0.0, 1.0)),
-            ifc_file.createIfcDirection((1.0, 0.0, 0.0))
+            ifc_file.createIfcDirection((1.0, 0.0, 0.0)),
         )
 
         opening_placement = ifc_file.createIfcLocalPlacement(
-            ifc_host_element.ObjectPlacement,
-            opening_axis_placement
+            ifc_host_element.ObjectPlacement, opening_axis_placement
         )
 
         # Create opening element
@@ -193,7 +193,7 @@ class Opening(Element):
             Name=self.name,
             Description=self.description or "Floor/Roof opening",
             ObjectPlacement=opening_placement,
-            PredefinedType="OPENING"
+            PredefinedType="OPENING",
         )
 
         # Create opening geometry
@@ -205,7 +205,7 @@ class Opening(Element):
                     ifc_file.by_type("IfcGeometricRepresentationContext")[0],
                     "Body",
                     "Brep",
-                    [ifc_brep]
+                    [ifc_brep],
                 )
 
                 product_shape = ifc_file.createIfcProductDefinitionShape(
@@ -220,26 +220,25 @@ class Opening(Element):
             f"{self.name}VoidsElement",
             None,
             ifc_host_element,
-            ifc_opening
+            ifc_opening,
         )
 
         return ifc_opening
 
     def __repr__(self) -> str:
         return (
-            f"Opening(name='{self.name}', area={self.area_m2:.2f}m², "
-            f"depth={self._depth:.1f}mm)"
+            f"Opening(name='{self.name}', area={self.area_m2:.2f}m², " f"depth={self._depth:.1f}mm)"
         )
 
 
 # Helper function to create rectangular openings
 def create_rectangular_opening(
     host_element,
-    center: Tuple[float, float],
+    center: tuple[float, float],
     width: Length | float,
     length: Length | float,
-    depth: Optional[Length | float] = None,
-    name: Optional[str] = None
+    depth: Length | float | None = None,
+    name: str | None = None,
 ) -> Opening:
     """
     Create a rectangular opening.
@@ -256,31 +255,31 @@ def create_rectangular_opening(
         Opening with rectangular boundary
     """
     w = normalize_length(width).mm / 2
-    l = normalize_length(length).mm / 2
+    half_length = normalize_length(length).mm / 2
     cx, cy = center
 
     boundary = [
-        (cx - w, cy - l),
-        (cx + w, cy - l),
-        (cx + w, cy + l),
-        (cx - w, cy + l),
+        (cx - w, cy - half_length),
+        (cx + w, cy - half_length),
+        (cx + w, cy + half_length),
+        (cx - w, cy + half_length),
     ]
 
     return Opening(
         host_element=host_element,
         boundary=boundary,
         depth=depth,
-        name=name or "Rectangular Opening"
+        name=name or "Rectangular Opening",
     )
 
 
 def create_circular_opening(
     host_element,
-    center: Tuple[float, float],
+    center: tuple[float, float],
     radius: Length | float,
     segments: int = 32,
-    depth: Optional[Length | float] = None,
-    name: Optional[str] = None
+    depth: Length | float | None = None,
+    name: str | None = None,
 ) -> Opening:
     """
     Create a circular opening (approximated as polygon).
@@ -309,8 +308,5 @@ def create_circular_opening(
         boundary.append((x, y))
 
     return Opening(
-        host_element=host_element,
-        boundary=boundary,
-        depth=depth,
-        name=name or "Circular Opening"
+        host_element=host_element, boundary=boundary, depth=depth, name=name or "Circular Opening"
     )

@@ -2,19 +2,18 @@
 Unit tests for view templates.
 """
 
-import pytest
-from bimascode.drawing.view_templates import (
-    CategoryVisibility,
-    GraphicOverride,
-    ViewVisibilitySettings,
-    ViewTemplate,
-)
-from bimascode.drawing.line_styles import LineStyle, LineWeight
-from bimascode.spatial.building import Building
-from bimascode.spatial.level import Level
 from bimascode.architecture import Wall, create_basic_wall_type
 from bimascode.architecture.ceiling import Ceiling
 from bimascode.architecture.ceiling_type import CeilingType
+from bimascode.drawing.line_styles import LineStyle, LineWeight
+from bimascode.drawing.view_templates import (
+    CategoryVisibility,
+    GraphicOverride,
+    ViewTemplate,
+    ViewVisibilitySettings,
+)
+from bimascode.spatial.building import Building
+from bimascode.spatial.level import Level
 from bimascode.utils.materials import MaterialLibrary
 
 

@@ -6,8 +6,9 @@ For Sprint 4, only rectangular profiles are implemented.
 Full AISC catalog is Sprint 10 scope.
 """
 
-from typing import Optional
-from build123d import Rectangle, Face
+
+from build123d import Face, Rectangle
+
 from bimascode.utils.units import Length, normalize_length
 
 
@@ -18,12 +19,7 @@ class RectangularProfile:
     Represents a simple rectangular section with width and height dimensions.
     """
 
-    def __init__(
-        self,
-        width: Length | float,
-        height: Length | float,
-        name: Optional[str] = None
-    ):
+    def __init__(self, width: Length | float, height: Length | float, name: str | None = None):
         """
         Create a rectangular profile.
 
@@ -63,7 +59,7 @@ class RectangularProfile:
 
         For a rectangle: I_x = (width * height^3) / 12
         """
-        return (self._width * self._height ** 3) / 12.0
+        return (self._width * self._height**3) / 12.0
 
     @property
     def moment_of_inertia_y(self) -> float:
@@ -72,7 +68,7 @@ class RectangularProfile:
 
         For a rectangle: I_y = (height * width^3) / 12
         """
-        return (self._height * self._width ** 3) / 12.0
+        return (self._height * self._width**3) / 12.0
 
     @property
     def section_modulus_x(self) -> float:
@@ -124,7 +120,7 @@ class RectangularProfile:
             ProfileName=self.name,
             Position=axis_placement,
             XDim=float(self._width),
-            YDim=float(self._height)
+            YDim=float(self._height),
         )
 
         return profile
@@ -139,7 +135,7 @@ class RectangularProfile:
 
 
 # Common profile constructors
-def create_square_profile(size: Length | float, name: Optional[str] = None) -> RectangularProfile:
+def create_square_profile(size: Length | float, name: str | None = None) -> RectangularProfile:
     """
     Create a square profile.
 
@@ -152,13 +148,13 @@ def create_square_profile(size: Length | float, name: Optional[str] = None) -> R
     """
     size_mm = normalize_length(size).mm
     return RectangularProfile(
-        width=size_mm,
-        height=size_mm,
-        name=name or f"Square_{size_mm:.0f}x{size_mm:.0f}"
+        width=size_mm, height=size_mm, name=name or f"Square_{size_mm:.0f}x{size_mm:.0f}"
     )
 
 
-def create_column_profile(width: Length | float, depth: Length | float, name: Optional[str] = None) -> RectangularProfile:
+def create_column_profile(
+    width: Length | float, depth: Length | float, name: str | None = None
+) -> RectangularProfile:
     """
     Create a column profile.
 
@@ -173,7 +169,9 @@ def create_column_profile(width: Length | float, depth: Length | float, name: Op
     return RectangularProfile(width=width, height=depth, name=name)
 
 
-def create_beam_profile(width: Length | float, height: Length | float, name: Optional[str] = None) -> RectangularProfile:
+def create_beam_profile(
+    width: Length | float, height: Length | float, name: str | None = None
+) -> RectangularProfile:
     """
     Create a beam profile.
 

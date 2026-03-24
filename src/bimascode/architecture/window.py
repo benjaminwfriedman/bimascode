@@ -5,19 +5,21 @@ Windows are hosted in walls and create openings (voids) in their host.
 They define position along the wall and sill height.
 """
 
-from typing import Optional, List, Union, TYPE_CHECKING
+import math
+from typing import TYPE_CHECKING, Union
+
 from bimascode.core.type_instance import ElementInstance
 from bimascode.core.world_geometry import HostedElementMixin
 from bimascode.performance.bounding_box import BoundingBox
 from bimascode.utils.units import Length, normalize_length
-import math
 
 if TYPE_CHECKING:
     from build123d import Location
-    from bimascode.architecture.window_type import WindowType
+
     from bimascode.architecture.wall import Wall
+    from bimascode.architecture.window_type import WindowType
+    from bimascode.drawing.primitives import Arc2D, Hatch2D, Line2D, Polyline2D
     from bimascode.drawing.view_base import ViewRange
-    from bimascode.drawing.primitives import Line2D, Arc2D, Polyline2D, Hatch2D
 
 
 class Window(ElementInstance, HostedElementMixin):
@@ -30,11 +32,11 @@ class Window(ElementInstance, HostedElementMixin):
 
     def __init__(
         self,
-        window_type: 'WindowType',
-        host_wall: 'Wall',
+        window_type: "WindowType",
+        host_wall: "Wall",
         offset: Length | float,
-        sill_height: Optional[Length | float] = None,
-        name: Optional[str] = None
+        sill_height: Length | float | None = None,
+        name: str | None = None,
     ):
         """
         Create a window.
@@ -60,11 +62,11 @@ class Window(ElementInstance, HostedElementMixin):
         self.set_parameter("sill_height", normalize_length(sill_height).mm, override=False)
 
         # Register with host wall
-        if hasattr(host_wall, 'add_hosted_element'):
+        if hasattr(host_wall, "add_hosted_element"):
             host_wall.add_hosted_element(self)
 
     @property
-    def host_wall(self) -> 'Wall':
+    def host_wall(self) -> "Wall":
         """Get the host wall."""
         return self._host_wall
 
@@ -136,11 +138,7 @@ class Window(ElementInstance, HostedElementMixin):
         wall_angle_deg = wall.angle_degrees
         z = wall.level.elevation_mm + self.sill_height
 
-        return Location(
-            (wall_start[0], wall_start[1], z),
-            (0, 0, 1),
-            wall_angle_deg
-        )
+        return Location((wall_start[0], wall_start[1], z), (0, 0, 1), wall_angle_deg)
 
     def _get_local_transform(self) -> "Location":
         """Get window's position within the host wall.
@@ -253,12 +251,11 @@ class Window(ElementInstance, HostedElementMixin):
         opening_axis_placement = ifc_file.createIfcAxis2Placement3D(
             opening_location,
             ifc_file.createIfcDirection((0.0, 0.0, 1.0)),
-            ifc_file.createIfcDirection((1.0, 0.0, 0.0))
+            ifc_file.createIfcDirection((1.0, 0.0, 0.0)),
         )
 
         opening_placement = ifc_file.createIfcLocalPlacement(
-            ifc_wall.ObjectPlacement,
-            opening_axis_placement
+            ifc_wall.ObjectPlacement, opening_axis_placement
         )
 
         # Create opening element
@@ -269,28 +266,28 @@ class Window(ElementInstance, HostedElementMixin):
             Name=f"{self.name}_Opening",
             Description="Window opening",
             ObjectPlacement=opening_placement,
-            PredefinedType="OPENING"
+            PredefinedType="OPENING",
         )
 
         # Create opening geometry (void box)
         opening_box = ifc_file.create_entity(
             "IfcBoundingBox",
-            Corner=ifc_file.createIfcCartesianPoint((-self.width/2, -wall.width/2 - 1, -self.height/2)),
+            Corner=ifc_file.createIfcCartesianPoint(
+                (-self.width / 2, -wall.width / 2 - 1, -self.height / 2)
+            ),
             XDim=self.width,
             YDim=wall.width + 2,
-            ZDim=self.height
+            ZDim=self.height,
         )
 
         box_representation = ifc_file.createIfcShapeRepresentation(
             ifc_file.by_type("IfcGeometricRepresentationContext")[0],
             "Body",
             "BoundingBox",
-            [opening_box]
+            [opening_box],
         )
 
-        opening_shape = ifc_file.createIfcProductDefinitionShape(
-            None, None, [box_representation]
-        )
+        opening_shape = ifc_file.createIfcProductDefinitionShape(None, None, [box_representation])
         ifc_opening.Representation = opening_shape
 
         # Link opening to wall (IfcRelVoidsElement)
@@ -300,23 +297,20 @@ class Window(ElementInstance, HostedElementMixin):
             f"{self.name}VoidsWall",
             None,
             ifc_wall,
-            ifc_opening
+            ifc_opening,
         )
 
         # Create window element
-        window_location = ifc_file.createIfcCartesianPoint(
-            (float(offset), 0.0, float(sill))
-        )
+        window_location = ifc_file.createIfcCartesianPoint((float(offset), 0.0, float(sill)))
 
         window_axis_placement = ifc_file.createIfcAxis2Placement3D(
             window_location,
             ifc_file.createIfcDirection((0.0, 0.0, 1.0)),
-            ifc_file.createIfcDirection((1.0, 0.0, 0.0))
+            ifc_file.createIfcDirection((1.0, 0.0, 0.0)),
         )
 
         window_placement = ifc_file.createIfcLocalPlacement(
-            ifc_wall.ObjectPlacement,
-            window_axis_placement
+            ifc_wall.ObjectPlacement, window_axis_placement
         )
 
         ifc_window = ifc_file.create_entity(
@@ -328,7 +322,7 @@ class Window(ElementInstance, HostedElementMixin):
             ObjectPlacement=window_placement,
             OverallHeight=self.height,
             OverallWidth=self.width,
-            PredefinedType="WINDOW"
+            PredefinedType="WINDOW",
         )
 
         # Create window geometry
@@ -340,7 +334,7 @@ class Window(ElementInstance, HostedElementMixin):
                     ifc_file.by_type("IfcGeometricRepresentationContext")[0],
                     "Body",
                     "Brep",
-                    [ifc_brep]
+                    [ifc_brep],
                 )
 
                 product_shape = ifc_file.createIfcProductDefinitionShape(
@@ -355,7 +349,7 @@ class Window(ElementInstance, HostedElementMixin):
             f"{self.name}FillsOpening",
             None,
             ifc_opening,
-            ifc_window
+            ifc_window,
         )
 
         # Associate with building storey
@@ -365,7 +359,7 @@ class Window(ElementInstance, HostedElementMixin):
             f"Window{self.name}Container",
             None,
             [ifc_window],
-            ifc_building_storey
+            ifc_building_storey,
         )
 
         # Associate with window type
@@ -376,7 +370,7 @@ class Window(ElementInstance, HostedElementMixin):
             None,
             None,
             [ifc_window],
-            window_type_ifc
+            window_type_ifc,
         )
 
         return ifc_window
@@ -433,7 +427,7 @@ class Window(ElementInstance, HostedElementMixin):
         self,
         cut_height: float,
         view_range: "ViewRange",
-    ) -> List[Union["Line2D", "Arc2D", "Polyline2D", "Hatch2D"]]:
+    ) -> list[Union["Line2D", "Arc2D", "Polyline2D", "Hatch2D"]]:
         """Generate floor plan linework for this window.
 
         Windows are shown with three parallel lines (jambs and glass line).
@@ -445,10 +439,10 @@ class Window(ElementInstance, HostedElementMixin):
         Returns:
             List of 2D geometry primitives
         """
-        from bimascode.drawing.primitives import Point2D, Line2D
-        from bimascode.drawing.line_styles import LineStyle, Layer
+        from bimascode.drawing.line_styles import Layer, LineStyle
+        from bimascode.drawing.primitives import Line2D, Point2D
 
-        result: List[Union["Line2D", "Arc2D", "Polyline2D", "Hatch2D"]] = []
+        result: list[Line2D | Arc2D | Polyline2D | Hatch2D] = []
 
         # Check if window is at the cut plane
         bbox = self.get_bounding_box()
@@ -483,13 +477,10 @@ class Window(ElementInstance, HostedElementMixin):
         # 2. Glass line (center)
         # 3. Inner jamb line
 
-        # Glass line offset from wall center (typically small)
-        glass_offset = 0.0  # At center
-
         for offset_mult, line_style in [
             (-0.35, style),  # Outer jamb (35% of half-wall towards outside)
-            (0.0, style),    # Glass (center line)
-            (0.35, style),   # Inner jamb (35% of half-wall towards inside)
+            (0.0, style),  # Glass (center line)
+            (0.35, style),  # Inner jamb (35% of half-wall towards inside)
         ]:
             perp_offset = half_wall * offset_mult
 

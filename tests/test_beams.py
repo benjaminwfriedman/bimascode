@@ -2,17 +2,18 @@
 Tests for structural beams and beam types.
 """
 
+
 import pytest
-import math
+
 from bimascode.spatial.building import Building
 from bimascode.spatial.level import Level
-from bimascode.structure.profile import RectangularProfile
+from bimascode.structure.beam import Beam
 from bimascode.structure.beam_type import (
     BeamType,
     create_rectangular_beam_type,
     create_standard_beam_type,
 )
-from bimascode.structure.beam import Beam
+from bimascode.structure.profile import RectangularProfile
 from bimascode.utils.materials import MaterialLibrary
 
 
@@ -80,12 +81,7 @@ class TestBeam:
         building, level = setup_building
         beam_type = setup_beam_type
 
-        beam = Beam(
-            beam_type,
-            level,
-            start_point=(0, 0, 3000),
-            end_point=(6000, 0, 3000)
-        )
+        beam = Beam(beam_type, level, start_point=(0, 0, 3000), end_point=(6000, 0, 3000))
 
         assert beam.type == beam_type
         assert beam.level == level
@@ -98,12 +94,7 @@ class TestBeam:
         beam_type = setup_beam_type
 
         # Horizontal beam 6m long
-        beam = Beam(
-            beam_type,
-            level,
-            start_point=(0, 0, 3000),
-            end_point=(6000, 0, 3000)
-        )
+        beam = Beam(beam_type, level, start_point=(0, 0, 3000), end_point=(6000, 0, 3000))
 
         assert abs(beam.length - 6000.0) < 1.0
 
@@ -113,12 +104,7 @@ class TestBeam:
         beam_type = setup_beam_type
 
         # Diagonal beam: sqrt(3000² + 4000²) = 5000mm
-        beam = Beam(
-            beam_type,
-            level,
-            start_point=(0, 0, 3000),
-            end_point=(3000, 4000, 3000)
-        )
+        beam = Beam(beam_type, level, start_point=(0, 0, 3000), end_point=(3000, 4000, 3000))
 
         assert abs(beam.length - 5000.0) < 1.0
 
@@ -127,12 +113,7 @@ class TestBeam:
         building, level = setup_building
         beam_type = setup_beam_type
 
-        beam = Beam(
-            beam_type,
-            level,
-            start_point=(0, 0, 3000),
-            end_point=(6000, 0, 3000)
-        )
+        beam = Beam(beam_type, level, start_point=(0, 0, 3000), end_point=(6000, 0, 3000))
 
         assert beam.width == 300.0
         assert beam.height == 600.0
@@ -142,12 +123,7 @@ class TestBeam:
         building, level = setup_building
         beam_type = setup_beam_type
 
-        beam = Beam(
-            beam_type,
-            level,
-            start_point=(0, 0, 3000),
-            end_point=(6000, 0, 3000)
-        )
+        beam = Beam(beam_type, level, start_point=(0, 0, 3000), end_point=(6000, 0, 3000))
 
         # Volume = area * length = 180000 * 6000 = 1,080,000,000 mm³
         assert abs(beam.volume - 1_080_000_000.0) < 1.0
@@ -159,12 +135,7 @@ class TestBeam:
         building, level = setup_building
         beam_type = setup_beam_type
 
-        beam = Beam(
-            beam_type,
-            level,
-            start_point=(0, 0, 3000),
-            end_point=(6000, 0, 3000)
-        )
+        beam = Beam(beam_type, level, start_point=(0, 0, 3000), end_point=(6000, 0, 3000))
 
         mid = beam.get_midpoint()
         assert mid == (3000, 0, 3000)
@@ -176,20 +147,12 @@ class TestBeam:
 
         # Horizontal beam
         horizontal_beam = Beam(
-            beam_type,
-            level,
-            start_point=(0, 0, 3000),
-            end_point=(6000, 0, 3000)
+            beam_type, level, start_point=(0, 0, 3000), end_point=(6000, 0, 3000)
         )
         assert horizontal_beam.is_horizontal is True
 
         # Sloped beam
-        sloped_beam = Beam(
-            beam_type,
-            level,
-            start_point=(0, 0, 3000),
-            end_point=(6000, 0, 4000)
-        )
+        sloped_beam = Beam(beam_type, level, start_point=(0, 0, 3000), end_point=(6000, 0, 4000))
         assert sloped_beam.is_horizontal is False
 
     def test_beam_horizontal_angle(self, setup_building, setup_beam_type):
@@ -198,21 +161,11 @@ class TestBeam:
         beam_type = setup_beam_type
 
         # Beam along X-axis (angle = 0)
-        beam_x = Beam(
-            beam_type,
-            level,
-            start_point=(0, 0, 3000),
-            end_point=(6000, 0, 3000)
-        )
+        beam_x = Beam(beam_type, level, start_point=(0, 0, 3000), end_point=(6000, 0, 3000))
         assert abs(beam_x.horizontal_angle) < 0.01
 
         # Beam along Y-axis (angle = 90 degrees)
-        beam_y = Beam(
-            beam_type,
-            level,
-            start_point=(0, 0, 3000),
-            end_point=(0, 6000, 3000)
-        )
+        beam_y = Beam(beam_type, level, start_point=(0, 0, 3000), end_point=(0, 6000, 3000))
         assert abs(beam_y.horizontal_angle_degrees - 90.0) < 0.1
 
     def test_beam_registered_with_level(self, setup_building, setup_beam_type):
@@ -220,12 +173,7 @@ class TestBeam:
         building, level = setup_building
         beam_type = setup_beam_type
 
-        beam = Beam(
-            beam_type,
-            level,
-            start_point=(0, 0, 3000),
-            end_point=(6000, 0, 3000)
-        )
+        beam = Beam(beam_type, level, start_point=(0, 0, 3000), end_point=(6000, 0, 3000))
 
         assert beam in level.elements
 
@@ -234,12 +182,7 @@ class TestBeam:
         building, level = setup_building
         beam_type = setup_beam_type
 
-        beam = Beam(
-            beam_type,
-            level,
-            start_point=(0, 0, 3000),
-            end_point=(6000, 0, 3000)
-        )
+        beam = Beam(beam_type, level, start_point=(0, 0, 3000), end_point=(6000, 0, 3000))
 
         geom = beam.get_geometry()
         assert geom is not None
@@ -256,12 +199,7 @@ class TestBeamIFC:
 
         profile = RectangularProfile(300, 600)
         beam_type = BeamType("Standard Beam", profile)
-        beam = Beam(
-            beam_type,
-            level,
-            start_point=(0, 0, 3000),
-            end_point=(6000, 0, 3000)
-        )
+        beam = Beam(beam_type, level, start_point=(0, 0, 3000), end_point=(6000, 0, 3000))
 
         return building, level, beam
 

@@ -6,11 +6,10 @@ that all view types (floor plan, section, elevation) inherit from.
 
 from __future__ import annotations
 
-import math
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import Enum
-from typing import TYPE_CHECKING, Dict, List, Optional, Tuple
+from typing import TYPE_CHECKING
 
 from bimascode.drawing.primitives import (
     Arc2D,
@@ -161,9 +160,7 @@ class ViewRange:
         cut_z = level_elevation + self.cut_height
         return z_max < cut_z
 
-    def is_cut_by_plane(
-        self, z_min: float, z_max: float, level_elevation: float
-    ) -> bool:
+    def is_cut_by_plane(self, z_min: float, z_max: float, level_elevation: float) -> bool:
         """Check if an element is cut by the section plane.
 
         Args:
@@ -177,9 +174,7 @@ class ViewRange:
         cut_z = level_elevation + self.cut_height
         return z_min <= cut_z <= z_max
 
-    def is_visible(
-        self, z_min: float, z_max: float, level_elevation: float
-    ) -> bool:
+    def is_visible(self, z_min: float, z_max: float, level_elevation: float) -> bool:
         """Check if an element is within the visible range.
 
         Elements are visible if they overlap with [view_depth, top].
@@ -225,9 +220,7 @@ class ViewRange:
         abs_view_depth = level_elevation + self.view_depth
         return z_max < abs_view_depth
 
-    def get_display_region(
-        self, z_min: float, z_max: float, level_elevation: float
-    ) -> str:
+    def get_display_region(self, z_min: float, z_max: float, level_elevation: float) -> str:
         """Determine which display region an element belongs to.
 
         This determines line weight according to Revit conventions:
@@ -277,13 +270,13 @@ class DetailLevel(Enum):
     """
 
     VERY_HIGH = "very_high"  # 1:1 to 1:20 - Show all details
-    HIGH = "high"            # 1:20 to 1:50 - Show most details
-    MEDIUM = "medium"        # 1:50 to 1:100 - Standard details
-    LOW = "low"              # 1:100 to 1:200 - Reduced details
-    VERY_LOW = "very_low"    # 1:200+ - Minimal details
+    HIGH = "high"  # 1:20 to 1:50 - Show most details
+    MEDIUM = "medium"  # 1:50 to 1:100 - Standard details
+    LOW = "low"  # 1:100 to 1:200 - Reduced details
+    VERY_LOW = "very_low"  # 1:200+ - Minimal details
 
     @classmethod
-    def from_scale(cls, scale: "ViewScale") -> "DetailLevel":
+    def from_scale(cls, scale: ViewScale) -> DetailLevel:
         """Automatically determine detail level from scale ratio.
 
         Args:
@@ -294,15 +287,15 @@ class DetailLevel(Enum):
         """
         ratio = scale.ratio
 
-        if ratio >= 0.05:     # 1:20 or larger
+        if ratio >= 0.05:  # 1:20 or larger
             return cls.VERY_HIGH
-        elif ratio >= 0.02:   # 1:50
+        elif ratio >= 0.02:  # 1:50
             return cls.HIGH
-        elif ratio >= 0.01:   # 1:100
+        elif ratio >= 0.01:  # 1:100
             return cls.MEDIUM
         elif ratio >= 0.005:  # 1:200
             return cls.LOW
-        else:                 # 1:500 or smaller
+        else:  # 1:500 or smaller
             return cls.VERY_LOW
 
 
@@ -330,7 +323,7 @@ class ScaleBehaviorConfig:
     simplify_geometry: bool = False
 
     @classmethod
-    def for_detail_level(cls, level: DetailLevel) -> "ScaleBehaviorConfig":
+    def for_detail_level(cls, level: DetailLevel) -> ScaleBehaviorConfig:
         """Create standard configuration for a detail level.
 
         Provides industry-standard thresholds for each detail level
@@ -463,7 +456,7 @@ class ViewScale:
         return DetailLevel.from_scale(self)
 
     def get_behavior_config(
-        self, override_level: Optional[DetailLevel] = None
+        self, override_level: DetailLevel | None = None
     ) -> ScaleBehaviorConfig:
         """Get scale behavior configuration.
 
@@ -477,7 +470,7 @@ class ViewScale:
         return ScaleBehaviorConfig.for_detail_level(level)
 
     @classmethod
-    def recommend_for_view_type(cls, view_type: str) -> "ViewScale":
+    def recommend_for_view_type(cls, view_type: str) -> ViewScale:
         """Recommend appropriate scale for a view type.
 
         Provides standard scale recommendations based on architectural
@@ -557,10 +550,7 @@ class ViewCropRegion:
         Returns:
             True if point is inside
         """
-        return (
-            self.min_x <= point.x <= self.max_x
-            and self.min_y <= point.y <= self.max_y
-        )
+        return self.min_x <= point.x <= self.max_x and self.min_y <= point.y <= self.max_y
 
     def _compute_outcode(self, point: Point2D) -> int:
         """Compute Cohen-Sutherland outcode for a point."""
@@ -575,7 +565,7 @@ class ViewCropRegion:
             code |= 8  # TOP
         return code
 
-    def clip_line(self, line: Line2D) -> Optional[Line2D]:
+    def clip_line(self, line: Line2D) -> Line2D | None:
         """Clip a line segment to the crop region using Cohen-Sutherland.
 
         Args:
@@ -629,7 +619,7 @@ class ViewCropRegion:
                     x1, y1 = x, y
                     outcode1 = self._compute_outcode(Point2D(x1, y1))
 
-    def clip_geometry(self, geometry: List[Geometry2D]) -> List[Geometry2D]:
+    def clip_geometry(self, geometry: list[Geometry2D]) -> list[Geometry2D]:
         """Clip a list of geometry to the crop region.
 
         Args:
@@ -641,7 +631,7 @@ class ViewCropRegion:
         if not self.enabled:
             return geometry
 
-        result: List[Geometry2D] = []
+        result: list[Geometry2D] = []
 
         for geom in geometry:
             if isinstance(geom, Line2D):
@@ -701,7 +691,6 @@ class ViewCropRegion:
             )
         ]
 
-        clipped_polylines = []
         for pl in view_result.polylines:
             # Convert to lines and clip each
             lines = pl.to_lines()
@@ -711,9 +700,7 @@ class ViewCropRegion:
                     clipped_lines.append(clipped)
 
         clipped_hatches = [
-            h
-            for h in view_result.hatches
-            if any(self.contains_point(p) for p in h.boundary)
+            h for h in view_result.hatches if any(self.contains_point(p) for p in h.boundary)
         ]
 
         return ViewResult(
@@ -730,7 +717,7 @@ class ViewCropRegion:
     @classmethod
     def from_bounds(
         cls,
-        bounds: Tuple[float, float, float, float],
+        bounds: tuple[float, float, float, float],
         margin: float = 0.0,
     ) -> ViewCropRegion:
         """Create crop region from (min_x, min_y, max_x, max_y) bounds.
@@ -760,7 +747,7 @@ class ViewBase(ABC):
         self,
         name: str,
         scale: ViewScale = ViewScale.SCALE_1_100,
-        crop_region: Optional[ViewCropRegion] = None,
+        crop_region: ViewCropRegion | None = None,
     ):
         """Initialize a view.
 

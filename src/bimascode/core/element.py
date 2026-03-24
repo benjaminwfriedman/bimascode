@@ -4,7 +4,7 @@ Base classes for all BIM elements.
 
 import time
 import uuid
-from typing import Optional, Dict, Any
+from typing import Any
 
 from bimascode.performance.bounding_box import BoundingBox
 
@@ -19,7 +19,7 @@ class Element:
     - Common attributes (name, description)
     """
 
-    def __init__(self, name: str, description: Optional[str] = None):
+    def __init__(self, name: str, description: str | None = None):
         """
         Initialize a BIM element.
 
@@ -30,7 +30,7 @@ class Element:
         self.name = name
         self.description = description
         self._guid = self._generate_guid()
-        self._properties: Dict[str, Any] = {}
+        self._properties: dict[str, Any] = {}
         self._modified_timestamp: float = time.time()
         self._cached_2d: Any = None
         self._cache_timestamp: float = 0.0
@@ -74,7 +74,7 @@ class Element:
         return self._properties.get(name, default)
 
     @property
-    def properties(self) -> Dict[str, Any]:
+    def properties(self) -> dict[str, Any]:
         """Get all custom properties."""
         return self._properties.copy()
 
@@ -94,7 +94,7 @@ class Element:
         """Get the timestamp of the last geometry modification."""
         return self._modified_timestamp
 
-    def get_bounding_box(self) -> Optional[BoundingBox]:
+    def get_bounding_box(self) -> BoundingBox | None:
         """Get the axis-aligned bounding box of this element.
 
         Subclasses should override this method to provide accurate bounds.

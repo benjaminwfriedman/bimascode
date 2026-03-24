@@ -3,12 +3,13 @@ Tests for structural flags on walls and floors.
 """
 
 import pytest
+
+from bimascode.architecture.floor import Floor
+from bimascode.architecture.floor_type import FloorType
+from bimascode.architecture.wall import Wall
+from bimascode.architecture.wall_type import LayerFunction, WallType
 from bimascode.spatial.building import Building
 from bimascode.spatial.level import Level
-from bimascode.architecture.wall_type import WallType, LayerFunction
-from bimascode.architecture.wall import Wall
-from bimascode.architecture.floor_type import FloorType
-from bimascode.architecture.floor import Floor
 from bimascode.utils.materials import MaterialLibrary
 
 
@@ -44,13 +45,7 @@ class TestStructuralWall:
         building, level = setup_building
         wall_type = setup_wall_type
 
-        wall = Wall(
-            wall_type,
-            (0, 0), (5000, 0),
-            level,
-            height=3000,
-            structural=True
-        )
+        wall = Wall(wall_type, (0, 0), (5000, 0), level, height=3000, structural=True)
 
         assert wall.structural is True
 
@@ -79,13 +74,7 @@ class TestStructuralWall:
         gypsum = MaterialLibrary.gypsum_board()
         non_struct_type.add_layer(gypsum, 15, LayerFunction.OTHER)
 
-        wall2 = Wall(
-            non_struct_type,
-            (0, 0), (5000, 0),
-            level,
-            height=3000,
-            structural=True
-        )
+        wall2 = Wall(non_struct_type, (0, 0), (5000, 0), level, height=3000, structural=True)
         assert wall2.is_structural is True  # Flag is set
 
     def test_structural_wall_ifc_export(self, setup_building, setup_wall_type, tmp_path):
@@ -93,13 +82,7 @@ class TestStructuralWall:
         building, level = setup_building
         wall_type = setup_wall_type
 
-        wall = Wall(
-            wall_type,
-            (0, 0), (5000, 0),
-            level,
-            height=3000,
-            structural=True
-        )
+        Wall(wall_type, (0, 0), (5000, 0), level, height=3000, structural=True)
 
         output_file = tmp_path / "test_structural_wall.ifc"
         building.export_ifc(str(output_file))
@@ -108,6 +91,7 @@ class TestStructuralWall:
 
         # Verify IFC content
         import ifcopenshell
+
         ifc = ifcopenshell.open(str(output_file))
         walls = ifc.by_type("IfcWall")
         assert len(walls) == 1
@@ -138,9 +122,7 @@ class TestStructuralFloor:
         floor_type = setup_floor_type
 
         floor = Floor(
-            floor_type,
-            boundary=[(0, 0), (5000, 0), (5000, 4000), (0, 4000)],
-            level=level
+            floor_type, boundary=[(0, 0), (5000, 0), (5000, 4000), (0, 4000)], level=level
         )
 
         assert floor.structural is False
@@ -154,7 +136,7 @@ class TestStructuralFloor:
             floor_type,
             boundary=[(0, 0), (5000, 0), (5000, 4000), (0, 4000)],
             level=level,
-            structural=True
+            structural=True,
         )
 
         assert floor.structural is True
@@ -165,9 +147,7 @@ class TestStructuralFloor:
         floor_type = setup_floor_type
 
         floor = Floor(
-            floor_type,
-            boundary=[(0, 0), (5000, 0), (5000, 4000), (0, 4000)],
-            level=level
+            floor_type, boundary=[(0, 0), (5000, 0), (5000, 4000), (0, 4000)], level=level
         )
         assert floor.structural is False
 
@@ -179,11 +159,11 @@ class TestStructuralFloor:
         building, level = setup_building
         floor_type = setup_floor_type
 
-        floor = Floor(
+        Floor(
             floor_type,
             boundary=[(0, 0), (5000, 0), (5000, 4000), (0, 4000)],
             level=level,
-            structural=True
+            structural=True,
         )
 
         output_file = tmp_path / "test_structural_floor.ifc"
@@ -193,6 +173,7 @@ class TestStructuralFloor:
 
         # Verify IFC content
         import ifcopenshell
+
         ifc = ifcopenshell.open(str(output_file))
         slabs = ifc.by_type("IfcSlab")
         assert len(slabs) == 1

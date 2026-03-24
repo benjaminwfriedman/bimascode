@@ -3,14 +3,15 @@ Unit tests for floor plan view generation.
 """
 
 import pytest
-from bimascode.spatial.building import Building
-from bimascode.spatial.level import Level
-from bimascode.architecture import WallType, Wall, create_basic_wall_type
-from bimascode.utils.materials import MaterialLibrary
+
+from bimascode.architecture import Wall, create_basic_wall_type
 from bimascode.drawing.floor_plan_view import FloorPlanView
 from bimascode.drawing.view_base import ViewRange, ViewScale
-from bimascode.performance.spatial_index import SpatialIndex
 from bimascode.performance.representation_cache import RepresentationCache
+from bimascode.performance.spatial_index import SpatialIndex
+from bimascode.spatial.building import Building
+from bimascode.spatial.level import Level
+from bimascode.utils.materials import MaterialLibrary
 
 
 class TestFloorPlanView:
@@ -91,7 +92,7 @@ class TestFloorPlanView:
         view = FloorPlanView("Plan", level)
 
         # First generation
-        result1 = view.generate(index, cache)
+        view.generate(index, cache)
         assert cache.size > 0
 
         # Second generation should have cache hits
@@ -145,8 +146,8 @@ class TestWallPlanRepresentation:
 
     def test_wall_cut_style(self, wall_with_level):
         """Test that cut walls use heavy line style."""
-        from bimascode.drawing.primitives import Polyline2D
         from bimascode.drawing.line_styles import LineWeight
+        from bimascode.drawing.primitives import Polyline2D
 
         wall, level = wall_with_level
         view_range = ViewRange()
@@ -165,8 +166,8 @@ class TestWallPlanRepresentation:
 
     def test_wall_not_cut_style(self, wall_with_level):
         """Test that walls not cut use lighter style."""
-        from bimascode.drawing.primitives import Polyline2D
         from bimascode.drawing.line_styles import LineWeight
+        from bimascode.drawing.primitives import Polyline2D
 
         wall, level = wall_with_level
         view_range = ViewRange()

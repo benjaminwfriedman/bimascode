@@ -2,7 +2,8 @@
 Grid Lines implementation for architectural layout.
 """
 
-from typing import Tuple, Union, TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
+
 from shapely.geometry import LineString
 
 from ..core.element import Element
@@ -27,9 +28,9 @@ class GridLine(Element):
         self,
         building: "Building",
         label: str,
-        start_point: Tuple[Union[float, Length], Union[float, Length]],
-        end_point: Tuple[Union[float, Length], Union[float, Length]],
-        description: Optional[str] = None
+        start_point: tuple[float | Length, float | Length],
+        end_point: tuple[float | Length, float | Length],
+        description: str | None = None,
     ):
         """
         Create a new grid line.
@@ -53,31 +54,30 @@ class GridLine(Element):
         self._end_y = normalize_length(end_point[1], building.length_unit)
 
         # Create shapely LineString for geometric operations
-        self._geometry = LineString([
-            (self._start_x.mm, self._start_y.mm),
-            (self._end_x.mm, self._end_y.mm)
-        ])
+        self._geometry = LineString(
+            [(self._start_x.mm, self._start_y.mm), (self._end_x.mm, self._end_y.mm)]
+        )
 
         # Register with building
         building._grids.append(self)
 
     @property
-    def start_point(self) -> Tuple[Length, Length]:
+    def start_point(self) -> tuple[Length, Length]:
         """Get the start point as (x, y) Length objects."""
         return (self._start_x, self._start_y)
 
     @property
-    def end_point(self) -> Tuple[Length, Length]:
+    def end_point(self) -> tuple[Length, Length]:
         """Get the end point as (x, y) Length objects."""
         return (self._end_x, self._end_y)
 
     @property
-    def start_point_mm(self) -> Tuple[float, float]:
+    def start_point_mm(self) -> tuple[float, float]:
         """Get the start point in millimeters."""
         return (self._start_x.mm, self._start_y.mm)
 
     @property
-    def end_point_mm(self) -> Tuple[float, float]:
+    def end_point_mm(self) -> tuple[float, float]:
         """Get the end point in millimeters."""
         return (self._end_x.mm, self._end_y.mm)
 
@@ -145,7 +145,7 @@ class GridLine(Element):
         # Create 2D polyline for the grid axis
         points = [
             ifc_file.createIfcCartesianPoint((self._start_x.mm, self._start_y.mm)),
-            ifc_file.createIfcCartesianPoint((self._end_x.mm, self._end_y.mm))
+            ifc_file.createIfcCartesianPoint((self._end_x.mm, self._end_y.mm)),
         ]
 
         polyline = ifc_file.createIfcPolyline(points)
@@ -155,16 +155,16 @@ class GridLine(Element):
         same_sense = True  # Direction from start to end
 
         grid_axis = ifc_file.createIfcGridAxis(
-            self.label,  # AxisTag
-            polyline,    # AxisCurve
-            same_sense   # SameSense
+            self.label, polyline, same_sense  # AxisTag  # AxisCurve  # SameSense
         )
 
         return grid_axis
 
     def __repr__(self) -> str:
-        return (f"GridLine(label='{self.label}', "
-                f"start={self.start_point_mm}, end={self.end_point_mm})")
+        return (
+            f"GridLine(label='{self.label}', "
+            f"start={self.start_point_mm}, end={self.end_point_mm})"
+        )
 
 
 def create_orthogonal_grid(
@@ -173,8 +173,8 @@ def create_orthogonal_grid(
     x_grid_positions: list,
     y_grid_labels: list,
     y_grid_positions: list,
-    x_extent: Tuple[Union[float, Length], Union[float, Length]],
-    y_extent: Tuple[Union[float, Length], Union[float, Length]]
+    x_extent: tuple[float | Length, float | Length],
+    y_extent: tuple[float | Length, float | Length],
 ) -> list:
     """
     Create an orthogonal grid system (common in buildings).
@@ -196,20 +196,14 @@ def create_orthogonal_grid(
     # Create vertical grid lines (parallel to Y axis)
     for label, x_pos in zip(x_grid_labels, x_grid_positions):
         grid = GridLine(
-            building,
-            label=label,
-            start_point=(x_pos, y_extent[0]),
-            end_point=(x_pos, y_extent[1])
+            building, label=label, start_point=(x_pos, y_extent[0]), end_point=(x_pos, y_extent[1])
         )
         grids.append(grid)
 
     # Create horizontal grid lines (parallel to X axis)
     for label, y_pos in zip(y_grid_labels, y_grid_positions):
         grid = GridLine(
-            building,
-            label=label,
-            start_point=(x_extent[0], y_pos),
-            end_point=(x_extent[1], y_pos)
+            building, label=label, start_point=(x_extent[0], y_pos), end_point=(x_extent[1], y_pos)
         )
         grids.append(grid)
 

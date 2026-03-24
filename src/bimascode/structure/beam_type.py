@@ -5,12 +5,17 @@ This module implements the BeamType class which defines structural beam
 properties including section profile and materials.
 """
 
-from typing import Optional
+from typing import TYPE_CHECKING
+
 from build123d import Box, Location
+
 from bimascode.core.type_instance import ElementType
 from bimascode.structure.profile import RectangularProfile
 from bimascode.utils.materials import Material
-from bimascode.utils.units import Length, normalize_length
+from bimascode.utils.units import Length
+
+if TYPE_CHECKING:
+    from bimascode.structure.beam import Beam
 
 
 class BeamType(ElementType):
@@ -25,8 +30,8 @@ class BeamType(ElementType):
         self,
         name: str,
         profile: RectangularProfile,
-        material: Optional[Material] = None,
-        description: Optional[str] = None
+        material: Material | None = None,
+        description: str | None = None,
     ):
         """
         Create a beam type.
@@ -62,7 +67,7 @@ class BeamType(ElementType):
         """Get cross-sectional area in square millimeters."""
         return self.profile.area
 
-    def create_geometry(self, instance: 'Beam'):
+    def create_geometry(self, instance: "Beam"):
         """
         Create 3D geometry for a beam instance.
 
@@ -87,16 +92,14 @@ class BeamType(ElementType):
 
         # Position so beam runs from start (0,0,0) along X-axis
         # Center the profile in Y and Z
-        beam_box = beam_box.locate(Location(
-            (length / 2, 0, 0),
-            (0, 0, 1), 0
-        ))
+        beam_box = beam_box.locate(Location((length / 2, 0, 0), (0, 0, 1), 0))
 
         return beam_box
 
     def _generate_guid(self) -> str:
         """Generate a unique IFC GUID."""
         import uuid
+
         return str(uuid.uuid4())
 
     def to_ifc(self, ifc_file):
@@ -112,7 +115,7 @@ class BeamType(ElementType):
             IfcBeamType entity
         """
         # Create IFC profile
-        ifc_profile = self.profile.to_ifc(ifc_file)
+        self.profile.to_ifc(ifc_file)
 
         # Create IfcBeamType
         ifc_beam_type = ifc_file.create_entity(
@@ -120,19 +123,14 @@ class BeamType(ElementType):
             GlobalId=self.guid,
             Name=self.name,
             Description=self.description,
-            PredefinedType="BEAM"
+            PredefinedType="BEAM",
         )
 
         # Associate material if present
         if self.material:
             ifc_material = self.material.to_ifc(ifc_file)
             ifc_file.createIfcRelAssociatesMaterial(
-                self._generate_guid(),
-                None,
-                None,
-                None,
-                [ifc_beam_type],
-                ifc_material
+                self._generate_guid(), None, None, None, [ifc_beam_type], ifc_material
             )
 
         return ifc_beam_type
@@ -146,10 +144,7 @@ class BeamType(ElementType):
 
 # Common beam type constructors
 def create_rectangular_beam_type(
-    name: str,
-    width: Length | float,
-    height: Length | float,
-    material: Optional[Material] = None
+    name: str, width: Length | float, height: Length | float, material: Material | None = None
 ) -> BeamType:
     """
     Create a rectangular beam type.
@@ -168,9 +163,7 @@ def create_rectangular_beam_type(
 
 
 def create_standard_beam_type(
-    name: str,
-    size: str = "300x600",
-    material: Optional[Material] = None
+    name: str, size: str = "300x600", material: Material | None = None
 ) -> BeamType:
     """
     Create a standard beam type from common size string.

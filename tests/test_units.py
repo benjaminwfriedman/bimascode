@@ -2,12 +2,11 @@
 Unit tests for units system.
 """
 
-import pytest
 from bimascode.utils.units import (
-    Length, Area, Volume, Angle,
-    LengthUnit, AreaUnit, VolumeUnit, AngleUnit,
+    Length,
+    LengthUnit,
     UnitSystem,
-    normalize_length, normalize_angle
+    normalize_length,
 )
 
 

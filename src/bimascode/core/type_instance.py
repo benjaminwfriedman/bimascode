@@ -7,10 +7,10 @@ This module implements the parametric type/instance pattern used throughout BIM 
 - Property change notifications propagate from type to instances
 """
 
-from typing import Any, Dict, List, Optional, Set
-from abc import ABC, abstractmethod
 import time
 import uuid
+from abc import ABC, abstractmethod
+from typing import Any
 
 
 class ElementType(ABC):
@@ -30,8 +30,8 @@ class ElementType(ABC):
         """
         self.name = name
         self.guid = str(uuid.uuid4())
-        self._instances: List['ElementInstance'] = []
-        self._type_parameters: Dict[str, Any] = {}
+        self._instances: list[ElementInstance] = []
+        self._type_parameters: dict[str, Any] = {}
 
     def set_parameter(self, param_name: str, value: Any) -> None:
         """
@@ -64,18 +64,18 @@ class ElementType(ABC):
         """
         return self._type_parameters.get(param_name, default)
 
-    def _register_instance(self, instance: 'ElementInstance') -> None:
+    def _register_instance(self, instance: "ElementInstance") -> None:
         """Register an instance with this type."""
         if instance not in self._instances:
             self._instances.append(instance)
 
-    def _unregister_instance(self, instance: 'ElementInstance') -> None:
+    def _unregister_instance(self, instance: "ElementInstance") -> None:
         """Unregister an instance from this type."""
         if instance in self._instances:
             self._instances.remove(instance)
 
     @property
-    def instances(self) -> List['ElementInstance']:
+    def instances(self) -> list["ElementInstance"]:
         """Get all instances of this type."""
         return self._instances.copy()
 
@@ -85,7 +85,7 @@ class ElementType(ABC):
         return len(self._instances)
 
     @abstractmethod
-    def create_geometry(self, instance: 'ElementInstance') -> Any:
+    def create_geometry(self, instance: "ElementInstance") -> Any:
         """
         Create geometry for an instance of this type.
 
@@ -112,7 +112,7 @@ class ElementInstance(ABC):
     instance-specific values.
     """
 
-    def __init__(self, element_type: ElementType, name: Optional[str] = None):
+    def __init__(self, element_type: ElementType, name: str | None = None):
         """
         Initialize an element instance.
 
@@ -124,8 +124,8 @@ class ElementInstance(ABC):
         self.name = name or f"{element_type.name}_{len(element_type.instances) + 1}"
         self.guid = str(uuid.uuid4())
 
-        self._instance_parameters: Dict[str, Any] = {}
-        self._overridden_parameters: Set[str] = set()
+        self._instance_parameters: dict[str, Any] = {}
+        self._overridden_parameters: set[str] = set()
         self._geometry = None
         self._geometry_valid = False
 
@@ -267,7 +267,7 @@ class ElementInstance(ABC):
         return self._geometry
 
     @property
-    def overridden_parameters(self) -> Set[str]:
+    def overridden_parameters(self) -> set[str]:
         """Get the set of parameters overridden at instance level."""
         return self._overridden_parameters.copy()
 
@@ -276,9 +276,11 @@ class ElementInstance(ABC):
 
 
 # Convenience function for parameter management
-def copy_parameters(source: ElementType | ElementInstance,
-                    target: ElementType | ElementInstance,
-                    param_names: Optional[List[str]] = None) -> None:
+def copy_parameters(
+    source: ElementType | ElementInstance,
+    target: ElementType | ElementInstance,
+    param_names: list[str] | None = None,
+) -> None:
     """
     Copy parameters from one element to another.
 

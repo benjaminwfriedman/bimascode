@@ -2,17 +2,19 @@
 Unit tests for drawing primitives.
 """
 
-import pytest
 import math
+
+import pytest
+
+from bimascode.drawing.line_styles import LineStyle
 from bimascode.drawing.primitives import (
-    Point2D,
-    Line2D,
     Arc2D,
-    Polyline2D,
     Hatch2D,
+    Line2D,
+    Point2D,
+    Polyline2D,
     ViewResult,
 )
-from bimascode.drawing.line_styles import LineStyle, LineWeight, LineType
 
 
 class TestPoint2D:

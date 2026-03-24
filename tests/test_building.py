@@ -2,9 +2,10 @@
 Unit tests for Building and Level classes.
 """
 
-import pytest
 import tempfile
 from pathlib import Path
+
+import pytest
 
 from bimascode.spatial.building import Building
 from bimascode.spatial.level import Level
@@ -96,9 +97,9 @@ class TestLevel:
     def test_multiple_levels(self):
         """Test adding multiple levels."""
         building = Building("Test Building")
-        level_0 = Level(building, "Ground", Length(0, "mm"))
+        Level(building, "Ground", Length(0, "mm"))
         level_1 = Level(building, "First", Length(4000, "mm"))
-        level_2 = Level(building, "Second", Length(8000, "mm"))
+        Level(building, "Second", Length(8000, "mm"))
 
         assert len(building.levels) == 3
         assert building.get_level("First") == level_1
@@ -114,12 +115,7 @@ class TestLevel:
     def test_level_with_description(self):
         """Test creating level with description."""
         building = Building("Test Building")
-        level = Level(
-            building,
-            "Ground Floor",
-            Length(0, "mm"),
-            description="Main entrance level"
-        )
+        level = Level(building, "Ground Floor", Length(0, "mm"), description="Main entrance level")
 
         assert level.description == "Main entrance level"
 
@@ -155,6 +151,7 @@ class TestIFCExport:
             # Verify with ifcopenshell
             try:
                 import ifcopenshell
+
                 ifc_file = ifcopenshell.open(str(filepath))
 
                 buildings = ifc_file.by_type("IfcBuilding")
@@ -175,8 +172,8 @@ class TestIFCImport:
         """Test importing an exported building."""
         # Create and export
         original = Building("Original Building", address="123 Export St")
-        level_0 = Level(original, "Ground", Length(0, "mm"))
-        level_1 = Level(original, "First", Length(4000, "mm"))
+        Level(original, "Ground", Length(0, "mm"))
+        Level(original, "First", Length(4000, "mm"))
 
         with tempfile.TemporaryDirectory() as tmpdir:
             filepath = Path(tmpdir) / "roundtrip.ifc"
@@ -192,7 +189,7 @@ class TestIFCImport:
             assert len(imported.levels) == len(original.levels)
 
             # Verify levels
-            for orig_level, imp_level in zip(original.levels, imported.levels):
+            for orig_level, imp_level in zip(original.levels, imported.levels, strict=False):
                 assert orig_level.name == imp_level.name
                 assert abs(orig_level.elevation_mm - imp_level.elevation_mm) < 0.01
 
