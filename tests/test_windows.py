@@ -3,18 +3,19 @@ Tests for windows and window types.
 """
 
 import pytest
-from bimascode.spatial.building import Building
-from bimascode.spatial.level import Level
-from bimascode.architecture.wall_type import WallType, LayerFunction
+
 from bimascode.architecture.wall import Wall
+from bimascode.architecture.wall_type import LayerFunction, WallType
+from bimascode.architecture.window import Window
 from bimascode.architecture.window_type import (
-    WindowType,
     WindowOperationType,
-    create_standard_window_type,
+    WindowType,
     create_double_window_type,
     create_fixed_window_type,
+    create_standard_window_type,
 )
-from bimascode.architecture.window import Window
+from bimascode.spatial.building import Building
+from bimascode.spatial.level import Level
 from bimascode.utils.materials import MaterialLibrary
 
 
@@ -50,12 +51,7 @@ class TestWindowType:
 
     def test_window_type_overall_dimensions(self):
         """Test overall dimensions including frame."""
-        window_type = WindowType(
-            "Test Window",
-            width=1200.0,
-            height=1500.0,
-            frame_width=50.0
-        )
+        window_type = WindowType("Test Window", width=1200.0, height=1500.0, frame_width=50.0)
 
         assert window_type.overall_width == 1300.0  # 1200 + 2*50
         assert window_type.overall_height == 1600.0  # 1500 + 2*50
@@ -147,12 +143,7 @@ class TestWindow:
     def test_window_dimensions(self, setup_building):
         """Test window dimensions from type."""
         building, level, wall = setup_building
-        window_type = WindowType(
-            "Test Window",
-            width=1200.0,
-            height=1500.0,
-            frame_width=50.0
-        )
+        window_type = WindowType("Test Window", width=1200.0, height=1500.0, frame_width=50.0)
 
         window = Window(window_type, wall, offset=1000.0)
 
@@ -172,12 +163,7 @@ class TestWindow:
     def test_window_world_position(self, setup_building):
         """Test window world position calculation."""
         building, level, wall = setup_building
-        window_type = WindowType(
-            "Test Window",
-            width=1200.0,
-            height=1500.0,
-            frame_width=50.0
-        )
+        window_type = WindowType("Test Window", width=1200.0, height=1500.0, frame_width=50.0)
 
         window = Window(window_type, wall, offset=1000.0, sill_height=900.0)
         pos = window.get_world_position()
@@ -222,8 +208,8 @@ class TestWindow:
 
     def test_mixed_doors_and_windows(self, setup_building):
         """Test placing both doors and windows on same wall."""
-        from bimascode.architecture.door_type import create_standard_door_type
         from bimascode.architecture.door import Door
+        from bimascode.architecture.door_type import create_standard_door_type
 
         building, level, wall = setup_building
         door_type = create_standard_door_type("Entry Door")

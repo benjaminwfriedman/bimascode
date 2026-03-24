@@ -5,12 +5,17 @@ This module implements the ColumnType class which defines structural column
 properties including section profile and materials.
 """
 
-from typing import Optional
-from build123d import Box, Location, extrude
+from typing import TYPE_CHECKING
+
+from build123d import Box, Location
+
 from bimascode.core.type_instance import ElementType
 from bimascode.structure.profile import RectangularProfile
 from bimascode.utils.materials import Material
 from bimascode.utils.units import Length, normalize_length
+
+if TYPE_CHECKING:
+    from bimascode.structure.column import StructuralColumn
 
 
 class ColumnType(ElementType):
@@ -25,8 +30,8 @@ class ColumnType(ElementType):
         self,
         name: str,
         profile: RectangularProfile,
-        material: Optional[Material] = None,
-        description: Optional[str] = None
+        material: Material | None = None,
+        description: str | None = None,
     ):
         """
         Create a column type.
@@ -61,7 +66,7 @@ class ColumnType(ElementType):
         """Get cross-sectional area in square millimeters."""
         return self.profile.area
 
-    def create_geometry(self, instance: 'StructuralColumn'):
+    def create_geometry(self, instance: "StructuralColumn"):
         """
         Create 3D geometry for a column instance.
 
@@ -85,16 +90,14 @@ class ColumnType(ElementType):
         column_box = Box(self.width, self.depth, height)
 
         # Position so base is at Z=0 and column is centered in XY
-        column_box = column_box.locate(Location(
-            (0, 0, height / 2),
-            (0, 0, 1), 0
-        ))
+        column_box = column_box.locate(Location((0, 0, height / 2), (0, 0, 1), 0))
 
         return column_box
 
     def _generate_guid(self) -> str:
         """Generate a unique IFC GUID."""
         import uuid
+
         return str(uuid.uuid4())
 
     def to_ifc(self, ifc_file):
@@ -110,7 +113,7 @@ class ColumnType(ElementType):
             IfcColumnType entity
         """
         # Create IFC profile
-        ifc_profile = self.profile.to_ifc(ifc_file)
+        self.profile.to_ifc(ifc_file)
 
         # Create IfcColumnType
         ifc_column_type = ifc_file.create_entity(
@@ -118,19 +121,14 @@ class ColumnType(ElementType):
             GlobalId=self.guid,
             Name=self.name,
             Description=self.description,
-            PredefinedType="COLUMN"
+            PredefinedType="COLUMN",
         )
 
         # Associate material if present
         if self.material:
             ifc_material = self.material.to_ifc(ifc_file)
             ifc_file.createIfcRelAssociatesMaterial(
-                self._generate_guid(),
-                None,
-                None,
-                None,
-                [ifc_column_type],
-                ifc_material
+                self._generate_guid(), None, None, None, [ifc_column_type], ifc_material
             )
 
         return ifc_column_type
@@ -144,10 +142,7 @@ class ColumnType(ElementType):
 
 # Common column type constructors
 def create_rectangular_column_type(
-    name: str,
-    width: Length | float,
-    depth: Length | float,
-    material: Optional[Material] = None
+    name: str, width: Length | float, depth: Length | float, material: Material | None = None
 ) -> ColumnType:
     """
     Create a rectangular column type.
@@ -166,9 +161,7 @@ def create_rectangular_column_type(
 
 
 def create_square_column_type(
-    name: str,
-    size: Length | float,
-    material: Optional[Material] = None
+    name: str, size: Length | float, material: Material | None = None
 ) -> ColumnType:
     """
     Create a square column type.

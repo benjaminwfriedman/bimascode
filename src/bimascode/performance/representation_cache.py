@@ -7,8 +7,8 @@ section cut calculations when generating floor plans.
 from __future__ import annotations
 
 import time
-from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
+from dataclasses import dataclass
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from bimascode.core.element import Element
@@ -79,15 +79,13 @@ class RepresentationCache:
             max_entries: Maximum number of cached entries before eviction
         """
         # Key: (element_id, cut_height) -> CachedRepresentation
-        self._cache: Dict[Tuple[int, float], CachedRepresentation] = {}
+        self._cache: dict[tuple[int, float], CachedRepresentation] = {}
         self._max_entries = max_entries
         self._stats = CacheStats()
         # Track access order for LRU eviction
-        self._access_order: List[Tuple[int, float]] = []
+        self._access_order: list[tuple[int, float]] = []
 
-    def get(
-        self, element: "Element", cut_height: float
-    ) -> Optional[Any]:
+    def get(self, element: Element, cut_height: float) -> Any | None:
         """Get a cached 2D representation if available and valid.
 
         Args:
@@ -123,7 +121,7 @@ class RepresentationCache:
 
     def put(
         self,
-        element: "Element",
+        element: Element,
         cut_height: float,
         linework: Any,
         compute_time: float = 0.0,
@@ -160,7 +158,7 @@ class RepresentationCache:
 
     def get_or_compute(
         self,
-        element: "Element",
+        element: Element,
         cut_height: float,
         compute_func: callable,
     ) -> Any:
@@ -194,7 +192,7 @@ class RepresentationCache:
 
         return linework
 
-    def invalidate(self, element: "Element") -> int:
+    def invalidate(self, element: Element) -> int:
         """Invalidate all cached representations for an element.
 
         Call this when an element's geometry changes.
@@ -206,9 +204,7 @@ class RepresentationCache:
             Number of cache entries invalidated
         """
         element_id = id(element)
-        keys_to_remove = [
-            key for key in self._cache if key[0] == element_id
-        ]
+        keys_to_remove = [key for key in self._cache if key[0] == element_id]
 
         for key in keys_to_remove:
             del self._cache[key]
@@ -227,9 +223,7 @@ class RepresentationCache:
         Returns:
             Number of cache entries invalidated
         """
-        keys_to_remove = [
-            key for key in self._cache if key[1] == cut_height
-        ]
+        keys_to_remove = [key for key in self._cache if key[1] == cut_height]
 
         for key in keys_to_remove:
             del self._cache[key]
@@ -267,7 +261,7 @@ class RepresentationCache:
         """Return the number of cached entries."""
         return len(self._cache)
 
-    def __contains__(self, element: "Element") -> bool:
+    def __contains__(self, element: Element) -> bool:
         """Check if any representation for an element is cached."""
         element_id = id(element)
         return any(key[0] == element_id for key in self._cache)

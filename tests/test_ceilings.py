@@ -3,15 +3,15 @@ Tests for ceilings and ceiling types.
 """
 
 import pytest
-from bimascode.spatial.building import Building
-from bimascode.spatial.level import Level
+
+from bimascode.architecture.ceiling import Ceiling
 from bimascode.architecture.ceiling_type import (
     CeilingType,
     create_gypsum_ceiling_type,
     create_suspended_ceiling_type,
 )
-from bimascode.architecture.ceiling import Ceiling
-from bimascode.utils.materials import MaterialLibrary
+from bimascode.spatial.building import Building
+from bimascode.spatial.level import Level
 
 
 class TestCeilingType:
@@ -69,7 +69,7 @@ class TestCeiling:
             ceiling_type,
             boundary=[(0, 0), (5000, 0), (5000, 4000), (0, 4000)],
             level=level,
-            height=2700.0
+            height=2700.0,
         )
 
         assert ceiling.type == ceiling_type
@@ -85,7 +85,7 @@ class TestCeiling:
             ceiling_type,
             boundary=[(0, 0), (5000, 0), (5000, 4000), (0, 4000)],
             level=level,
-            height=2700.0
+            height=2700.0,
         )
 
         assert ceiling.thickness == 15.0
@@ -100,7 +100,7 @@ class TestCeiling:
             ceiling_type,
             boundary=[(0, 0), (5000, 0), (5000, 4000), (0, 4000)],
             level=level,
-            height=2700.0
+            height=2700.0,
         )
 
         assert abs(ceiling.area_m2 - 20.0) < 0.01
@@ -114,7 +114,7 @@ class TestCeiling:
             ceiling_type,
             boundary=[(0, 0), (5000, 0), (5000, 4000), (0, 4000)],
             level=level,
-            height=2700.0
+            height=2700.0,
         )
 
         # Bottom of ceiling should be at 2700 - 15 = 2685mm
@@ -131,7 +131,7 @@ class TestCeiling:
             ceiling_type,
             boundary=[(0, 0), (5000, 0), (5000, 4000), (0, 4000)],
             level=level,
-            height=2700.0
+            height=2700.0,
         )
 
         cx, cy = ceiling.get_centroid()
@@ -147,7 +147,7 @@ class TestCeiling:
             ceiling_type,
             boundary=[(0, 0), (5000, 0), (5000, 4000), (0, 4000)],
             level=level,
-            height=2700.0
+            height=2700.0,
         )
 
         assert ceiling in level.elements
@@ -161,7 +161,7 @@ class TestCeiling:
             ceiling_type,
             boundary=[(0, 0), (5000, 0), (5000, 4000), (0, 4000)],
             level=level,
-            height=2700.0
+            height=2700.0,
         )
 
         geom = ceiling.get_geometry()
@@ -182,7 +182,7 @@ class TestCeilingIFC:
             ceiling_type,
             boundary=[(0, 0), (5000, 0), (5000, 4000), (0, 4000)],
             level=level,
-            height=2700.0
+            height=2700.0,
         )
 
         return building, level, ceiling

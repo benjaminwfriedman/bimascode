@@ -8,7 +8,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import Enum
-from typing import Optional, Tuple
 
 
 class LineWeight(Enum):
@@ -61,7 +60,7 @@ class LineType(Enum):
     ABOVE_CUT = "ABOVE"  # Dashed - elements above cut plane
 
     @property
-    def pattern(self) -> Tuple[float, ...]:
+    def pattern(self) -> tuple[float, ...]:
         """Get dash pattern as tuple of lengths (mm).
 
         Positive values are dashes, negative values are gaps.
@@ -91,7 +90,7 @@ class LineStyle:
 
     weight: LineWeight
     type: LineType = LineType.CONTINUOUS
-    color: Optional[Tuple[int, int, int]] = None
+    color: tuple[int, int, int] | None = None
     is_cut: bool = False
 
     @classmethod
@@ -166,7 +165,7 @@ class LineStyle:
             is_cut=False,
         )
 
-    def with_color(self, color: Tuple[int, int, int]) -> LineStyle:
+    def with_color(self, color: tuple[int, int, int]) -> LineStyle:
         """Return a copy with the specified color."""
         return LineStyle(
             weight=self.weight,

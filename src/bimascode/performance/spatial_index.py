@@ -6,7 +6,8 @@ bounding box intersection queries on large element collections.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Dict, Iterator, List, Optional, Set
+from collections.abc import Iterator
+from typing import TYPE_CHECKING
 
 from rtree import index
 
@@ -36,11 +37,11 @@ class SpatialIndex:
         props.interleaved = True  # (min_x, min_y, min_z, max_x, max_y, max_z)
 
         self._idx = index.Index(properties=props)
-        self._elements: Dict[int, "Element"] = {}  # id -> element mapping
-        self._element_ids: Dict[int, int] = {}  # element id() -> index id
+        self._elements: dict[int, Element] = {}  # id -> element mapping
+        self._element_ids: dict[int, int] = {}  # element id() -> index id
         self._next_id = 0
 
-    def insert(self, element: "Element") -> None:
+    def insert(self, element: Element) -> None:
         """Insert an element into the spatial index.
 
         If the element doesn't have a get_bounding_box() method, it
@@ -74,7 +75,7 @@ class SpatialIndex:
         # Insert into R-tree
         self._idx.insert(idx_id, bbox.as_tuple)
 
-    def remove(self, element: "Element") -> bool:
+    def remove(self, element: Element) -> bool:
         """Remove an element from the spatial index.
 
         Args:
@@ -101,7 +102,7 @@ class SpatialIndex:
 
         return True
 
-    def update(self, element: "Element") -> None:
+    def update(self, element: Element) -> None:
         """Update an element's position in the spatial index.
 
         Call this after modifying an element's geometry.
@@ -141,7 +142,7 @@ class SpatialIndex:
         # Re-insert with new bbox
         self._idx.insert(idx_id, new_bbox.as_tuple)
 
-    def query_intersects(self, bbox: BoundingBox) -> List["Element"]:
+    def query_intersects(self, bbox: BoundingBox) -> list[Element]:
         """Find all elements whose bounding boxes intersect the query box.
 
         Args:
@@ -153,7 +154,7 @@ class SpatialIndex:
         idx_ids = list(self._idx.intersection(bbox.as_tuple))
         return [self._elements[idx_id] for idx_id in idx_ids if idx_id in self._elements]
 
-    def query_contains(self, bbox: BoundingBox) -> List["Element"]:
+    def query_contains(self, bbox: BoundingBox) -> list[Element]:
         """Find all elements fully contained within the query box.
 
         Args:
@@ -173,7 +174,7 @@ class SpatialIndex:
 
         return result
 
-    def query_z_range(self, z_min: float, z_max: float) -> List["Element"]:
+    def query_z_range(self, z_min: float, z_max: float) -> list[Element]:
         """Find all elements that intersect a Z range.
 
         Useful for floor plan generation - finds all elements that
@@ -202,9 +203,7 @@ class SpatialIndex:
 
         return self.query_intersects(query_bbox)
 
-    def query_cut_plane(
-        self, z: float, tolerance: float = 1.0
-    ) -> List["Element"]:
+    def query_cut_plane(self, z: float, tolerance: float = 1.0) -> list[Element]:
         """Find all elements that intersect a horizontal cut plane.
 
         Args:
@@ -216,9 +215,7 @@ class SpatialIndex:
         """
         return self.query_z_range(z - tolerance, z + tolerance)
 
-    def query_level(
-        self, level_elevation: float, level_height: float
-    ) -> List["Element"]:
+    def query_level(self, level_elevation: float, level_height: float) -> list[Element]:
         """Find all elements on a specific level.
 
         Args:
@@ -230,7 +227,7 @@ class SpatialIndex:
         """
         return self.query_z_range(level_elevation, level_elevation + level_height)
 
-    def query_point(self, x: float, y: float, z: float) -> List["Element"]:
+    def query_point(self, x: float, y: float, z: float) -> list[Element]:
         """Find all elements whose bounding boxes contain a point.
 
         Args:
@@ -263,7 +260,7 @@ class SpatialIndex:
         return len(self._elements)
 
     @property
-    def bounds(self) -> Optional[BoundingBox]:
+    def bounds(self) -> BoundingBox | None:
         """Return the bounding box of all indexed elements.
 
         Returns:
@@ -278,7 +275,7 @@ class SpatialIndex:
 
         return BoundingBox(b[0], b[1], b[2], b[3], b[4], b[5])
 
-    def __iter__(self) -> Iterator["Element"]:
+    def __iter__(self) -> Iterator[Element]:
         """Iterate over all indexed elements."""
         return iter(self._elements.values())
 
@@ -286,6 +283,6 @@ class SpatialIndex:
         """Return the number of elements in the index."""
         return len(self._elements)
 
-    def __contains__(self, element: "Element") -> bool:
+    def __contains__(self, element: Element) -> bool:
         """Check if an element is in the index."""
         return id(element) in self._element_ids

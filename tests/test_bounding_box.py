@@ -1,6 +1,7 @@
 """Tests for BoundingBox class."""
 
 import pytest
+
 from bimascode.performance.bounding_box import BoundingBox
 
 

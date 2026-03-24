@@ -8,11 +8,11 @@ from __future__ import annotations
 
 import math
 import time
-from typing import TYPE_CHECKING, List, Optional
+from typing import TYPE_CHECKING
 
 from bimascode.drawing.line_styles import Layer, LineStyle
 from bimascode.drawing.primitives import Arc2D, Hatch2D, Line2D, Polyline2D, ViewResult
-from bimascode.drawing.protocols import Drawable2D, HasBoundingBox, HasGeometry
+from bimascode.drawing.protocols import HasBoundingBox, HasGeometry
 from bimascode.drawing.section_cutter import get_section_cutter
 from bimascode.drawing.view_base import ViewBase, ViewCropRegion, ViewRange, ViewScale
 
@@ -43,9 +43,9 @@ class FloorPlanView(ViewBase):
         self,
         name: str,
         level: Level,
-        view_range: Optional[ViewRange] = None,
+        view_range: ViewRange | None = None,
         scale: ViewScale = ViewScale.SCALE_1_100,
-        crop_region: Optional[ViewCropRegion] = None,
+        crop_region: ViewCropRegion | None = None,
         template=None,
     ):
         """Create a floor plan view.
@@ -112,9 +112,7 @@ class FloorPlanView(ViewBase):
 
         # Process each element
         for element in elements:
-            linework = self._process_element(
-                element, cut_z, representation_cache
-            )
+            linework = self._process_element(element, cut_z, representation_cache)
 
             if linework is not None:
                 # Track cache hits
@@ -151,7 +149,7 @@ class FloorPlanView(ViewBase):
         element,
         cut_z: float,
         cache: RepresentationCache,
-    ) -> Optional[List]:
+    ) -> list | None:
         """Process a single element for floor plan generation.
 
         Args:
@@ -162,6 +160,7 @@ class FloorPlanView(ViewBase):
         Returns:
             List of 2D geometry primitives, or None
         """
+
         # Try to use cached representation first
         def compute_representation(elem, cut_height):
             return self._compute_element_linework(elem, cut_height)
@@ -173,7 +172,7 @@ class FloorPlanView(ViewBase):
         self,
         element,
         cut_z: float,
-    ) -> List:
+    ) -> list:
         """Compute 2D linework for an element.
 
         First tries to use the element's get_plan_representation() method
@@ -189,7 +188,7 @@ class FloorPlanView(ViewBase):
         """
         # Check if element has get_plan_representation method
         # (may not implement full Drawable2D protocol)
-        if hasattr(element, 'get_plan_representation'):
+        if hasattr(element, "get_plan_representation"):
             return element.get_plan_representation(cut_z, self.view_range)
 
         # Fall back to OCCT section cutting
@@ -247,11 +246,9 @@ class FloorPlanView(ViewBase):
 
         # Use ViewRange's display region classification
         level_elev = self.level.elevation_mm
-        return self.view_range.get_display_region(
-            bbox.min_z, bbox.max_z, level_elev
-        )
+        return self.view_range.get_display_region(bbox.min_z, bbox.max_z, level_elev)
 
-    def _filter_by_scale(self, elements: List) -> List:
+    def _filter_by_scale(self, elements: list) -> list:
         """Filter elements based on scale behavior.
 
         Args:
@@ -271,7 +268,7 @@ class FloorPlanView(ViewBase):
 
         return filtered
 
-    def _get_element_size_hint(self, element) -> Optional[float]:
+    def _get_element_size_hint(self, element) -> float | None:
         """Get size hint for element (width, diameter, etc.).
 
         Args:
@@ -281,12 +278,12 @@ class FloorPlanView(ViewBase):
             Size hint in mm, or None if unavailable
         """
         # Try common size attributes
-        if hasattr(element, 'width'):
-            return getattr(element, 'width')
-        elif hasattr(element, 'diameter'):
-            return getattr(element, 'diameter')
-        elif hasattr(element, 'thickness'):
-            return getattr(element, 'thickness')
+        if hasattr(element, "width"):
+            return element.width
+        elif hasattr(element, "diameter"):
+            return element.diameter
+        elif hasattr(element, "thickness"):
+            return element.thickness
 
         # Fall back to bounding box diagonal
         if isinstance(element, HasBoundingBox):
@@ -298,7 +295,7 @@ class FloorPlanView(ViewBase):
 
         return None
 
-    def _filter_linework_by_scale(self, linework: List) -> List:
+    def _filter_linework_by_scale(self, linework: list) -> list:
         """Filter line segments based on minimum length.
 
         Args:
@@ -339,12 +336,10 @@ class FloorPlanView(ViewBase):
         Returns:
             Geometry item with adjusted style
         """
-        if self._template is None or not hasattr(geometry_item, 'style'):
+        if self._template is None or not hasattr(geometry_item, "style"):
             return geometry_item
 
-        adjusted_style = self._template.apply_scale_adjusted_style(
-            element, geometry_item.style
-        )
+        adjusted_style = self._template.apply_scale_adjusted_style(element, geometry_item.style)
 
         # Create new geometry with adjusted style
         if isinstance(geometry_item, Line2D):

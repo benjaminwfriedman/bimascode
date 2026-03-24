@@ -2,8 +2,11 @@
 IFC import functionality for reading existing IFC files into BIM as Code models.
 """
 
-from typing import Optional, List
 from pathlib import Path
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from bimascode.spatial.building import Building
 
 
 class IFCImporter:
@@ -58,7 +61,6 @@ class IFCImporter:
 
         # Create Building instance
         from ..spatial.building import Building
-        from ..utils.units import UnitSystem
 
         # Determine unit system from IFC
         unit_system = self._get_unit_system()
@@ -68,7 +70,7 @@ class IFCImporter:
             name=ifc_building.Name or "Imported Building",
             address=self._get_address(ifc_building),
             description=ifc_building.Description,
-            unit_system=unit_system
+            unit_system=unit_system,
         )
 
         # Set GUID to maintain identity
@@ -95,21 +97,21 @@ class IFCImporter:
             return "metric"  # Default
 
         project = projects[0]
-        if not hasattr(project, 'UnitsInContext') or not project.UnitsInContext:
+        if not hasattr(project, "UnitsInContext") or not project.UnitsInContext:
             return "metric"
 
         # Check length units
         for unit in project.UnitsInContext.Units:
-            if hasattr(unit, 'UnitType') and unit.UnitType == 'LENGTHUNIT':
-                if hasattr(unit, 'Name'):
-                    if unit.Name == 'FOOT' or unit.Name == 'INCH':
+            if hasattr(unit, "UnitType") and unit.UnitType == "LENGTHUNIT":
+                if hasattr(unit, "Name"):
+                    if unit.Name == "FOOT" or unit.Name == "INCH":
                         return "imperial"
-                    elif unit.Name == 'METRE' or unit.Name == 'MILLIMETRE':
+                    elif unit.Name == "METRE" or unit.Name == "MILLIMETRE":
                         return "metric"
 
         return "metric"  # Default
 
-    def _get_address(self, ifc_building) -> Optional[str]:
+    def _get_address(self, ifc_building) -> str | None:
         """
         Extract address from IFC building.
 
@@ -119,7 +121,7 @@ class IFCImporter:
         Returns:
             Address string or None
         """
-        if not hasattr(ifc_building, 'BuildingAddress') or not ifc_building.BuildingAddress:
+        if not hasattr(ifc_building, "BuildingAddress") or not ifc_building.BuildingAddress:
             return None
 
         address = ifc_building.BuildingAddress
@@ -127,16 +129,16 @@ class IFCImporter:
         # Try to build address from components
         address_parts = []
 
-        if hasattr(address, 'AddressLines') and address.AddressLines:
+        if hasattr(address, "AddressLines") and address.AddressLines:
             address_parts.extend(address.AddressLines)
 
-        if hasattr(address, 'Town') and address.Town:
+        if hasattr(address, "Town") and address.Town:
             address_parts.append(address.Town)
 
-        if hasattr(address, 'PostalCode') and address.PostalCode:
+        if hasattr(address, "PostalCode") and address.PostalCode:
             address_parts.append(address.PostalCode)
 
-        if hasattr(address, 'Country') and address.Country:
+        if hasattr(address, "Country") and address.Country:
             address_parts.append(address.Country)
 
         return ", ".join(address_parts) if address_parts else None
@@ -156,9 +158,9 @@ class IFCImporter:
         storeys = []
 
         # Get storeys through spatial decomposition
-        if hasattr(ifc_building, 'IsDecomposedBy'):
+        if hasattr(ifc_building, "IsDecomposedBy"):
             for rel in ifc_building.IsDecomposedBy:
-                if hasattr(rel, 'RelatedObjects'):
+                if hasattr(rel, "RelatedObjects"):
                     for obj in rel.RelatedObjects:
                         if obj.is_a("IfcBuildingStorey"):
                             storeys.append(obj)
@@ -167,7 +169,7 @@ class IFCImporter:
         for storey in storeys:
             # Get elevation
             elevation_mm = 0.0
-            if hasattr(storey, 'Elevation') and storey.Elevation is not None:
+            if hasattr(storey, "Elevation") and storey.Elevation is not None:
                 elevation_mm = float(storey.Elevation)
 
             # Create level
@@ -175,7 +177,7 @@ class IFCImporter:
                 building,
                 name=storey.Name or "Unnamed Level",
                 elevation=Length(elevation_mm, "mm"),
-                description=storey.Description
+                description=storey.Description,
             )
 
             # Preserve GUID
@@ -188,24 +190,23 @@ class IFCImporter:
         Args:
             building: Building instance to add grids to
         """
-        from ..spatial.grid import GridLine
 
         # Find all grids in the file
         ifc_grids = self._ifc_file.by_type("IfcGrid")
 
         for ifc_grid in ifc_grids:
             # Import U axes (vertical grids)
-            if hasattr(ifc_grid, 'UAxes') and ifc_grid.UAxes:
+            if hasattr(ifc_grid, "UAxes") and ifc_grid.UAxes:
                 for axis in ifc_grid.UAxes:
                     self._import_grid_axis(building, axis)
 
             # Import V axes (horizontal grids)
-            if hasattr(ifc_grid, 'VAxes') and ifc_grid.VAxes:
+            if hasattr(ifc_grid, "VAxes") and ifc_grid.VAxes:
                 for axis in ifc_grid.VAxes:
                     self._import_grid_axis(building, axis)
 
             # Import W axes if present
-            if hasattr(ifc_grid, 'WAxes') and ifc_grid.WAxes:
+            if hasattr(ifc_grid, "WAxes") and ifc_grid.WAxes:
                 for axis in ifc_grid.WAxes:
                     self._import_grid_axis(building, axis)
 
@@ -220,32 +221,32 @@ class IFCImporter:
         from ..spatial.grid import GridLine
 
         # Get axis curve
-        if not hasattr(axis, 'AxisCurve'):
+        if not hasattr(axis, "AxisCurve"):
             return
 
         curve = axis.AxisCurve
 
         # Handle polyline (most common for grid axes)
         if curve.is_a("IfcPolyline"):
-            if not hasattr(curve, 'Points') or len(curve.Points) < 2:
+            if not hasattr(curve, "Points") or len(curve.Points) < 2:
                 return
 
             # Get start and end points
             start_point = curve.Points[0]
             end_point = curve.Points[-1]
 
-            if not (hasattr(start_point, 'Coordinates') and hasattr(end_point, 'Coordinates')):
+            if not (hasattr(start_point, "Coordinates") and hasattr(end_point, "Coordinates")):
                 return
 
             start_coords = start_point.Coordinates
             end_coords = end_point.Coordinates
 
             # Create grid line (coordinates are in mm from IFC)
-            grid_line = GridLine(
+            GridLine(
                 building,
                 label=axis.AxisTag or "?",
                 start_point=(float(start_coords[0]), float(start_coords[1])),
-                end_point=(float(end_coords[0]), float(end_coords[1]))
+                end_point=(float(end_coords[0]), float(end_coords[1])),
             )
 
     def get_info(self, filepath: str) -> dict:
@@ -282,16 +283,16 @@ class IFCImporter:
                 "buildings": len(buildings),
                 "storeys": len(storeys),
                 "grids": len(grids),
-                "materials": len(materials)
+                "materials": len(materials),
             }
 
             # Add building names
             if buildings:
-                info["building_names"] = [b.Name for b in buildings if hasattr(b, 'Name')]
+                info["building_names"] = [b.Name for b in buildings if hasattr(b, "Name")]
 
             # Add storey names
             if storeys:
-                info["storey_names"] = [s.Name for s in storeys if hasattr(s, 'Name')]
+                info["storey_names"] = [s.Name for s in storeys if hasattr(s, "Name")]
 
             return info
 

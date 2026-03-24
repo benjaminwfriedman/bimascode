@@ -2,10 +2,10 @@
 Level / Building Storey implementation.
 """
 
-from typing import Optional, Union, TYPE_CHECKING
+from typing import TYPE_CHECKING
 
 from ..core.element import Element
-from ..utils.units import Length, LengthUnit, normalize_length
+from ..utils.units import Length, normalize_length
 
 if TYPE_CHECKING:
     from .building import Building
@@ -23,8 +23,8 @@ class Level(Element):
         self,
         building: "Building",
         name: str,
-        elevation: Union[float, Length],
-        description: Optional[str] = None
+        elevation: float | Length,
+        description: str | None = None,
     ):
         """
         Create a new level.
@@ -54,7 +54,7 @@ class Level(Element):
         """Get the level elevation in millimeters."""
         return self._elevation.mm
 
-    def set_elevation(self, elevation: Union[float, Length]) -> None:
+    def set_elevation(self, elevation: float | Length) -> None:
         """
         Set the level elevation.
 
@@ -81,6 +81,7 @@ class Level(Element):
     def get_walls(self):
         """Get all walls on this level."""
         from bimascode.architecture.wall import Wall
+
         return [e for e in self._elements if isinstance(e, Wall)]
 
     def process_wall_joins(self, end_cap_type=None):
@@ -95,10 +96,7 @@ class Level(Element):
                          Use EndCapType.EXTERIOR to extend walls to outer face
                          Use EndCapType.INTERIOR to trim to inner face
         """
-        from bimascode.architecture.wall_joins import (
-            detect_and_process_wall_joins,
-            EndCapType
-        )
+        from bimascode.architecture.wall_joins import EndCapType, detect_and_process_wall_joins
 
         if end_cap_type is None:
             end_cap_type = EndCapType.FLUSH
@@ -133,8 +131,12 @@ class Level(Element):
 
         axis3d = ifc_file.createIfcAxis2Placement3D(location, axis, ref_direction)
         placement = ifc_file.createIfcLocalPlacement(
-            self.building._ifc_building.ObjectPlacement if hasattr(self.building, '_ifc_building') else None,
-            axis3d
+            (
+                self.building._ifc_building.ObjectPlacement
+                if hasattr(self.building, "_ifc_building")
+                else None
+            ),
+            axis3d,
         )
 
         # Create building storey
@@ -148,7 +150,7 @@ class Level(Element):
             None,  # Representation
             None,  # LongName
             None,  # CompositionType
-            elevation_mm  # Elevation
+            elevation_mm,  # Elevation
         )
 
         # Add to building's spatial structure
@@ -158,7 +160,7 @@ class Level(Element):
             f"Building{self.building.name}Container",
             None,
             self.building._ifc_building,
-            [storey]
+            [storey],
         )
 
         return storey

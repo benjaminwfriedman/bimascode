@@ -6,23 +6,30 @@ with frame and panel geometry. Door types specify standard dimensions
 that can be instantiated as Door elements hosted in walls.
 """
 
-from typing import Optional
 from enum import Enum
-from build123d import Box, Location, Compound
+from typing import TYPE_CHECKING
+
+from build123d import Box, Compound, Location
+
 from bimascode.core.type_instance import ElementType
 from bimascode.utils.materials import Material
 from bimascode.utils.units import Length, normalize_length
 
+if TYPE_CHECKING:
+    from bimascode.architecture.door import Door
+
 
 class SwingDirection(Enum):
     """Door swing direction relative to the wall face."""
-    LEFT_HAND = "LEFT_HAND"      # Hinges on left, swings left
-    RIGHT_HAND = "RIGHT_HAND"    # Hinges on right, swings right
-    DOUBLE = "DOUBLE"            # Double door
+
+    LEFT_HAND = "LEFT_HAND"  # Hinges on left, swings left
+    RIGHT_HAND = "RIGHT_HAND"  # Hinges on right, swings right
+    DOUBLE = "DOUBLE"  # Double door
 
 
 class DoorOperationType(Enum):
     """IFC door operation type."""
+
     SINGLE_SWING_LEFT = "SINGLE_SWING_LEFT"
     SINGLE_SWING_RIGHT = "SINGLE_SWING_RIGHT"
     DOUBLE_DOOR_SINGLE_SWING = "DOUBLE_DOOR_SINGLE_SWING"
@@ -49,9 +56,9 @@ class DoorType(ElementType):
         panel_thickness: Length | float = 44.0,
         swing_direction: SwingDirection = SwingDirection.RIGHT_HAND,
         operation_type: DoorOperationType = DoorOperationType.SINGLE_SWING_RIGHT,
-        frame_material: Optional[Material] = None,
-        panel_material: Optional[Material] = None,
-        description: Optional[str] = None
+        frame_material: Material | None = None,
+        panel_material: Material | None = None,
+        description: str | None = None,
     ):
         """
         Create a door type.
@@ -118,7 +125,7 @@ class DoorType(ElementType):
         """Get overall door height including frame."""
         return self.height + self.frame_width  # Top frame only
 
-    def create_geometry(self, instance: 'Door') -> Compound:
+    def create_geometry(self, instance: "Door") -> Compound:
         """
         Create 3D geometry for a door instance.
 
@@ -134,7 +141,6 @@ class DoorType(ElementType):
         Returns:
             build123d Compound representing the door (frame + panel)
         """
-        from bimascode.architecture.door import Door  # Avoid circular import
 
         # Get dimensions
         width = self.width
@@ -148,40 +154,38 @@ class DoorType(ElementType):
         # Create frame pieces
         # Left jamb
         left_jamb = Box(frame_w, frame_d, height + frame_w)
-        left_jamb = left_jamb.locate(Location(
-            (frame_w / 2, frame_d / 2, (height + frame_w) / 2),
-            (0, 0, 1), 0
-        ))
+        left_jamb = left_jamb.locate(
+            Location((frame_w / 2, frame_d / 2, (height + frame_w) / 2), (0, 0, 1), 0)
+        )
         parts.append(left_jamb)
 
         # Right jamb
         right_jamb = Box(frame_w, frame_d, height + frame_w)
-        right_jamb = right_jamb.locate(Location(
-            (frame_w + width + frame_w / 2, frame_d / 2, (height + frame_w) / 2),
-            (0, 0, 1), 0
-        ))
+        right_jamb = right_jamb.locate(
+            Location(
+                (frame_w + width + frame_w / 2, frame_d / 2, (height + frame_w) / 2), (0, 0, 1), 0
+            )
+        )
         parts.append(right_jamb)
 
         # Head (top piece)
         head = Box(width, frame_d, frame_w)
-        head = head.locate(Location(
-            (frame_w + width / 2, frame_d / 2, height + frame_w / 2),
-            (0, 0, 1), 0
-        ))
+        head = head.locate(
+            Location((frame_w + width / 2, frame_d / 2, height + frame_w / 2), (0, 0, 1), 0)
+        )
         parts.append(head)
 
         # Door panel (centered in frame depth)
         panel_y = (frame_d - panel_t) / 2
         panel = Box(width - 4, panel_t, height - 4)  # Small gap for clearance
-        panel = panel.locate(Location(
-            (frame_w + width / 2, panel_y + panel_t / 2, height / 2),
-            (0, 0, 1), 0
-        ))
+        panel = panel.locate(
+            Location((frame_w + width / 2, panel_y + panel_t / 2, height / 2), (0, 0, 1), 0)
+        )
         parts.append(panel)
 
         return Compound(children=parts)
 
-    def create_opening_geometry(self, instance: 'Door') -> Box:
+    def create_opening_geometry(self, instance: "Door") -> Box:
         """
         Create the void geometry for cutting into the host wall.
 
@@ -194,7 +198,6 @@ class DoorType(ElementType):
         Returns:
             build123d Box for boolean subtraction from wall
         """
-        from bimascode.architecture.door import Door  # Avoid circular import
 
         # Get door dimensions
         width = self.overall_width
@@ -216,16 +219,16 @@ class DoorType(ElementType):
         # X: offset along wall + half opening width
         # Y: centered on wall centerline (Y=0)
         # Z: sill height + half opening height
-        opening_box = opening_box.locate(Location(
-            (offset + width / 2, 0, sill_height + height / 2),
-            (0, 0, 1), 0
-        ))
+        opening_box = opening_box.locate(
+            Location((offset + width / 2, 0, sill_height + height / 2), (0, 0, 1), 0)
+        )
 
         return opening_box
 
     def _generate_guid(self) -> str:
         """Generate a unique IFC GUID."""
         import uuid
+
         return str(uuid.uuid4().hex[:22])
 
     def to_ifc(self, ifc_file):
@@ -279,7 +282,7 @@ class DoorType(ElementType):
             LiningThickness=float(self.frame_width),
             ThresholdThickness=0.0,  # No threshold for standard doors
             LiningToPanelOffsetX=2.0,  # Small clearance gap
-            LiningToPanelOffsetY=float((self.frame_depth - self.panel_thickness) / 2)
+            LiningToPanelOffsetY=float((self.frame_depth - self.panel_thickness) / 2),
         )
 
         # Create IfcDoorPanelProperties - defines panel dimensions
@@ -293,7 +296,7 @@ class DoorType(ElementType):
                 PanelDepth=float(self.panel_thickness),
                 PanelOperation=panel_operation_map.get(self.operation_type, "SWINGING"),
                 PanelWidth=0.5,  # Half width
-                PanelPosition="LEFT"
+                PanelPosition="LEFT",
             )
             panel_props_right = ifc_file.create_entity(
                 "IfcDoorPanelProperties",
@@ -302,7 +305,7 @@ class DoorType(ElementType):
                 PanelDepth=float(self.panel_thickness),
                 PanelOperation=panel_operation_map.get(self.operation_type, "SWINGING"),
                 PanelWidth=0.5,  # Half width
-                PanelPosition="RIGHT"
+                PanelPosition="RIGHT",
             )
             property_sets = [lining_props, panel_props_left, panel_props_right]
         else:
@@ -314,7 +317,7 @@ class DoorType(ElementType):
                 PanelDepth=float(self.panel_thickness),
                 PanelOperation=panel_operation_map.get(self.operation_type, "SWINGING"),
                 PanelWidth=1.0,  # Full width
-                PanelPosition=panel_position_map.get(self.swing_direction, "MIDDLE")
+                PanelPosition=panel_position_map.get(self.swing_direction, "MIDDLE"),
             )
             property_sets = [lining_props, panel_props]
 
@@ -327,7 +330,7 @@ class DoorType(ElementType):
             OperationType=operation_map.get(self.operation_type, "SINGLE_SWING_RIGHT"),
             PredefinedType="DOOR",
             ParameterTakesPrecedence=False,  # We provide explicit BREP geometry
-            HasPropertySets=property_sets
+            HasPropertySets=property_sets,
         )
 
         return ifc_door_type
@@ -344,7 +347,7 @@ def create_standard_door_type(
     name: str,
     width: Length | float = 900.0,
     height: Length | float = 2100.0,
-    swing_direction: SwingDirection = SwingDirection.RIGHT_HAND
+    swing_direction: SwingDirection = SwingDirection.RIGHT_HAND,
 ) -> DoorType:
     """
     Create a standard single-leaf door type.
@@ -370,14 +373,12 @@ def create_standard_door_type(
         height=height,
         swing_direction=swing_direction,
         operation_type=operation,
-        description=f"{name} - Standard Door"
+        description=f"{name} - Standard Door",
     )
 
 
 def create_double_door_type(
-    name: str,
-    width: Length | float = 1800.0,
-    height: Length | float = 2100.0
+    name: str, width: Length | float = 1800.0, height: Length | float = 2100.0
 ) -> DoorType:
     """
     Create a double door type.
@@ -396,5 +397,5 @@ def create_double_door_type(
         height=height,
         swing_direction=SwingDirection.DOUBLE,
         operation_type=DoorOperationType.DOUBLE_DOOR_SINGLE_SWING,
-        description=f"{name} - Double Door"
+        description=f"{name} - Double Door",
     )

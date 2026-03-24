@@ -4,22 +4,26 @@ These tests verify that FreestandingElementMixin and HostedElementMixin
 correctly transform local geometry to world coordinates.
 """
 
-import pytest
-import math
 
-from bimascode.spatial.building import Building
-from bimascode.spatial.level import Level
+import pytest
+
 from bimascode.architecture import Wall, create_basic_wall_type
-from bimascode.architecture.door import Door
-from bimascode.architecture.door_type import DoorType
-from bimascode.architecture.window import Window
-from bimascode.architecture.window_type import WindowType
-from bimascode.architecture.floor import Floor
-from bimascode.architecture.floor_type import FloorType, LayerFunction
 from bimascode.architecture.ceiling import Ceiling
 from bimascode.architecture.ceiling_type import CeilingType
-from bimascode.structure import StructuralColumn, create_square_column_type
-from bimascode.structure import Beam, create_rectangular_beam_type
+from bimascode.architecture.door import Door
+from bimascode.architecture.door_type import DoorType
+from bimascode.architecture.floor import Floor
+from bimascode.architecture.floor_type import FloorType, LayerFunction
+from bimascode.architecture.window import Window
+from bimascode.architecture.window_type import WindowType
+from bimascode.spatial.building import Building
+from bimascode.spatial.level import Level
+from bimascode.structure import (
+    Beam,
+    StructuralColumn,
+    create_rectangular_beam_type,
+    create_square_column_type,
+)
 from bimascode.utils.materials import MaterialLibrary
 
 
@@ -64,7 +68,7 @@ class TestFreestandingWall:
 
         assert pos[0] == 1000  # X at start
         assert pos[1] == 2000  # Y at start
-        assert pos[2] == 0     # Z at level elevation
+        assert pos[2] == 0  # Z at level elevation
 
     def test_wall_world_position_with_elevation(self, wall_type, upper_level):
         """Wall on upper level should have correct Z elevation."""
@@ -133,7 +137,7 @@ class TestFreestandingFloor:
 
         assert pos[0] == 2000  # X at centroid
         assert pos[1] == 1500  # Y at centroid
-        assert pos[2] == 0     # Z at level elevation
+        assert pos[2] == 0  # Z at level elevation
 
     def test_floor_world_rotation_is_zero(self, concrete, ground_level):
         """Floor rotation should always be 0 (horizontal element)."""

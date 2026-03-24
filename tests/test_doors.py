@@ -3,18 +3,18 @@ Tests for doors and door types.
 """
 
 import pytest
-from bimascode.spatial.building import Building
-from bimascode.spatial.level import Level
-from bimascode.architecture.wall_type import WallType, LayerFunction
-from bimascode.architecture.wall import Wall
+
+from bimascode.architecture.door import Door
 from bimascode.architecture.door_type import (
     DoorType,
     SwingDirection,
-    DoorOperationType,
-    create_standard_door_type,
     create_double_door_type,
+    create_standard_door_type,
 )
-from bimascode.architecture.door import Door
+from bimascode.architecture.wall import Wall
+from bimascode.architecture.wall_type import LayerFunction, WallType
+from bimascode.spatial.building import Building
+from bimascode.spatial.level import Level
 from bimascode.utils.materials import MaterialLibrary
 
 
@@ -184,7 +184,7 @@ class TestDoor:
         geom_before = wall.get_geometry(force_rebuild=True)
 
         # Add door
-        door = Door(door_type, wall, offset=1000.0)
+        Door(door_type, wall, offset=1000.0)
 
         # Get wall geometry after door
         geom_after = wall.get_geometry(force_rebuild=True)

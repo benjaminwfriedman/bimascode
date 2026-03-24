@@ -5,19 +5,21 @@ This module implements structural columns with support for grid placement
 and IFC export.
 """
 
-from typing import Tuple, Optional, List, Union, TYPE_CHECKING
+import math
+from typing import TYPE_CHECKING, Union
+
 from bimascode.core.type_instance import ElementInstance
 from bimascode.core.world_geometry import FreestandingElementMixin
 from bimascode.performance.bounding_box import BoundingBox
 from bimascode.spatial.level import Level
 from bimascode.utils.units import Length, normalize_length
-import math
 
 if TYPE_CHECKING:
     from build123d import Location
-    from bimascode.structure.column_type import ColumnType
+
+    from bimascode.drawing.primitives import Arc2D, Hatch2D, Line2D, Polyline2D
     from bimascode.drawing.view_base import ViewRange
-    from bimascode.drawing.primitives import Line2D, Arc2D, Polyline2D, Hatch2D
+    from bimascode.structure.column_type import ColumnType
 
 
 class StructuralColumn(ElementInstance, FreestandingElementMixin):
@@ -30,12 +32,12 @@ class StructuralColumn(ElementInstance, FreestandingElementMixin):
 
     def __init__(
         self,
-        column_type: 'ColumnType',
+        column_type: "ColumnType",
         level: Level,
-        position: Tuple[float, float],
-        height: Optional[Length | float] = None,
+        position: tuple[float, float],
+        height: Length | float | None = None,
         rotation: float = 0.0,
-        name: Optional[str] = None
+        name: str | None = None,
     ):
         """
         Create a structural column.
@@ -63,11 +65,11 @@ class StructuralColumn(ElementInstance, FreestandingElementMixin):
         self.set_parameter("height", normalize_length(height).mm, override=False)
 
         # Register with level
-        if hasattr(level, 'add_element'):
+        if hasattr(level, "add_element"):
             level.add_element(self)
 
     @property
-    def position(self) -> Tuple[float, float]:
+    def position(self) -> tuple[float, float]:
         """Get column center position (x, y)."""
         return self.get_parameter("position")
 
@@ -116,7 +118,7 @@ class StructuralColumn(ElementInstance, FreestandingElementMixin):
         """Get column volume in cubic meters."""
         return self.volume / 1_000_000_000.0
 
-    def get_base_center(self) -> Tuple[float, float, float]:
+    def get_base_center(self) -> tuple[float, float, float]:
         """
         Get the 3D base center point of the column.
 
@@ -127,7 +129,7 @@ class StructuralColumn(ElementInstance, FreestandingElementMixin):
         z = self.level.elevation_mm
         return (pos[0], pos[1], z)
 
-    def get_top_center(self) -> Tuple[float, float, float]:
+    def get_top_center(self) -> tuple[float, float, float]:
         """
         Get the 3D top center point of the column.
 
@@ -138,7 +140,7 @@ class StructuralColumn(ElementInstance, FreestandingElementMixin):
         z = self.level.elevation_mm + self.height
         return (pos[0], pos[1], z)
 
-    def _get_world_position(self) -> Tuple[float, float, float]:
+    def _get_world_position(self) -> tuple[float, float, float]:
         """Get world position for column geometry.
 
         Returns:
@@ -165,9 +167,10 @@ class StructuralColumn(ElementInstance, FreestandingElementMixin):
             Location transform to shift column base to Z=0
         """
         from build123d import Location
+
         return Location((0, 0, self.height / 2))
 
-    def get_center_3d(self) -> Tuple[float, float, float]:
+    def get_center_3d(self) -> tuple[float, float, float]:
         """
         Get the 3D center point of the column.
 
@@ -178,7 +181,7 @@ class StructuralColumn(ElementInstance, FreestandingElementMixin):
         z = self.level.elevation_mm + self.height / 2
         return (pos[0], pos[1], z)
 
-    def set_position(self, position: Tuple[float, float]) -> None:
+    def set_position(self, position: tuple[float, float]) -> None:
         """
         Set the column position.
 
@@ -225,7 +228,7 @@ class StructuralColumn(ElementInstance, FreestandingElementMixin):
             GlobalId=self.guid,
             Name=self.name,
             Description=f"{self.type.name} column",
-            PredefinedType="COLUMN"
+            PredefinedType="COLUMN",
         )
 
         # Set placement (local to building storey)
@@ -239,12 +242,11 @@ class StructuralColumn(ElementInstance, FreestandingElementMixin):
         axis_placement = ifc_file.createIfcAxis2Placement3D(
             location,
             ifc_file.createIfcDirection((0.0, 0.0, 1.0)),
-            ifc_file.createIfcDirection(x_dir)
+            ifc_file.createIfcDirection(x_dir),
         )
 
         local_placement = ifc_file.createIfcLocalPlacement(
-            ifc_building_storey.ObjectPlacement,
-            axis_placement
+            ifc_building_storey.ObjectPlacement, axis_placement
         )
 
         ifc_column.ObjectPlacement = local_placement
@@ -264,14 +266,12 @@ class StructuralColumn(ElementInstance, FreestandingElementMixin):
                     ifc_file.by_type("IfcGeometricRepresentationContext")[0],
                     "Body",
                     "Brep",
-                    [ifc_brep]
+                    [ifc_brep],
                 )
 
                 # Create product definition shape
                 product_shape = ifc_file.createIfcProductDefinitionShape(
-                    None,
-                    None,
-                    [shape_representation]
+                    None, None, [shape_representation]
                 )
 
                 ifc_column.Representation = product_shape
@@ -283,7 +283,7 @@ class StructuralColumn(ElementInstance, FreestandingElementMixin):
             f"Column{self.name}Container",
             None,
             [ifc_column],
-            ifc_building_storey
+            ifc_building_storey,
         )
 
         # Associate with column type
@@ -294,7 +294,7 @@ class StructuralColumn(ElementInstance, FreestandingElementMixin):
             None,
             None,
             [ifc_column],
-            ifc_column_type
+            ifc_column_type,
         )
 
         # Associate with material if present
@@ -306,7 +306,7 @@ class StructuralColumn(ElementInstance, FreestandingElementMixin):
                 None,
                 None,
                 [ifc_column],
-                ifc_material
+                ifc_material,
             )
 
         return ifc_column
@@ -359,7 +359,7 @@ class StructuralColumn(ElementInstance, FreestandingElementMixin):
         self,
         cut_height: float,
         view_range: "ViewRange",
-    ) -> List[Union["Line2D", "Arc2D", "Polyline2D", "Hatch2D"]]:
+    ) -> list[Union["Line2D", "Arc2D", "Polyline2D", "Hatch2D"]]:
         """Generate floor plan linework for this column.
 
         Columns are shown with a rectangular outline and optional X pattern.
@@ -371,10 +371,10 @@ class StructuralColumn(ElementInstance, FreestandingElementMixin):
         Returns:
             List of 2D geometry primitives
         """
-        from bimascode.drawing.primitives import Point2D, Line2D, Polyline2D, Hatch2D
-        from bimascode.drawing.line_styles import LineStyle, Layer
+        from bimascode.drawing.line_styles import Layer, LineStyle
+        from bimascode.drawing.primitives import Line2D, Point2D, Polyline2D
 
-        result: List[Union["Line2D", "Arc2D", "Polyline2D", "Hatch2D"]] = []
+        result: list[Line2D | Arc2D | Polyline2D | Hatch2D] = []
 
         # Check if column is cut by the section plane
         bbox = self.get_bounding_box()

@@ -6,18 +6,19 @@ They can have slope for drainage (flat roofs, accessibility ramps).
 They support openings for stairs, shafts, and other penetrations.
 """
 
-from typing import List, Tuple, Optional, Union, TYPE_CHECKING
+from typing import TYPE_CHECKING, Union
+
 from bimascode.core.type_instance import ElementInstance
 from bimascode.core.world_geometry import FreestandingElementMixin
 from bimascode.performance.bounding_box import BoundingBox
 from bimascode.spatial.level import Level
-from bimascode.utils.units import normalize_length, Length
-import math
+from bimascode.utils.units import Length
 
 if TYPE_CHECKING:
+    from bimascode.architecture.floor_type import FloorType
     from bimascode.architecture.opening import Opening
+    from bimascode.drawing.primitives import Arc2D, Hatch2D, Line2D, Polyline2D
     from bimascode.drawing.view_base import ViewRange
-    from bimascode.drawing.primitives import Line2D, Arc2D, Polyline2D, Hatch2D
 
 
 class Floor(ElementInstance, FreestandingElementMixin):
@@ -30,12 +31,12 @@ class Floor(ElementInstance, FreestandingElementMixin):
 
     def __init__(
         self,
-        floor_type: 'FloorType',
-        boundary: List[Tuple[float, float]],
+        floor_type: "FloorType",
+        boundary: list[tuple[float, float]],
         level: Level,
         slope: float = 0.0,
         structural: bool = False,
-        name: Optional[str] = None
+        name: str | None = None,
     ):
         """
         Create a floor.
@@ -53,7 +54,7 @@ class Floor(ElementInstance, FreestandingElementMixin):
         self.level = level
 
         # Openings in this floor
-        self._openings: List['Opening'] = []
+        self._openings: list[Opening] = []
 
         # Structural flag
         self._structural = structural
@@ -63,11 +64,11 @@ class Floor(ElementInstance, FreestandingElementMixin):
         self.set_parameter("slope", slope, override=False)
 
         # Register with level
-        if hasattr(level, 'add_element'):
+        if hasattr(level, "add_element"):
             level.add_element(self)
 
     @property
-    def boundary(self) -> List[Tuple[float, float]]:
+    def boundary(self) -> list[tuple[float, float]]:
         """Get floor boundary polygon."""
         return self.get_parameter("boundary")
 
@@ -122,7 +123,7 @@ class Floor(ElementInstance, FreestandingElementMixin):
         """Get floor area in square meters."""
         return self.area / 1_000_000.0
 
-    def get_centroid(self) -> Tuple[float, float]:
+    def get_centroid(self) -> tuple[float, float]:
         """
         Calculate the centroid of the floor boundary.
 
@@ -139,7 +140,7 @@ class Floor(ElementInstance, FreestandingElementMixin):
 
         return (x_sum / n, y_sum / n)
 
-    def get_center_3d(self) -> Tuple[float, float, float]:
+    def get_center_3d(self) -> tuple[float, float, float]:
         """
         Get the 3D center point of the floor.
 
@@ -150,7 +151,7 @@ class Floor(ElementInstance, FreestandingElementMixin):
         z = self.level.elevation_mm + self.thickness / 2
         return (cx, cy, z)
 
-    def _get_world_position(self) -> Tuple[float, float, float]:
+    def _get_world_position(self) -> tuple[float, float, float]:
         """Get world position for floor geometry.
 
         build123d's Polygon centers vertices at the centroid, so we translate
@@ -172,7 +173,7 @@ class Floor(ElementInstance, FreestandingElementMixin):
         """
         return 0.0
 
-    def set_boundary(self, boundary: List[Tuple[float, float]]) -> None:
+    def set_boundary(self, boundary: list[tuple[float, float]]) -> None:
         """
         Set the floor boundary.
 
@@ -193,11 +194,13 @@ class Floor(ElementInstance, FreestandingElementMixin):
         self.invalidate_geometry()
 
     @property
-    def openings(self) -> List['Opening']:
+    def openings(self) -> list["Opening"]:
         """Get all openings in this floor."""
         return self._openings.copy()
 
-    def add_opening(self, opening_boundary: List[Tuple[float, float]], name: Optional[str] = None) -> 'Opening':
+    def add_opening(
+        self, opening_boundary: list[tuple[float, float]], name: str | None = None
+    ) -> "Opening":
         """
         Add an opening (void) in the floor.
 
@@ -214,13 +217,13 @@ class Floor(ElementInstance, FreestandingElementMixin):
             host_element=self,
             boundary=opening_boundary,
             depth=self.thickness + 2,  # +2mm for clean cut
-            name=name or f"Opening_{len(self._openings) + 1}"
+            name=name or f"Opening_{len(self._openings) + 1}",
         )
         self._openings.append(opening)
         self.invalidate_geometry()
         return opening
 
-    def remove_opening(self, opening: 'Opening') -> None:
+    def remove_opening(self, opening: "Opening") -> None:
         """
         Remove an opening from this floor.
 
@@ -251,7 +254,7 @@ class Floor(ElementInstance, FreestandingElementMixin):
             GlobalId=self.guid,
             Name=self.name,
             Description=f"{self.type.name} floor",
-            PredefinedType=predefined_type
+            PredefinedType=predefined_type,
         )
 
         # Set placement (at level elevation)
@@ -261,12 +264,11 @@ class Floor(ElementInstance, FreestandingElementMixin):
         axis_placement = ifc_file.createIfcAxis2Placement3D(
             location,
             ifc_file.createIfcDirection((0.0, 0.0, 1.0)),
-            ifc_file.createIfcDirection((1.0, 0.0, 0.0))
+            ifc_file.createIfcDirection((1.0, 0.0, 0.0)),
         )
 
         local_placement = ifc_file.createIfcLocalPlacement(
-            ifc_building_storey.ObjectPlacement,
-            axis_placement
+            ifc_building_storey.ObjectPlacement, axis_placement
         )
 
         ifc_slab.ObjectPlacement = local_placement
@@ -286,14 +288,12 @@ class Floor(ElementInstance, FreestandingElementMixin):
                     ifc_file.by_type("IfcGeometricRepresentationContext")[0],
                     "Body",
                     "Brep",
-                    [ifc_brep]
+                    [ifc_brep],
                 )
 
                 # Create product definition shape
                 product_shape = ifc_file.createIfcProductDefinitionShape(
-                    None,
-                    None,
-                    [shape_representation]
+                    None, None, [shape_representation]
                 )
 
                 ifc_slab.Representation = product_shape
@@ -305,7 +305,7 @@ class Floor(ElementInstance, FreestandingElementMixin):
             f"Floor{self.name}Container",
             None,
             [ifc_slab],
-            ifc_building_storey
+            ifc_building_storey,
         )
 
         # Associate with material layer set
@@ -317,7 +317,7 @@ class Floor(ElementInstance, FreestandingElementMixin):
             None,
             None,
             [ifc_slab],
-            material_layer_set
+            material_layer_set,
         )
 
         return ifc_slab
@@ -329,16 +329,14 @@ class Floor(ElementInstance, FreestandingElementMixin):
             BoundingBox encompassing the floor geometry
         """
         return BoundingBox.from_polygon_2d(
-            self.boundary,
-            self.level.elevation_mm,
-            self.level.elevation_mm + self.thickness
+            self.boundary, self.level.elevation_mm, self.level.elevation_mm + self.thickness
         )
 
     def get_plan_representation(
         self,
         cut_height: float,
         view_range: "ViewRange",
-    ) -> List[Union["Line2D", "Arc2D", "Polyline2D", "Hatch2D"]]:
+    ) -> list[Union["Line2D", "Arc2D", "Polyline2D", "Hatch2D"]]:
         """Generate floor plan linework for this floor.
 
         Floors are typically shown with their boundary outline.
@@ -350,10 +348,10 @@ class Floor(ElementInstance, FreestandingElementMixin):
         Returns:
             List of 2D geometry primitives
         """
+        from bimascode.drawing.line_styles import Layer, LineStyle
         from bimascode.drawing.primitives import Point2D, Polyline2D
-        from bimascode.drawing.line_styles import LineStyle, Layer
 
-        result: List[Union["Line2D", "Arc2D", "Polyline2D", "Hatch2D"]] = []
+        result: list[Line2D | Arc2D | Polyline2D | Hatch2D] = []
 
         # Floors are below the cut plane - show with visible (not cut) style
         bbox = self.get_bounding_box()

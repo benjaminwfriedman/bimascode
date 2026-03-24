@@ -7,10 +7,10 @@ visible and hidden edge projections from 3D geometry.
 from __future__ import annotations
 
 import math
-from typing import TYPE_CHECKING, List, Optional, Tuple
+from typing import TYPE_CHECKING
 
 from bimascode.drawing.line_styles import LineStyle
-from bimascode.drawing.primitives import Arc2D, Line2D, Point2D
+from bimascode.drawing.primitives import Line2D, Point2D
 
 if TYPE_CHECKING:
     pass
@@ -47,13 +47,13 @@ class HLRProcessor:
     def process(
         self,
         geometry,
-        view_direction: Tuple[float, float, float],
-        view_up: Tuple[float, float, float] = (0, 0, 1),
+        view_direction: tuple[float, float, float],
+        view_up: tuple[float, float, float] = (0, 0, 1),
         show_hidden: bool = True,
-        visible_style: Optional[LineStyle] = None,
-        hidden_style: Optional[LineStyle] = None,
+        visible_style: LineStyle | None = None,
+        hidden_style: LineStyle | None = None,
         layer: str = "0",
-    ) -> Tuple[List[Line2D], List[Line2D]]:
+    ) -> tuple[list[Line2D], list[Line2D]]:
         """Process geometry through HLR to get visible and hidden edges.
 
         Args:
@@ -92,23 +92,17 @@ class HLRProcessor:
     def _occt_hlr(
         self,
         geometry,
-        view_direction: Tuple[float, float, float],
-        view_up: Tuple[float, float, float],
+        view_direction: tuple[float, float, float],
+        view_up: tuple[float, float, float],
         show_hidden: bool,
         visible_style: LineStyle,
         hidden_style: LineStyle,
         layer: str,
-    ) -> Tuple[List[Line2D], List[Line2D]]:
+    ) -> tuple[list[Line2D], list[Line2D]]:
         """Perform OCCT-based HLR processing."""
-        from OCP.BRep import BRep_Tool
-        from OCP.BRepAdaptor import BRepAdaptor_Curve
-        from OCP.GeomAbs import GeomAbs_Circle, GeomAbs_Line
         from OCP.gp import gp_Ax2, gp_Dir, gp_Pnt, gp_Vec
         from OCP.HLRAlgo import HLRAlgo_Projector
         from OCP.HLRBRep import HLRBRep_Algo, HLRBRep_HLRToShape
-        from OCP.TopAbs import TopAbs_EDGE
-        from OCP.TopExp import TopExp_Explorer
-        from OCP.TopoDS import TopoDS
 
         # Get the OCC shape
         if hasattr(geometry, "wrapped"):
@@ -154,25 +148,21 @@ class HLRProcessor:
         # Extract results
         hlr_shapes = HLRBRep_HLRToShape(hlr)
 
-        visible_lines: List[Line2D] = []
-        hidden_lines: List[Line2D] = []
+        visible_lines: list[Line2D] = []
+        hidden_lines: list[Line2D] = []
 
         # Extract visible sharp edges
         visible_compound = hlr_shapes.VCompound()
         if visible_compound is not None:
             visible_lines.extend(
-                self._extract_edges(
-                    visible_compound, visible_style, layer, view_direction
-                )
+                self._extract_edges(visible_compound, visible_style, layer, view_direction)
             )
 
         # Extract visible smooth edges
         visible_smooth = hlr_shapes.Rg1LineVCompound()
         if visible_smooth is not None:
             visible_lines.extend(
-                self._extract_edges(
-                    visible_smooth, visible_style, layer, view_direction
-                )
+                self._extract_edges(visible_smooth, visible_style, layer, view_direction)
             )
 
         # Extract hidden edges if requested
@@ -180,9 +170,7 @@ class HLRProcessor:
             hidden_compound = hlr_shapes.HCompound()
             if hidden_compound is not None:
                 hidden_lines.extend(
-                    self._extract_edges(
-                        hidden_compound, hidden_style, layer, view_direction
-                    )
+                    self._extract_edges(hidden_compound, hidden_style, layer, view_direction)
                 )
 
         return visible_lines, hidden_lines
@@ -192,8 +180,8 @@ class HLRProcessor:
         shape,
         style: LineStyle,
         layer: str,
-        view_direction: Tuple[float, float, float],
-    ) -> List[Line2D]:
+        view_direction: tuple[float, float, float],
+    ) -> list[Line2D]:
         """Extract edges from a shape as 2D lines.
 
         Args:
@@ -206,12 +194,12 @@ class HLRProcessor:
             List of Line2D
         """
         from OCP.BRepAdaptor import BRepAdaptor_Curve
-        from OCP.GeomAbs import GeomAbs_Circle, GeomAbs_Line
+        from OCP.GeomAbs import GeomAbs_Line
         from OCP.TopAbs import TopAbs_EDGE
         from OCP.TopExp import TopExp_Explorer
         from OCP.TopoDS import TopoDS
 
-        result: List[Line2D] = []
+        result: list[Line2D] = []
 
         explorer = TopExp_Explorer(shape, TopAbs_EDGE)
 
@@ -257,7 +245,7 @@ class HLRProcessor:
         style: LineStyle,
         layer: str,
         num_segments: int = 32,
-    ) -> List[Line2D]:
+    ) -> list[Line2D]:
         """Tessellate a curve edge into line segments.
 
         HLR output is in projection plane coordinates - map directly to 2D.
@@ -278,9 +266,7 @@ class HLRProcessor:
             current = Point2D(pnt.X(), -pnt.Y())
 
             if prev_point is not None:
-                result.append(
-                    Line2D(start=prev_point, end=current, style=style, layer=layer)
-                )
+                result.append(Line2D(start=prev_point, end=current, style=style, layer=layer))
 
             prev_point = current
 
@@ -288,9 +274,9 @@ class HLRProcessor:
 
     def _project_point(
         self,
-        point_3d: Tuple[float, float, float],
-        view_direction: Tuple[float, float, float],
-    ) -> Tuple[float, float]:
+        point_3d: tuple[float, float, float],
+        view_direction: tuple[float, float, float],
+    ) -> tuple[float, float]:
         """Project a 3D point to 2D based on view direction.
 
         For orthographic projection, we drop the coordinate
@@ -327,12 +313,12 @@ class HLRProcessor:
     def process_elements(
         self,
         elements: list,
-        view_direction: Tuple[float, float, float],
-        view_up: Tuple[float, float, float] = (0, 0, 1),
+        view_direction: tuple[float, float, float],
+        view_up: tuple[float, float, float] = (0, 0, 1),
         show_hidden: bool = True,
-        visible_style: Optional[LineStyle] = None,
-        hidden_style: Optional[LineStyle] = None,
-    ) -> Tuple[List[Line2D], List[Line2D]]:
+        visible_style: LineStyle | None = None,
+        hidden_style: LineStyle | None = None,
+    ) -> tuple[list[Line2D], list[Line2D]]:
         """Process multiple elements through HLR with proper occlusion.
 
         All geometry is combined into a single compound shape before HLR
@@ -404,12 +390,12 @@ class HLRProcessor:
     def _process_compound_hlr(
         self,
         compound,
-        view_direction: Tuple[float, float, float],
-        view_up: Tuple[float, float, float],
+        view_direction: tuple[float, float, float],
+        view_up: tuple[float, float, float],
         show_hidden: bool,
         visible_style: LineStyle,
         hidden_style: LineStyle,
-    ) -> Tuple[List[Line2D], List[Line2D]]:
+    ) -> tuple[list[Line2D], list[Line2D]]:
         """Run HLR on a compound shape with all geometry combined."""
         from OCP.gp import gp_Ax2, gp_Dir, gp_Pnt, gp_Vec
         from OCP.HLRAlgo import HLRAlgo_Projector
@@ -443,8 +429,8 @@ class HLRProcessor:
         # Extract results
         hlr_shapes = HLRBRep_HLRToShape(hlr)
 
-        visible_lines: List[Line2D] = []
-        hidden_lines: List[Line2D] = []
+        visible_lines: list[Line2D] = []
+        hidden_lines: list[Line2D] = []
 
         # Use a default layer for combined output
         layer = "0"
@@ -482,7 +468,7 @@ class HLRProcessor:
 
 
 # Global HLR processor instance
-_hlr_processor: Optional[HLRProcessor] = None
+_hlr_processor: HLRProcessor | None = None
 
 
 def get_hlr_processor() -> HLRProcessor:

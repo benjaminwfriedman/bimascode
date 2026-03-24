@@ -5,12 +5,17 @@ Similar to WallType, FloorType defines horizontal assemblies
 with multiple material layers (structural slab, insulation, finish, etc.).
 """
 
-from typing import List, Optional
-from bimascode.core.type_instance import ElementType
+from typing import TYPE_CHECKING
+
+from build123d import Compound, Location, Polygon, extrude
+
 from bimascode.architecture.wall_type import Layer, LayerFunction
+from bimascode.core.type_instance import ElementType
 from bimascode.utils.materials import Material
-from bimascode.utils.units import Length, normalize_length
-from build123d import Box, Location, Compound, extrude, Polygon, Plane
+from bimascode.utils.units import Length
+
+if TYPE_CHECKING:
+    from bimascode.architecture.floor import Floor
 
 
 class FloorType(ElementType):
@@ -22,10 +27,7 @@ class FloorType(ElementType):
     """
 
     def __init__(
-        self,
-        name: str,
-        layers: Optional[List[Layer]] = None,
-        description: Optional[str] = None
+        self, name: str, layers: list[Layer] | None = None, description: str | None = None
     ):
         """
         Create a floor type.
@@ -48,7 +50,7 @@ class FloorType(ElementType):
         thickness: Length | float,
         function: LayerFunction = LayerFunction.OTHER,
         structural: bool = False,
-        position: Optional[int] = None
+        position: int | None = None,
     ) -> Layer:
         """
         Add a material layer to the floor assembly.
@@ -115,11 +117,11 @@ class FloorType(ElementType):
         """Update the thickness parameter based on layer thicknesses."""
         self.set_parameter("thickness", self.total_thickness_mm)
 
-    def get_structural_layers(self) -> List[Layer]:
+    def get_structural_layers(self) -> list[Layer]:
         """Get all structural layers."""
         return [layer for layer in self.layers if layer.structural]
 
-    def get_layers_by_function(self, function: LayerFunction) -> List[Layer]:
+    def get_layers_by_function(self, function: LayerFunction) -> list[Layer]:
         """
         Get all layers with a specific function.
 
@@ -131,7 +133,7 @@ class FloorType(ElementType):
         """
         return [layer for layer in self.layers if layer.function == function]
 
-    def create_geometry(self, instance: 'Floor') -> Compound:
+    def create_geometry(self, instance: "Floor") -> Compound:
         """
         Create 3D geometry for a floor instance.
 
@@ -144,11 +146,9 @@ class FloorType(ElementType):
         Returns:
             build123d Compound representing the floor
         """
-        from bimascode.architecture.floor import Floor  # Avoid circular import
 
         # Get floor parameters
         boundary = instance.get_parameter("boundary")
-        slope = instance.get_parameter("slope", 0.0)  # degrees
 
         if boundary is None:
             raise ValueError("Floor must have a boundary polygon")
@@ -173,7 +173,7 @@ class FloorType(ElementType):
         floor_compound = Compound(children=layer_solids)
 
         # Apply boolean subtraction for openings
-        if hasattr(instance, 'openings') and instance.openings:
+        if hasattr(instance, "openings") and instance.openings:
             for opening in instance.openings:
                 try:
                     opening_geom = opening.get_opening_geometry()
@@ -208,7 +208,7 @@ class FloorType(ElementType):
                 IsVentilated=False,
                 Name=layer.description,
                 Category=layer.function.value,
-                Priority=i + 1
+                Priority=i + 1,
             )
             ifc_layers.append(ifc_layer)
 
@@ -217,7 +217,7 @@ class FloorType(ElementType):
             "IfcMaterialLayerSet",
             MaterialLayers=ifc_layers,
             LayerSetName=self.name,
-            Description=self.description
+            Description=self.description,
         )
 
         return ifc_layer_set
@@ -227,11 +227,7 @@ class FloorType(ElementType):
 
 
 # Common floor type constructors
-def create_basic_floor_type(
-    name: str,
-    thickness: Length | float,
-    material: Material
-) -> FloorType:
+def create_basic_floor_type(name: str, thickness: Length | float, material: Material) -> FloorType:
     """
     Create a simple single-layer floor type.
 
@@ -245,10 +241,7 @@ def create_basic_floor_type(
     """
     floor_type = FloorType(name)
     floor_type.add_layer(
-        material=material,
-        thickness=thickness,
-        function=LayerFunction.STRUCTURE,
-        structural=True
+        material=material, thickness=thickness, function=LayerFunction.STRUCTURE, structural=True
     )
     return floor_type
 
@@ -256,9 +249,9 @@ def create_basic_floor_type(
 def create_concrete_floor_type(
     name: str,
     slab_thickness: Length | float = 200.0,
-    concrete_material: Optional[Material] = None,
+    concrete_material: Material | None = None,
     topping_thickness: Length | float = 50.0,
-    topping_material: Optional[Material] = None
+    topping_material: Material | None = None,
 ) -> FloorType:
     """
     Create a typical concrete floor with structural slab and topping.
@@ -285,7 +278,7 @@ def create_concrete_floor_type(
         material=concrete_material,
         thickness=slab_thickness,
         function=LayerFunction.STRUCTURE,
-        structural=True
+        structural=True,
     )
 
     # Topping/screed
@@ -293,7 +286,7 @@ def create_concrete_floor_type(
         floor_type.add_layer(
             material=topping_material,
             thickness=topping_thickness,
-            function=LayerFunction.FINISH_INTERIOR
+            function=LayerFunction.FINISH_INTERIOR,
         )
 
     return floor_type

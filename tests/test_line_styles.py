@@ -2,12 +2,11 @@
 Unit tests for line styles module.
 """
 
-import pytest
 from bimascode.drawing.line_styles import (
-    LineWeight,
-    LineType,
-    LineStyle,
     Layer,
+    LineStyle,
+    LineType,
+    LineWeight,
 )
 
 

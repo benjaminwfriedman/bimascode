@@ -4,7 +4,6 @@ Provides high-level utilities for configuring scale-dependent
 rendering without needing low-level details.
 """
 
-from typing import Dict, Optional
 
 from bimascode.drawing.view_base import (
     DetailLevel,
@@ -33,9 +32,9 @@ class ScaleConfigurator:
     def create_template_for_scale(
         scale: ViewScale,
         view_type: str = "floor_plan",
-        hide_small_details: Optional[bool] = None,
-        reduce_line_weights: Optional[bool] = None,
-        custom_detail_level: Optional[DetailLevel] = None,
+        hide_small_details: bool | None = None,
+        reduce_line_weights: bool | None = None,
+        custom_detail_level: DetailLevel | None = None,
     ) -> ViewTemplate:
         """Create view template optimized for a scale.
 
@@ -86,7 +85,7 @@ class ScaleConfigurator:
     @staticmethod
     def recommend_scale(
         view_type: str,
-        content_size: Optional[float] = None,
+        content_size: float | None = None,
         target_paper_size: str = "A3",
     ) -> ViewScale:
         """Recommend appropriate scale.
@@ -145,7 +144,7 @@ class ScaleConfigurator:
         return ViewScale.recommend_for_view_type(view_type)
 
     @staticmethod
-    def get_visibility_thresholds(scale: ViewScale) -> Dict[str, float]:
+    def get_visibility_thresholds(scale: ViewScale) -> dict[str, float]:
         """Get minimum size thresholds for element types.
 
         Returns recommended minimum sizes for different element
@@ -181,7 +180,7 @@ class ScaleConfigurator:
 
 def create_multi_scale_template_set(
     view_type: str = "floor_plan",
-) -> Dict[ViewScale, ViewTemplate]:
+) -> dict[ViewScale, ViewTemplate]:
     """Create templates for all standard scales.
 
     Useful for preparing multiple scale options at once.
@@ -207,6 +206,5 @@ def create_multi_scale_template_set(
     ]
 
     return {
-        scale: configurator.create_template_for_scale(scale, view_type)
-        for scale in standard_scales
+        scale: configurator.create_template_for_scale(scale, view_type) for scale in standard_scales
     }

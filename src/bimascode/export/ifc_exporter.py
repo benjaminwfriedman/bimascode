@@ -3,8 +3,8 @@ IFC export functionality for BIM as Code models.
 """
 
 import time
-from typing import TYPE_CHECKING, Optional
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from ..spatial.building import Building
@@ -40,11 +40,11 @@ class IFCExporter:
         header = self._ifc_file.header
 
         # Set file description with view definition
-        header.file_description.description = ('ViewDefinition[DesignTransferView]',)
-        header.file_description.implementation_level = '2;1'
+        header.file_description.description = ("ViewDefinition[DesignTransferView]",)
+        header.file_description.implementation_level = "2;1"
 
         # Set authorization
-        header.file_name.authorization = 'Nobody'
+        header.file_name.authorization = "Nobody"
 
     def export(self, building: "Building", filepath: str) -> None:
         """
@@ -101,7 +101,7 @@ class IFCExporter:
             ifc.createIfcOrganization(None, "BIM as Code", None, None, None),
             "1.0",
             "BIM as Code",
-            "bimascode"
+            "bimascode",
         )
 
         person = ifc.createIfcPerson(None, None, "User", None, None, None, None, None)
@@ -116,7 +116,7 @@ class IFCExporter:
             create_time,
             person_org,
             application,
-            create_time
+            create_time,
         )
 
         # Store for later use
@@ -135,7 +135,7 @@ class IFCExporter:
             None,  # LongName
             None,  # Phase
             None,  # RepresentationContexts
-            units
+            units,
         )
 
         # Create representation contexts (Model 3D and Plan 2D)
@@ -154,8 +154,8 @@ class IFCExporter:
             ifc.createIfcAxis2Placement3D(
                 ifc.createIfcCartesianPoint((0.0, 0.0, 0.0)),
                 ifc.createIfcDirection((0.0, 0.0, 1.0)),
-                ifc.createIfcDirection((1.0, 0.0, 0.0))
-            )
+                ifc.createIfcDirection((1.0, 0.0, 0.0)),
+            ),
         )
 
         ifc_site = ifc.createIfcSite(
@@ -172,7 +172,7 @@ class IFCExporter:
             None,
             None,
             None,
-            None
+            None,
         )
 
         # Create building
@@ -181,8 +181,8 @@ class IFCExporter:
             ifc.createIfcAxis2Placement3D(
                 ifc.createIfcCartesianPoint((0.0, 0.0, 0.0)),
                 ifc.createIfcDirection((0.0, 0.0, 1.0)),
-                ifc.createIfcDirection((1.0, 0.0, 0.0))
-            )
+                ifc.createIfcDirection((1.0, 0.0, 0.0)),
+            ),
         )
 
         # Create postal address if provided
@@ -198,7 +198,7 @@ class IFCExporter:
                 None,  # Town
                 None,  # Region
                 None,  # PostalCode
-                None  # Country
+                None,  # Country
             )
 
         ifc_building = ifc.createIfcBuilding(
@@ -213,7 +213,7 @@ class IFCExporter:
             "ELEMENT",
             None,
             None,
-            postal_address
+            postal_address,
         )
 
         # Store for later use
@@ -229,7 +229,7 @@ class IFCExporter:
             "ProjectContainer",
             None,
             ifc_project,
-            [ifc_site]
+            [ifc_site],
         )
 
         ifc.createIfcRelAggregates(
@@ -238,7 +238,7 @@ class IFCExporter:
             "SiteContainer",
             None,
             ifc_site,
-            [ifc_building]
+            [ifc_building],
         )
 
     def _create_representation_contexts(self, building: "Building"):
@@ -268,85 +268,93 @@ class IFCExporter:
             ifc.createIfcAxis2Placement3D(
                 ifc.createIfcCartesianPoint((0.0, 0.0, 0.0)),
                 ifc.createIfcDirection((0.0, 0.0, 1.0)),
-                ifc.createIfcDirection((1.0, 0.0, 0.0))
+                ifc.createIfcDirection((1.0, 0.0, 0.0)),
             ),
-            None  # TrueNorth
+            None,  # TrueNorth
         )
 
         # Model subcontexts
         # SubContext attributes: ParentContext, TargetScale, TargetView, UserDefinedTargetView
         # ContextIdentifier and ContextType are inherited from GeometricRepresentationContext
-        model_body = ifc.create_entity("IfcGeometricRepresentationSubContext",
+        ifc.create_entity(
+            "IfcGeometricRepresentationSubContext",
             ContextIdentifier="Body",
             ContextType="Model",
             ParentContext=model_context,
             TargetScale=None,
             TargetView="MODEL_VIEW",
-            UserDefinedTargetView=None
+            UserDefinedTargetView=None,
         )
 
-        model_axis = ifc.create_entity("IfcGeometricRepresentationSubContext",
+        ifc.create_entity(
+            "IfcGeometricRepresentationSubContext",
             ContextIdentifier="Axis",
             ContextType="Model",
             ParentContext=model_context,
             TargetScale=None,
             TargetView="GRAPH_VIEW",
-            UserDefinedTargetView=None
+            UserDefinedTargetView=None,
         )
 
-        model_box = ifc.create_entity("IfcGeometricRepresentationSubContext",
+        ifc.create_entity(
+            "IfcGeometricRepresentationSubContext",
             ContextIdentifier="Box",
             ContextType="Model",
             ParentContext=model_context,
             TargetScale=None,
             TargetView="MODEL_VIEW",
-            UserDefinedTargetView=None
+            UserDefinedTargetView=None,
         )
 
         # Annotation subcontexts for different views
-        model_annotation_section = ifc.create_entity("IfcGeometricRepresentationSubContext",
+        ifc.create_entity(
+            "IfcGeometricRepresentationSubContext",
             ContextIdentifier="Annotation",
             ContextType="Model",
             ParentContext=model_context,
             TargetScale=None,
             TargetView="SECTION_VIEW",
-            UserDefinedTargetView=None
+            UserDefinedTargetView=None,
         )
 
-        model_annotation_elevation = ifc.create_entity("IfcGeometricRepresentationSubContext",
+        ifc.create_entity(
+            "IfcGeometricRepresentationSubContext",
             ContextIdentifier="Annotation",
             ContextType="Model",
             ParentContext=model_context,
             TargetScale=None,
             TargetView="ELEVATION_VIEW",
-            UserDefinedTargetView=None
+            UserDefinedTargetView=None,
         )
 
-        model_annotation_model = ifc.create_entity("IfcGeometricRepresentationSubContext",
+        ifc.create_entity(
+            "IfcGeometricRepresentationSubContext",
             ContextIdentifier="Annotation",
             ContextType="Model",
             ParentContext=model_context,
             TargetScale=None,
             TargetView="MODEL_VIEW",
-            UserDefinedTargetView=None
+            UserDefinedTargetView=None,
         )
 
-        model_annotation_plan = ifc.create_entity("IfcGeometricRepresentationSubContext",
+        ifc.create_entity(
+            "IfcGeometricRepresentationSubContext",
             ContextIdentifier="Annotation",
             ContextType="Model",
             ParentContext=model_context,
             TargetScale=None,
             TargetView="PLAN_VIEW",
-            UserDefinedTargetView=None
+            UserDefinedTargetView=None,
         )
 
-        model_profile = ifc.create_entity("IfcGeometricRepresentationSubContext",
+        ifc.create_entity(
+            "IfcGeometricRepresentationSubContext",
             ContextIdentifier="Profile",
             ContextType="Model",
             ParentContext=model_context,
             TargetScale=None,
             TargetView="ELEVATION_VIEW",
-            UserDefinedTargetView=None
+            UserDefinedTargetView=None,
         )
 
         # =====================================================================
@@ -358,47 +366,50 @@ class IFCExporter:
             2,  # CoordinateSpaceDimension
             1.0e-5,  # Precision
             ifc.createIfcAxis2Placement2D(
-                ifc.createIfcCartesianPoint((0.0, 0.0)),
-                ifc.createIfcDirection((1.0, 0.0))
+                ifc.createIfcCartesianPoint((0.0, 0.0)), ifc.createIfcDirection((1.0, 0.0))
             ),
-            None  # TrueNorth
+            None,  # TrueNorth
         )
 
         # Plan subcontexts
-        plan_axis = ifc.create_entity("IfcGeometricRepresentationSubContext",
+        ifc.create_entity(
+            "IfcGeometricRepresentationSubContext",
             ContextIdentifier="Axis",
             ContextType="Plan",
             ParentContext=plan_context,
             TargetScale=None,
             TargetView="GRAPH_VIEW",
-            UserDefinedTargetView=None
+            UserDefinedTargetView=None,
         )
 
-        plan_body = ifc.create_entity("IfcGeometricRepresentationSubContext",
+        ifc.create_entity(
+            "IfcGeometricRepresentationSubContext",
             ContextIdentifier="Body",
             ContextType="Plan",
             ParentContext=plan_context,
             TargetScale=None,
             TargetView="PLAN_VIEW",
-            UserDefinedTargetView=None
+            UserDefinedTargetView=None,
         )
 
-        plan_annotation = ifc.create_entity("IfcGeometricRepresentationSubContext",
+        ifc.create_entity(
+            "IfcGeometricRepresentationSubContext",
             ContextIdentifier="Annotation",
             ContextType="Plan",
             ParentContext=plan_context,
             TargetScale=None,
             TargetView="PLAN_VIEW",
-            UserDefinedTargetView=None
+            UserDefinedTargetView=None,
         )
 
-        plan_annotation_reflected = ifc.create_entity("IfcGeometricRepresentationSubContext",
+        ifc.create_entity(
+            "IfcGeometricRepresentationSubContext",
             ContextIdentifier="Annotation",
             ContextType="Plan",
             ParentContext=plan_context,
             TargetScale=None,
             TargetView="REFLECTED_PLAN_VIEW",
-            UserDefinedTargetView=None
+            UserDefinedTargetView=None,
         )
 
         return [model_context, plan_context]
@@ -428,8 +439,8 @@ class IFCExporter:
                 "FOOT",
                 ifc.createIfcMeasureWithUnit(
                     ifc.createIfcLengthMeasure(0.3048),
-                    ifc.createIfcSIUnit(None, "LENGTHUNIT", None, "METRE")
-                )
+                    ifc.createIfcSIUnit(None, "LENGTHUNIT", None, "METRE"),
+                ),
             )
             area_unit = ifc.createIfcSIUnit(None, "AREAUNIT", None, "SQUARE_METRE")
             volume_unit = ifc.createIfcSIUnit(None, "VOLUMEUNIT", None, "CUBIC_METRE")
@@ -438,14 +449,13 @@ class IFCExporter:
         # 1 degree = π/180 radians ≈ 0.017453292519943295
         radian_unit = ifc.createIfcSIUnit(None, "PLANEANGLEUNIT", None, "RADIAN")
         degree_conversion = ifc.createIfcMeasureWithUnit(
-            ifc.createIfcPlaneAngleMeasure(0.017453292519943295),
-            radian_unit
+            ifc.createIfcPlaneAngleMeasure(0.017453292519943295), radian_unit
         )
         degree_unit = ifc.createIfcConversionBasedUnit(
             ifc.createIfcDimensionalExponents(0, 0, 0, 0, 0, 0, 0),
             "PLANEANGLEUNIT",
             "degree",
-            degree_conversion
+            degree_conversion,
         )
 
         return ifc.createIfcUnitAssignment([length_unit, area_unit, volume_unit, degree_unit])
@@ -492,8 +502,8 @@ class IFCExporter:
             ifc.createIfcAxis2Placement3D(
                 ifc.createIfcCartesianPoint((0.0, 0.0, 0.0)),
                 ifc.createIfcDirection((0.0, 0.0, 1.0)),
-                ifc.createIfcDirection((1.0, 0.0, 0.0))
-            )
+                ifc.createIfcDirection((1.0, 0.0, 0.0)),
+            ),
         )
 
         # Create IfcGrid
@@ -507,7 +517,7 @@ class IFCExporter:
             None,  # Representation
             u_axes if u_axes else None,
             v_axes if v_axes else None,
-            None   # WAxes (for 3D grids)
+            None,  # WAxes (for 3D grids)
         )
 
         # Relate grid to building
@@ -517,7 +527,7 @@ class IFCExporter:
             "BuildingGridContainer",
             None,
             [ifc_grid],
-            building._ifc_building
+            building._ifc_building,
         )
 
     def validate_export(self, filepath: str) -> dict:
@@ -553,8 +563,8 @@ class IFCExporter:
                     "buildings": len(buildings),
                     "storeys": len(storeys),
                     "grids": len(ifc_file.by_type("IfcGrid")),
-                    "materials": len(ifc_file.by_type("IfcMaterial"))
-                }
+                    "materials": len(ifc_file.by_type("IfcMaterial")),
+                },
             }
 
         except Exception as e:
@@ -572,9 +582,9 @@ class IFCExporter:
         Args:
             building: Building instance
         """
-        from ..architecture import Wall, Floor, Roof, Door, Window, Ceiling
-        from ..structure import StructuralColumn, Beam
+        from ..architecture import Ceiling, Door, Floor, Roof, Wall, Window
         from ..spatial import Room
+        from ..structure import Beam, StructuralColumn
 
         # Store IFC storeys for element placement
         ifc_storeys = {}

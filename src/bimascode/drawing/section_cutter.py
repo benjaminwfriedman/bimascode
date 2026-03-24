@@ -6,10 +6,9 @@ computing horizontal and vertical section cuts through 3D geometry.
 
 from __future__ import annotations
 
-import math
-from typing import TYPE_CHECKING, List, Optional, Tuple
+from typing import TYPE_CHECKING
 
-from bimascode.drawing.line_styles import Layer, LineStyle
+from bimascode.drawing.line_styles import LineStyle
 from bimascode.drawing.primitives import Arc2D, Line2D, Point2D
 
 if TYPE_CHECKING:
@@ -46,9 +45,9 @@ class SectionCutter:
         self,
         geometry,
         z_height: float,
-        style: Optional[LineStyle] = None,
+        style: LineStyle | None = None,
         layer: str = "0",
-    ) -> List[Line2D | Arc2D]:
+    ) -> list[Line2D | Arc2D]:
         """Compute a horizontal section cut at a given Z height.
 
         Args:
@@ -77,9 +76,8 @@ class SectionCutter:
         z_height: float,
         style: LineStyle,
         layer: str,
-    ) -> List[Line2D | Arc2D]:
+    ) -> list[Line2D | Arc2D]:
         """Perform OCCT-based horizontal section cut."""
-        from OCP.BRep import BRep_Tool
         from OCP.BRepAdaptor import BRepAdaptor_Curve
         from OCP.BRepAlgoAPI import BRepAlgoAPI_Section
         from OCP.GeomAbs import GeomAbs_Circle, GeomAbs_Line
@@ -105,7 +103,7 @@ class SectionCutter:
             return []
 
         result_shape = section.Shape()
-        result: List[Line2D | Arc2D] = []
+        result: list[Line2D | Arc2D] = []
 
         # Extract edges from section result
         explorer = TopExp_Explorer(result_shape, TopAbs_EDGE)
@@ -169,7 +167,7 @@ class SectionCutter:
         style: LineStyle,
         layer: str,
         num_segments: int = 32,
-    ) -> List[Line2D]:
+    ) -> list[Line2D]:
         """Tessellate a curve into line segments.
 
         Args:
@@ -194,9 +192,7 @@ class SectionCutter:
             current = Point2D(pnt.X(), pnt.Y())
 
             if prev_point is not None:
-                result.append(
-                    Line2D(start=prev_point, end=current, style=style, layer=layer)
-                )
+                result.append(Line2D(start=prev_point, end=current, style=style, layer=layer))
 
             prev_point = current
 
@@ -208,7 +204,7 @@ class SectionCutter:
         z_height: float,
         style: LineStyle,
         layer: str,
-    ) -> List[Line2D | Arc2D]:
+    ) -> list[Line2D | Arc2D]:
         """Fallback when OCCT is not available.
 
         Returns empty list - elements should implement Drawable2D
@@ -219,11 +215,11 @@ class SectionCutter:
     def vertical_cut(
         self,
         geometry,
-        plane_point: Tuple[float, float, float],
-        plane_normal: Tuple[float, float, float],
-        style: Optional[LineStyle] = None,
+        plane_point: tuple[float, float, float],
+        plane_normal: tuple[float, float, float],
+        style: LineStyle | None = None,
         layer: str = "0",
-    ) -> List[Line2D | Arc2D]:
+    ) -> list[Line2D | Arc2D]:
         """Compute a vertical section cut through geometry.
 
         Args:
@@ -243,25 +239,22 @@ class SectionCutter:
             return []
 
         try:
-            return self._occt_vertical_cut(
-                geometry, plane_point, plane_normal, style, layer
-            )
+            return self._occt_vertical_cut(geometry, plane_point, plane_normal, style, layer)
         except Exception:
             return []
 
     def _occt_vertical_cut(
         self,
         geometry,
-        plane_point: Tuple[float, float, float],
-        plane_normal: Tuple[float, float, float],
+        plane_point: tuple[float, float, float],
+        plane_normal: tuple[float, float, float],
         style: LineStyle,
         layer: str,
-    ) -> List[Line2D | Arc2D]:
+    ) -> list[Line2D | Arc2D]:
         """Perform OCCT-based vertical section cut."""
-        from OCP.BRep import BRep_Tool
         from OCP.BRepAdaptor import BRepAdaptor_Curve
         from OCP.BRepAlgoAPI import BRepAlgoAPI_Section
-        from OCP.GeomAbs import GeomAbs_Circle, GeomAbs_Line
+        from OCP.GeomAbs import GeomAbs_Line
         from OCP.gp import gp_Dir, gp_Pln, gp_Pnt
         from OCP.TopAbs import TopAbs_EDGE
         from OCP.TopExp import TopExp_Explorer
@@ -287,7 +280,7 @@ class SectionCutter:
             return []
 
         result_shape = section.Shape()
-        result: List[Line2D | Arc2D] = []
+        result: list[Line2D | Arc2D] = []
 
         # For vertical sections, we need to project to 2D
         # The section result is in 3D; we project to the section plane
@@ -335,7 +328,7 @@ class SectionCutter:
         style: LineStyle,
         layer: str,
         num_segments: int = 32,
-    ) -> List[Line2D]:
+    ) -> list[Line2D]:
         """Tessellate a curve for vertical sections (X, Z projection)."""
         result = []
 
@@ -350,9 +343,7 @@ class SectionCutter:
             current = Point2D(pnt.X(), pnt.Z())
 
             if prev_point is not None:
-                result.append(
-                    Line2D(start=prev_point, end=current, style=style, layer=layer)
-                )
+                result.append(Line2D(start=prev_point, end=current, style=style, layer=layer))
 
             prev_point = current
 
@@ -360,7 +351,7 @@ class SectionCutter:
 
 
 # Global section cutter instance
-_section_cutter: Optional[SectionCutter] = None
+_section_cutter: SectionCutter | None = None
 
 
 def get_section_cutter() -> SectionCutter:

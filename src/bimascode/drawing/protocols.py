@@ -6,7 +6,7 @@ to support automatic 2D view generation.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, List, Protocol, Tuple, Union, runtime_checkable
+from typing import TYPE_CHECKING, Protocol, Union, runtime_checkable
 
 from bimascode.drawing.primitives import Arc2D, Hatch2D, Line2D, Polyline2D
 
@@ -35,7 +35,7 @@ class Drawable2D(Protocol):
         self,
         cut_height: float,
         view_range: ViewRange,
-    ) -> List[Linework2D]:
+    ) -> list[Linework2D]:
         """Generate floor plan linework.
 
         Called when the element is intersected by a horizontal
@@ -52,9 +52,9 @@ class Drawable2D(Protocol):
 
     def get_section_representation(
         self,
-        section_plane: Tuple[Tuple[float, float, float], Tuple[float, float, float]],
-        view_direction: Tuple[float, float, float],
-    ) -> List[Linework2D]:
+        section_plane: tuple[tuple[float, float, float], tuple[float, float, float]],
+        view_direction: tuple[float, float, float],
+    ) -> list[Linework2D]:
         """Generate section/elevation linework.
 
         Called when the element is intersected by a vertical

@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass, field
-from typing import List, Optional, Tuple, Union
+from typing import Union
 
 from bimascode.drawing.line_styles import LineStyle
 
@@ -52,7 +52,7 @@ class Point2D:
         """
         return Point2D(self.x + dx, self.y + dy)
 
-    def rotate(self, angle: float, origin: Optional[Point2D] = None) -> Point2D:
+    def rotate(self, angle: float, origin: Point2D | None = None) -> Point2D:
         """Return a new point rotated around an origin.
 
         Args:
@@ -78,7 +78,7 @@ class Point2D:
         # Translate back
         return Point2D(new_x + origin.x, new_y + origin.y)
 
-    def as_tuple(self) -> Tuple[float, float]:
+    def as_tuple(self) -> tuple[float, float]:
         """Return point as (x, y) tuple."""
         return (self.x, self.y)
 
@@ -217,7 +217,7 @@ class Polyline2D:
         layer: CAD layer name
     """
 
-    points: List[Point2D]
+    points: list[Point2D]
     closed: bool = False
     style: LineStyle = field(default_factory=LineStyle.default)
     layer: str = "0"
@@ -252,7 +252,7 @@ class Polyline2D:
 
         return total
 
-    def to_lines(self) -> List[Line2D]:
+    def to_lines(self) -> list[Line2D]:
         """Convert to individual Line2D segments."""
         lines = []
         if len(self.points) < 2:
@@ -304,10 +304,10 @@ class Hatch2D:
         layer: CAD layer name
     """
 
-    boundary: List[Point2D]
+    boundary: list[Point2D]
     pattern: str = "SOLID"
     scale: float = 1.0
-    color: Optional[Tuple[int, int, int]] = None
+    color: tuple[int, int, int] | None = None
     layer: str = "0"
 
     @property
@@ -348,10 +348,10 @@ class ViewResult:
         cache_hits: Number of cache hits during generation
     """
 
-    lines: List[Line2D] = field(default_factory=list)
-    arcs: List[Arc2D] = field(default_factory=list)
-    polylines: List[Polyline2D] = field(default_factory=list)
-    hatches: List[Hatch2D] = field(default_factory=list)
+    lines: list[Line2D] = field(default_factory=list)
+    arcs: list[Arc2D] = field(default_factory=list)
+    polylines: list[Polyline2D] = field(default_factory=list)
+    hatches: list[Hatch2D] = field(default_factory=list)
     view_name: str = ""
     generation_time: float = 0.0
     element_count: int = 0
@@ -360,17 +360,12 @@ class ViewResult:
     @property
     def total_geometry_count(self) -> int:
         """Get total number of geometry primitives."""
-        return (
-            len(self.lines)
-            + len(self.arcs)
-            + len(self.polylines)
-            + len(self.hatches)
-        )
+        return len(self.lines) + len(self.arcs) + len(self.polylines) + len(self.hatches)
 
     @property
-    def all_geometry(self) -> List[Geometry2D]:
+    def all_geometry(self) -> list[Geometry2D]:
         """Get all geometry as a flat list."""
-        result: List[Geometry2D] = []
+        result: list[Geometry2D] = []
         result.extend(self.lines)
         result.extend(self.arcs)
         result.extend(self.polylines)
@@ -399,13 +394,13 @@ class ViewResult:
             cache_hits=self.cache_hits,
         )
 
-    def get_bounds(self) -> Optional[Tuple[float, float, float, float]]:
+    def get_bounds(self) -> tuple[float, float, float, float] | None:
         """Get bounding box of all geometry.
 
         Returns:
             Tuple of (min_x, min_y, max_x, max_y) or None if empty
         """
-        all_points: List[Point2D] = []
+        all_points: list[Point2D] = []
 
         for line in self.lines:
             all_points.append(line.start)

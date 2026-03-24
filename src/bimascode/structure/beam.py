@@ -5,19 +5,21 @@ This module implements structural beams spanning between points
 with IFC export support.
 """
 
-from typing import Tuple, Optional, List, Union, TYPE_CHECKING
+import math
+from typing import TYPE_CHECKING, Union
+
 from bimascode.core.type_instance import ElementInstance
 from bimascode.core.world_geometry import FreestandingElementMixin
 from bimascode.performance.bounding_box import BoundingBox
 from bimascode.spatial.level import Level
-from bimascode.utils.units import Length, normalize_length
-import math
+from bimascode.utils.units import Length
 
 if TYPE_CHECKING:
     from build123d import Location
-    from bimascode.structure.beam_type import BeamType
+
+    from bimascode.drawing.primitives import Arc2D, Hatch2D, Line2D, Polyline2D
     from bimascode.drawing.view_base import ViewRange
-    from bimascode.drawing.primitives import Line2D, Arc2D, Polyline2D, Hatch2D
+    from bimascode.structure.beam_type import BeamType
 
 
 class Beam(ElementInstance, FreestandingElementMixin):
@@ -30,11 +32,11 @@ class Beam(ElementInstance, FreestandingElementMixin):
 
     def __init__(
         self,
-        beam_type: 'BeamType',
+        beam_type: "BeamType",
         level: Level,
-        start_point: Tuple[float, float, float],
-        end_point: Tuple[float, float, float],
-        name: Optional[str] = None
+        start_point: tuple[float, float, float],
+        end_point: tuple[float, float, float],
+        name: str | None = None,
     ):
         """
         Create a structural beam.
@@ -55,16 +57,16 @@ class Beam(ElementInstance, FreestandingElementMixin):
         self.set_parameter("end_point", end_point, override=False)
 
         # Register with level
-        if hasattr(level, 'add_element'):
+        if hasattr(level, "add_element"):
             level.add_element(self)
 
     @property
-    def start_point(self) -> Tuple[float, float, float]:
+    def start_point(self) -> tuple[float, float, float]:
         """Get beam start point (x, y, z)."""
         return self.get_parameter("start_point")
 
     @property
-    def end_point(self) -> Tuple[float, float, float]:
+    def end_point(self) -> tuple[float, float, float]:
         """Get beam end point (x, y, z)."""
         return self.get_parameter("end_point")
 
@@ -143,7 +145,7 @@ class Beam(ElementInstance, FreestandingElementMixin):
         """Check if beam is horizontal (within tolerance)."""
         return abs(self.vertical_angle) < 0.001  # ~0.05 degrees
 
-    def get_midpoint(self) -> Tuple[float, float, float]:
+    def get_midpoint(self) -> tuple[float, float, float]:
         """
         Get the midpoint of the beam.
 
@@ -152,13 +154,9 @@ class Beam(ElementInstance, FreestandingElementMixin):
         """
         start = self.start_point
         end = self.end_point
-        return (
-            (start[0] + end[0]) / 2,
-            (start[1] + end[1]) / 2,
-            (start[2] + end[2]) / 2
-        )
+        return ((start[0] + end[0]) / 2, (start[1] + end[1]) / 2, (start[2] + end[2]) / 2)
 
-    def _get_world_position(self) -> Tuple[float, float, float]:
+    def _get_world_position(self) -> tuple[float, float, float]:
         """Get world position for beam geometry.
 
         Beam Z includes both level elevation and the beam's local Z offset.
@@ -188,9 +186,10 @@ class Beam(ElementInstance, FreestandingElementMixin):
             Location transform to shift beam start to origin
         """
         from build123d import Location
+
         return Location((self.length / 2, 0, 0))
 
-    def set_start_point(self, point: Tuple[float, float, float]) -> None:
+    def set_start_point(self, point: tuple[float, float, float]) -> None:
         """
         Set the beam start point.
 
@@ -200,7 +199,7 @@ class Beam(ElementInstance, FreestandingElementMixin):
         self.set_parameter("start_point", point, override=False)
         self.invalidate_geometry()
 
-    def set_end_point(self, point: Tuple[float, float, float]) -> None:
+    def set_end_point(self, point: tuple[float, float, float]) -> None:
         """
         Set the beam end point.
 
@@ -227,12 +226,14 @@ class Beam(ElementInstance, FreestandingElementMixin):
             GlobalId=self.guid,
             Name=self.name,
             Description=f"{self.type.name} beam",
-            PredefinedType="BEAM"
+            PredefinedType="BEAM",
         )
 
         # Set placement at beam start point with correct orientation
         start = self.start_point
-        location = ifc_file.createIfcCartesianPoint((float(start[0]), float(start[1]), float(start[2])))
+        location = ifc_file.createIfcCartesianPoint(
+            (float(start[0]), float(start[1]), float(start[2]))
+        )
 
         # Calculate beam direction
         end = self.end_point
@@ -260,14 +261,11 @@ class Beam(ElementInstance, FreestandingElementMixin):
             z_dir = (1.0, 0.0, 0.0)
 
         axis_placement = ifc_file.createIfcAxis2Placement3D(
-            location,
-            ifc_file.createIfcDirection(z_dir),
-            ifc_file.createIfcDirection(x_dir)
+            location, ifc_file.createIfcDirection(z_dir), ifc_file.createIfcDirection(x_dir)
         )
 
         local_placement = ifc_file.createIfcLocalPlacement(
-            ifc_building_storey.ObjectPlacement,
-            axis_placement
+            ifc_building_storey.ObjectPlacement, axis_placement
         )
 
         ifc_beam.ObjectPlacement = local_placement
@@ -287,14 +285,12 @@ class Beam(ElementInstance, FreestandingElementMixin):
                     ifc_file.by_type("IfcGeometricRepresentationContext")[0],
                     "Body",
                     "Brep",
-                    [ifc_brep]
+                    [ifc_brep],
                 )
 
                 # Create product definition shape
                 product_shape = ifc_file.createIfcProductDefinitionShape(
-                    None,
-                    None,
-                    [shape_representation]
+                    None, None, [shape_representation]
                 )
 
                 ifc_beam.Representation = product_shape
@@ -306,7 +302,7 @@ class Beam(ElementInstance, FreestandingElementMixin):
             f"Beam{self.name}Container",
             None,
             [ifc_beam],
-            ifc_building_storey
+            ifc_building_storey,
         )
 
         # Associate with beam type
@@ -317,7 +313,7 @@ class Beam(ElementInstance, FreestandingElementMixin):
             None,
             None,
             [ifc_beam],
-            ifc_beam_type
+            ifc_beam_type,
         )
 
         # Associate with material if present
@@ -329,7 +325,7 @@ class Beam(ElementInstance, FreestandingElementMixin):
                 None,
                 None,
                 [ifc_beam],
-                ifc_material
+                ifc_material,
             )
 
         return ifc_beam
@@ -368,7 +364,7 @@ class Beam(ElementInstance, FreestandingElementMixin):
         self,
         cut_height: float,
         view_range: "ViewRange",
-    ) -> List[Union["Line2D", "Arc2D", "Polyline2D", "Hatch2D"]]:
+    ) -> list[Union["Line2D", "Arc2D", "Polyline2D", "Hatch2D"]]:
         """Generate floor plan linework for this beam.
 
         Beams above the cut plane are shown with dashed lines.
@@ -381,10 +377,10 @@ class Beam(ElementInstance, FreestandingElementMixin):
         Returns:
             List of 2D geometry primitives
         """
+        from bimascode.drawing.line_styles import Layer, LineStyle
         from bimascode.drawing.primitives import Point2D, Polyline2D
-        from bimascode.drawing.line_styles import LineStyle, Layer
 
-        result: List[Union["Line2D", "Arc2D", "Polyline2D", "Hatch2D"]] = []
+        result: list[Line2D | Arc2D | Polyline2D | Hatch2D] = []
 
         # Check beam position relative to cut plane
         bbox = self.get_bounding_box()

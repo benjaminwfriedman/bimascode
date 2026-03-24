@@ -4,7 +4,7 @@ IFC geometry conversion utilities.
 Converts build123d/OCP geometry to IFC BREP representations.
 """
 
-from typing import Any, Dict, List, Tuple
+from typing import Any
 
 
 def build123d_to_ifc_brep(geometry: Any, ifc_file: Any) -> Any:
@@ -23,22 +23,20 @@ def build123d_to_ifc_brep(geometry: Any, ifc_file: Any) -> Any:
     """
     from OCP.BRep import BRep_Tool
     from OCP.BRepAdaptor import BRepAdaptor_Surface
-    from OCP.TopExp import TopExp_Explorer
-    from OCP.TopAbs import TopAbs_FACE, TopAbs_EDGE, TopAbs_VERTEX, TopAbs_WIRE
-    from OCP.TopExp import TopExp
+    from OCP.GeomAbs import GeomAbs_Plane
+    from OCP.gp import gp_Pnt
+    from OCP.TopAbs import TopAbs_FACE, TopAbs_VERTEX, TopAbs_WIRE
+    from OCP.TopExp import TopExp, TopExp_Explorer
     from OCP.TopoDS import TopoDS
-    from OCP.GeomAbs import GeomAbs_Plane, GeomAbs_Cylinder, GeomAbs_Line
-    from OCP.gp import gp_Pln, gp_Pnt, gp_Dir, gp_Ax2
-    from OCP.TopLoc import TopLoc_Location
 
     # Get the OCP shape from build123d
-    if hasattr(geometry, 'wrapped'):
+    if hasattr(geometry, "wrapped"):
         occ_shape = geometry.wrapped
     else:
         occ_shape = geometry
 
     # Map to avoid duplicate vertex creation (vertices can be safely cached by position)
-    vertex_map: Dict[int, Any] = {}
+    vertex_map: dict[int, Any] = {}
     # NOTE: Edge caching removed - edges must be created per-loop to respect
     # directional traversal for proper topology closure
 
@@ -68,10 +66,10 @@ def build123d_to_ifc_brep(geometry: Any, ifc_file: Any) -> Any:
         vertices are returned in the correct traversal order, respecting the
         edge orientation within the current wire.
         """
-        # Get edge curve parameters
+        # Get edge curve parameters (curve not used, just getting bounds)
         first = 0.0
         last = 0.0
-        curve = BRep_Tool.Curve_s(occ_edge, first, last)
+        BRep_Tool.Curve_s(occ_edge, first, last)
 
         # CRITICAL FIX: Use TopExp with cumOri=True to respect edge orientation
         # This ensures vertices are returned in the correct traversal order
@@ -93,11 +91,11 @@ def build123d_to_ifc_brep(geometry: Any, ifc_file: Any) -> Any:
         dx = p2.X() - p1.X()
         dy = p2.Y() - p1.Y()
         dz = p2.Z() - p1.Z()
-        length = (dx*dx + dy*dy + dz*dz) ** 0.5
+        length = (dx * dx + dy * dy + dz * dz) ** 0.5
 
         if length > 1e-10:
             # Normalize direction
-            dx, dy, dz = dx/length, dy/length, dz/length
+            dx, dy, dz = dx / length, dy / length, dz / length
         else:
             dx, dy, dz = 1.0, 0.0, 0.0
 
@@ -130,6 +128,7 @@ def build123d_to_ifc_brep(geometry: Any, ifc_file: Any) -> Any:
 
             # Get edges from wire using BRepTools_WireExplorer for proper ordering
             from OCP.BRepTools import BRepTools_WireExplorer
+
             wire_explorer = BRepTools_WireExplorer(wire, occ_face)
             ifc_edges = []
 
@@ -142,9 +141,7 @@ def build123d_to_ifc_brep(geometry: Any, ifc_file: Any) -> Any:
                 if ifc_edge:
                     # Orientation always True - vertices are already in correct order
                     # because create_ifc_edge uses TopExp with cumOri=True
-                    ifc_oriented_edge = ifc_file.createIfcOrientedEdge(
-                        None, None, ifc_edge, True
-                    )
+                    ifc_oriented_edge = ifc_file.createIfcOrientedEdge(None, None, ifc_edge, True)
                     ifc_edges.append(ifc_oriented_edge)
 
                 wire_explorer.Next()
@@ -169,15 +166,29 @@ def build123d_to_ifc_brep(geometry: Any, ifc_file: Any) -> Any:
 
         # Create surface geometry
         if surface_type == GeomAbs_Plane:
-            # Extract plane parameters
-            pln = BRep_Tool.Surface_s(occ_face)
-            adaptor = BRep_Tool.Surface_s(occ_face)
+            # Extract plane parameters (not used yet, placeholder for future)
+            # pln = BRep_Tool.Surface_s(occ_face)
+            # adaptor = BRep_Tool.Surface_s(occ_face)
 
-            # Get a point on the plane and normal
-            u_mid = (BRep_Tool.Surface_s(occ_face).FirstUParameter() +
-                     BRep_Tool.Surface_s(occ_face).LastUParameter()) / 2.0 if hasattr(BRep_Tool.Surface_s(occ_face), 'FirstUParameter') else 0.0
-            v_mid = (BRep_Tool.Surface_s(occ_face).FirstVParameter() +
-                     BRep_Tool.Surface_s(occ_face).LastVParameter()) / 2.0 if hasattr(BRep_Tool.Surface_s(occ_face), 'FirstVParameter') else 0.0
+            # Get a point on the plane and normal (not used yet, placeholder for future)
+            # u_mid = (
+            #     (
+            #         BRep_Tool.Surface_s(occ_face).FirstUParameter()
+            #         + BRep_Tool.Surface_s(occ_face).LastUParameter()
+            #     )
+            #     / 2.0
+            #     if hasattr(BRep_Tool.Surface_s(occ_face), "FirstUParameter")
+            #     else 0.0
+            # )
+            # v_mid = (
+            #     (
+            #         BRep_Tool.Surface_s(occ_face).FirstVParameter()
+            #         + BRep_Tool.Surface_s(occ_face).LastVParameter()
+            #     )
+            #     / 2.0
+            #     if hasattr(BRep_Tool.Surface_s(occ_face), "FirstVParameter")
+            #     else 0.0
+            # )
 
             # Get vertices to determine plane
             vertex_exp = TopExp_Explorer(occ_face, TopAbs_VERTEX)
@@ -191,6 +202,7 @@ def build123d_to_ifc_brep(geometry: Any, ifc_file: Any) -> Any:
             if len(points) >= 3:
                 # Create plane from three points
                 import numpy as np
+
                 p1 = np.array(points[0])
                 p2 = np.array(points[1])
                 p3 = np.array(points[2])
@@ -211,9 +223,7 @@ def build123d_to_ifc_brep(geometry: Any, ifc_file: Any) -> Any:
                     z_axis = ifc_file.createIfcDirection([float(x) for x in normal])
                     x_axis = ifc_file.createIfcDirection([float(x) for x in v1_norm])
 
-                    axis_placement = ifc_file.createIfcAxis2Placement3D(
-                        location, z_axis, x_axis
-                    )
+                    axis_placement = ifc_file.createIfcAxis2Placement3D(location, z_axis, x_axis)
 
                     ifc_surface = ifc_file.createIfcPlane(axis_placement)
                 else:
@@ -221,18 +231,14 @@ def build123d_to_ifc_brep(geometry: Any, ifc_file: Any) -> Any:
                     location = ifc_file.createIfcCartesianPoint((0.0, 0.0, 0.0))
                     z_axis = ifc_file.createIfcDirection((0.0, 0.0, 1.0))
                     x_axis = ifc_file.createIfcDirection((1.0, 0.0, 0.0))
-                    axis_placement = ifc_file.createIfcAxis2Placement3D(
-                        location, z_axis, x_axis
-                    )
+                    axis_placement = ifc_file.createIfcAxis2Placement3D(location, z_axis, x_axis)
                     ifc_surface = ifc_file.createIfcPlane(axis_placement)
             else:
                 # Fallback: use default plane
                 location = ifc_file.createIfcCartesianPoint((0.0, 0.0, 0.0))
                 z_axis = ifc_file.createIfcDirection((0.0, 0.0, 1.0))
                 x_axis = ifc_file.createIfcDirection((1.0, 0.0, 0.0))
-                axis_placement = ifc_file.createIfcAxis2Placement3D(
-                    location, z_axis, x_axis
-                )
+                axis_placement = ifc_file.createIfcAxis2Placement3D(location, z_axis, x_axis)
                 ifc_surface = ifc_file.createIfcPlane(axis_placement)
         else:
             # For non-planar surfaces, fallback to plane approximation
@@ -240,9 +246,7 @@ def build123d_to_ifc_brep(geometry: Any, ifc_file: Any) -> Any:
             location = ifc_file.createIfcCartesianPoint((0.0, 0.0, 0.0))
             z_axis = ifc_file.createIfcDirection((0.0, 0.0, 1.0))
             x_axis = ifc_file.createIfcDirection((1.0, 0.0, 0.0))
-            axis_placement = ifc_file.createIfcAxis2Placement3D(
-                location, z_axis, x_axis
-            )
+            axis_placement = ifc_file.createIfcAxis2Placement3D(location, z_axis, x_axis)
             ifc_surface = ifc_file.createIfcPlane(axis_placement)
 
         # Create advanced face
@@ -252,6 +256,7 @@ def build123d_to_ifc_brep(geometry: Any, ifc_file: Any) -> Any:
 
     # Check if we have multiple solids (compound geometry like door frame + panel)
     from OCP.TopAbs import TopAbs_SOLID
+
     solid_explorer = TopExp_Explorer(occ_shape, TopAbs_SOLID)
     solids = []
     while solid_explorer.More():

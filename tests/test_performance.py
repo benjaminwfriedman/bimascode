@@ -6,24 +6,26 @@ These tests verify that the spatial index and caching meet performance targets:
 - Cache speedup: 90% reduction in section cut computation time
 """
 
-import pytest
 import time
-from bimascode.performance.bounding_box import BoundingBox
-from bimascode.performance.spatial_index import SpatialIndex
-from bimascode.performance.representation_cache import RepresentationCache
-from bimascode.spatial.building import Building
-from bimascode.spatial.level import Level
-from bimascode.architecture.wall import Wall
-from bimascode.architecture.wall_type import WallType, LayerFunction
-from bimascode.architecture.floor import Floor
-from bimascode.architecture.floor_type import FloorType
+
+import pytest
+
 from bimascode.architecture.ceiling import Ceiling
 from bimascode.architecture.ceiling_type import CeilingType
+from bimascode.architecture.floor import Floor
+from bimascode.architecture.floor_type import FloorType
+from bimascode.architecture.wall import Wall
+from bimascode.architecture.wall_type import LayerFunction, WallType
+from bimascode.performance.bounding_box import BoundingBox
+from bimascode.performance.representation_cache import RepresentationCache
+from bimascode.performance.spatial_index import SpatialIndex
+from bimascode.spatial.building import Building
+from bimascode.spatial.level import Level
+from bimascode.spatial.room import Room
 from bimascode.structure.column import StructuralColumn
 from bimascode.structure.column_type import ColumnType
 from bimascode.structure.profile import RectangularProfile
-from bimascode.spatial.room import Room
-from bimascode.utils.materials import Material, MaterialLibrary
+from bimascode.utils.materials import MaterialLibrary
 
 
 def create_wall_type(name: str, width: float = 200) -> WallType:
@@ -55,7 +57,7 @@ class TestSpatialIndexPerformance:
                     (i * 1000 + 500, j * 1000),
                     level,
                     height=3000,
-                    name=f"Wall_{i}_{j}"
+                    name=f"Wall_{i}_{j}",
                 )
                 elements.append(wall)
 
@@ -110,7 +112,7 @@ class TestSpatialIndexPerformance:
             0,
             bounds.min_x + (bounds.max_x - bounds.min_x) * 0.32,  # ~10% area
             bounds.min_y + (bounds.max_y - bounds.min_y) * 0.32,
-            3500
+            3500,
         )
 
         results = idx.query_intersects(query_box)
@@ -201,8 +203,9 @@ class TestCachePerformance:
         expected_hit_rate = (200 / 250) * 100  # 80%
         actual_hit_rate = cache.stats.hit_rate
 
-        assert actual_hit_rate >= expected_hit_rate - 1, \
-            f"Hit rate was {actual_hit_rate:.1f}%, expected ~{expected_hit_rate:.1f}%"
+        assert (
+            actual_hit_rate >= expected_hit_rate - 1
+        ), f"Hit rate was {actual_hit_rate:.1f}%, expected ~{expected_hit_rate:.1f}%"
 
 
 class TestBoundingBoxPerformance:
@@ -252,7 +255,9 @@ class TestMixedElementTypePerformance:
         # Add walls (200)
         for i in range(20):
             for j in range(10):
-                wall = Wall(wall_type, (i * 1000, j * 1000), (i * 1000 + 500, j * 1000), level, height=3000)
+                wall = Wall(
+                    wall_type, (i * 1000, j * 1000), (i * 1000 + 500, j * 1000), level, height=3000
+                )
                 idx.insert(wall)
                 element_count += 1
 
@@ -261,7 +266,7 @@ class TestMixedElementTypePerformance:
             floor = Floor(
                 floor_type,
                 [(i * 2000, 0), (i * 2000 + 1500, 0), (i * 2000 + 1500, 1500), (i * 2000, 1500)],
-                level
+                level,
             )
             idx.insert(floor)
             element_count += 1
@@ -272,7 +277,7 @@ class TestMixedElementTypePerformance:
                 ceiling_type,
                 [(i * 2000, 0), (i * 2000 + 1500, 0), (i * 2000 + 1500, 1500), (i * 2000, 1500)],
                 level,
-                height=2700
+                height=2700,
             )
             idx.insert(ceiling)
             element_count += 1
@@ -290,7 +295,7 @@ class TestMixedElementTypePerformance:
                 f"Room {i}",
                 f"R{i:03d}",
                 [(i * 2000, 0), (i * 2000 + 1500, 0), (i * 2000 + 1500, 1500), (i * 2000, 1500)],
-                level
+                level,
             )
             idx.insert(room)
             element_count += 1

@@ -7,6 +7,24 @@ Sprint 6: Drawing Generation
 """
 
 # Primitives
+from bimascode.drawing.dxf_exporter import DXFExporter, get_dxf_exporter
+from bimascode.drawing.elevation_view import (
+    ElevationDirection,
+    ElevationView,
+    ReflectedCeilingPlanView,
+)
+
+# View types
+from bimascode.drawing.floor_plan_view import FloorPlanView
+from bimascode.drawing.hlr_processor import HLRProcessor, get_hlr_processor
+
+# Line styles
+from bimascode.drawing.line_styles import (
+    Layer,
+    LineStyle,
+    LineType,
+    LineWeight,
+)
 from bimascode.drawing.primitives import (
     Arc2D,
     Geometry2D,
@@ -17,13 +35,17 @@ from bimascode.drawing.primitives import (
     ViewResult,
 )
 
-# Line styles
-from bimascode.drawing.line_styles import (
-    Layer,
-    LineStyle,
-    LineType,
-    LineWeight,
+# Protocols
+from bimascode.drawing.protocols import (
+    Drawable2D,
+    HasBoundingBox,
+    HasGeometry,
+    Linework2D,
 )
+
+# Utilities
+from bimascode.drawing.section_cutter import SectionCutter, get_section_cutter
+from bimascode.drawing.section_view import SectionView
 
 # View base classes
 from bimascode.drawing.view_base import (
@@ -33,23 +55,6 @@ from bimascode.drawing.view_base import (
     ViewScale,
 )
 
-# Protocols
-from bimascode.drawing.protocols import (
-    Drawable2D,
-    HasBoundingBox,
-    HasGeometry,
-    Linework2D,
-)
-
-# View types
-from bimascode.drawing.floor_plan_view import FloorPlanView
-from bimascode.drawing.section_view import SectionView
-from bimascode.drawing.elevation_view import (
-    ElevationDirection,
-    ElevationView,
-    ReflectedCeilingPlanView,
-)
-
 # Templates
 from bimascode.drawing.view_templates import (
     CategoryVisibility,
@@ -57,11 +62,6 @@ from bimascode.drawing.view_templates import (
     ViewTemplate,
     ViewVisibilitySettings,
 )
-
-# Utilities
-from bimascode.drawing.section_cutter import SectionCutter, get_section_cutter
-from bimascode.drawing.hlr_processor import HLRProcessor, get_hlr_processor
-from bimascode.drawing.dxf_exporter import DXFExporter, get_dxf_exporter
 
 __all__ = [
     # Primitives

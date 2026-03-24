@@ -6,18 +6,24 @@ with multiple material layers. Each layer has a material, thickness,
 and functional role (structural, insulation, finish, etc.).
 """
 
-from typing import List, Optional
 from enum import Enum
-from build123d import Box, Location, Compound, extrude, Rectangle, Plane
+from typing import TYPE_CHECKING
+
+from build123d import Box, Compound, Location
+
 from bimascode.core.type_instance import ElementType
 from bimascode.utils.materials import Material
 from bimascode.utils.units import Length, normalize_length
+
+if TYPE_CHECKING:
+    from bimascode.architecture.wall import Wall
 
 
 class LayerFunction(Enum):
     """
     Functional role of a material layer in a wall assembly.
     """
+
     STRUCTURE = "Structure"  # Load-bearing layer
     SUBSTRATE = "Substrate"  # Backing/sheathing
     THERMAL_INSULATION = "Thermal Insulation"
@@ -43,7 +49,7 @@ class Layer:
         thickness: Length | float,
         function: LayerFunction = LayerFunction.OTHER,
         structural: bool = False,
-        description: Optional[str] = None
+        description: str | None = None,
     ):
         """
         Create a material layer.
@@ -80,10 +86,7 @@ class WallType(ElementType):
     """
 
     def __init__(
-        self,
-        name: str,
-        layers: Optional[List[Layer]] = None,
-        description: Optional[str] = None
+        self, name: str, layers: list[Layer] | None = None, description: str | None = None
     ):
         """
         Create a wall type.
@@ -106,7 +109,7 @@ class WallType(ElementType):
         thickness: Length | float,
         function: LayerFunction = LayerFunction.OTHER,
         structural: bool = False,
-        position: Optional[int] = None
+        position: int | None = None,
     ) -> Layer:
         """
         Add a material layer to the wall assembly.
@@ -173,11 +176,11 @@ class WallType(ElementType):
         """Update the width parameter based on layer thicknesses."""
         self.set_parameter("width", self.total_width_mm)
 
-    def get_structural_layers(self) -> List[Layer]:
+    def get_structural_layers(self) -> list[Layer]:
         """Get all structural layers."""
         return [layer for layer in self.layers if layer.structural]
 
-    def get_layers_by_function(self, function: LayerFunction) -> List[Layer]:
+    def get_layers_by_function(self, function: LayerFunction) -> list[Layer]:
         """
         Get all layers with a specific function.
 
@@ -189,7 +192,7 @@ class WallType(ElementType):
         """
         return [layer for layer in self.layers if layer.function == function]
 
-    def create_geometry(self, instance: 'Wall') -> Compound:
+    def create_geometry(self, instance: "Wall") -> Compound:
         """
         Create 3D geometry for a wall instance.
 
@@ -210,7 +213,6 @@ class WallType(ElementType):
         Returns:
             build123d Compound representing the wall
         """
-        from bimascode.architecture.wall import Wall  # Avoid circular import
 
         # Get wall parameters
         start_point = instance.get_parameter("start_point")
@@ -222,6 +224,7 @@ class WallType(ElementType):
 
         # Calculate wall length
         import math
+
         dx = end_point[0] - start_point[0]
         dy = end_point[1] - start_point[1]
         length = math.sqrt(dx * dx + dy * dy)
@@ -235,11 +238,7 @@ class WallType(ElementType):
 
         for layer in self.layers:
             # Create box for this layer
-            layer_box = Box(
-                length,
-                layer.thickness_mm,
-                height
-            )
+            layer_box = Box(length, layer.thickness_mm, height)
 
             # Position the layer in local coordinates:
             # - X: center along wall length (length/2)
@@ -253,7 +252,7 @@ class WallType(ElementType):
             loc = Location(
                 (length / 2, layer_y_offset, height / 2),
                 (0, 0, 1),
-                0  # No rotation - geometry is in local coords
+                0,  # No rotation - geometry is in local coords
             )
 
             layer_box = layer_box.locate(loc)
@@ -265,7 +264,7 @@ class WallType(ElementType):
         wall_compound = Compound(children=layer_solids)
 
         # Apply boolean subtraction for hosted element openings
-        if hasattr(instance, 'openings') and instance.openings:
+        if hasattr(instance, "openings") and instance.openings:
             for opening in instance.openings:
                 try:
                     wall_compound = wall_compound - opening
@@ -300,7 +299,7 @@ class WallType(ElementType):
                 IsVentilated=False,
                 Name=layer.description,
                 Category=layer.function.value,
-                Priority=i + 1
+                Priority=i + 1,
             )
             ifc_layers.append(ifc_layer)
 
@@ -309,7 +308,7 @@ class WallType(ElementType):
             "IfcMaterialLayerSet",
             MaterialLayers=ifc_layers,
             LayerSetName=self.name,
-            Description=self.description
+            Description=self.description,
         )
 
         return ifc_layer_set
@@ -319,11 +318,7 @@ class WallType(ElementType):
 
 
 # Common wall type constructors
-def create_basic_wall_type(
-    name: str,
-    thickness: Length | float,
-    material: Material
-) -> WallType:
+def create_basic_wall_type(name: str, thickness: Length | float, material: Material) -> WallType:
     """
     Create a simple single-layer wall type.
 
@@ -337,10 +332,7 @@ def create_basic_wall_type(
     """
     wall_type = WallType(name)
     wall_type.add_layer(
-        material=material,
-        thickness=thickness,
-        function=LayerFunction.STRUCTURE,
-        structural=True
+        material=material, thickness=thickness, function=LayerFunction.STRUCTURE, structural=True
     )
     return wall_type
 
@@ -349,10 +341,10 @@ def create_stud_wall_type(
     name: str,
     stud_material: Material,
     stud_depth: Length | float = 90.0,
-    interior_finish: Optional[Material] = None,
+    interior_finish: Material | None = None,
     interior_finish_thickness: Length | float = 12.5,
-    exterior_finish: Optional[Material] = None,
-    exterior_finish_thickness: Length | float = 12.5
+    exterior_finish: Material | None = None,
+    exterior_finish_thickness: Length | float = 12.5,
 ) -> WallType:
     """
     Create a typical stud wall type with finishes.
@@ -369,7 +361,6 @@ def create_stud_wall_type(
     Returns:
         WallType with multiple layers
     """
-    from bimascode.utils.materials import MaterialLibrary
 
     wall_type = WallType(name, description=f"{name} - Wood Stud Wall")
 
@@ -378,7 +369,7 @@ def create_stud_wall_type(
         wall_type.add_layer(
             material=exterior_finish,
             thickness=exterior_finish_thickness,
-            function=LayerFunction.FINISH_EXTERIOR
+            function=LayerFunction.FINISH_EXTERIOR,
         )
 
     # Structural studs
@@ -386,7 +377,7 @@ def create_stud_wall_type(
         material=stud_material,
         thickness=stud_depth,
         function=LayerFunction.STRUCTURE,
-        structural=True
+        structural=True,
     )
 
     # Interior finish
@@ -394,7 +385,7 @@ def create_stud_wall_type(
         wall_type.add_layer(
             material=interior_finish,
             thickness=interior_finish_thickness,
-            function=LayerFunction.FINISH_INTERIOR
+            function=LayerFunction.FINISH_INTERIOR,
         )
 
     return wall_type

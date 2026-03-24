@@ -3,20 +3,18 @@ Tests for wall joins detection and processing.
 """
 
 import pytest
-from bimascode.spatial.building import Building
-from bimascode.spatial.level import Level
-from bimascode.architecture.wall_type import WallType, LayerFunction
+
 from bimascode.architecture.wall import Wall
 from bimascode.architecture.wall_joins import (
-    JoinType,
     EndCapType,
-    WallJoin,
+    JoinType,
     WallJoinDetector,
     WallJoinProcessor,
     line_intersection,
-    point_distance,
-    detect_and_process_wall_joins,
 )
+from bimascode.architecture.wall_type import LayerFunction, WallType
+from bimascode.spatial.building import Building
+from bimascode.spatial.level import Level
 from bimascode.utils.materials import MaterialLibrary
 
 
@@ -220,8 +218,8 @@ class TestLevelWallJoins:
         level.process_wall_joins()
 
         # Check that adjustments were applied
-        assert hasattr(wall1, '_trim_adjustments')
-        assert hasattr(wall2, '_trim_adjustments')
+        assert hasattr(wall1, "_trim_adjustments")
+        assert hasattr(wall2, "_trim_adjustments")
 
     def test_process_wall_joins_with_end_cap_type(self, setup_building):
         """Test processing wall joins with specific end cap type."""
@@ -233,8 +231,8 @@ class TestLevelWallJoins:
         # Process with exterior end cap
         level.process_wall_joins(end_cap_type=EndCapType.EXTERIOR)
 
-        assert hasattr(wall1, '_trim_adjustments')
-        assert hasattr(wall2, '_trim_adjustments')
+        assert hasattr(wall1, "_trim_adjustments")
+        assert hasattr(wall2, "_trim_adjustments")
 
     def test_get_walls(self, setup_building):
         """Test getting walls from level."""

@@ -6,11 +6,12 @@ Pitched roofs deferred to P1 (v1.1).
 Supports openings for skylights, hatches, and other penetrations.
 """
 
-from typing import List, Tuple, Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING
+
+from bimascode.architecture.floor_type import FloorType
 from bimascode.core.type_instance import ElementInstance
 from bimascode.performance.bounding_box import BoundingBox
 from bimascode.spatial.level import Level
-from bimascode.architecture.floor_type import FloorType
 from bimascode.utils.units import Length
 
 if TYPE_CHECKING:
@@ -30,10 +31,10 @@ class Roof(ElementInstance):
     def __init__(
         self,
         roof_type: FloorType,  # Reuse FloorType for roof assemblies
-        boundary: List[Tuple[float, float]],
+        boundary: list[tuple[float, float]],
         level: Level,
         slope: float = 0.0,
-        name: Optional[str] = None
+        name: str | None = None,
     ):
         """
         Create a flat roof.
@@ -50,18 +51,18 @@ class Roof(ElementInstance):
         self.level = level
 
         # Openings in this roof
-        self._openings: List['Opening'] = []
+        self._openings: list[Opening] = []
 
         # Store geometric parameters
         self.set_parameter("boundary", boundary, override=False)
         self.set_parameter("slope", slope, override=False)
 
         # Register with level
-        if hasattr(level, 'add_element'):
+        if hasattr(level, "add_element"):
             level.add_element(self)
 
     @property
-    def boundary(self) -> List[Tuple[float, float]]:
+    def boundary(self) -> list[tuple[float, float]]:
         """Get roof boundary polygon."""
         return self.get_parameter("boundary")
 
@@ -106,7 +107,7 @@ class Roof(ElementInstance):
         """Get roof area in square meters."""
         return self.area / 1_000_000.0
 
-    def get_centroid(self) -> Tuple[float, float]:
+    def get_centroid(self) -> tuple[float, float]:
         """
         Calculate the centroid of the roof boundary.
 
@@ -123,7 +124,7 @@ class Roof(ElementInstance):
 
         return (x_sum / n, y_sum / n)
 
-    def get_center_3d(self) -> Tuple[float, float, float]:
+    def get_center_3d(self) -> tuple[float, float, float]:
         """
         Get the 3D center point of the roof.
 
@@ -134,7 +135,7 @@ class Roof(ElementInstance):
         z = self.level.elevation_mm + self.thickness / 2
         return (cx, cy, z)
 
-    def set_boundary(self, boundary: List[Tuple[float, float]]) -> None:
+    def set_boundary(self, boundary: list[tuple[float, float]]) -> None:
         """
         Set the roof boundary.
 
@@ -155,11 +156,13 @@ class Roof(ElementInstance):
         self.invalidate_geometry()
 
     @property
-    def openings(self) -> List['Opening']:
+    def openings(self) -> list["Opening"]:
         """Get all openings in this roof."""
         return self._openings.copy()
 
-    def add_opening(self, opening_boundary: List[Tuple[float, float]], name: Optional[str] = None) -> 'Opening':
+    def add_opening(
+        self, opening_boundary: list[tuple[float, float]], name: str | None = None
+    ) -> "Opening":
         """
         Add an opening (skylight, hatch, etc.) in the roof.
 
@@ -176,13 +179,13 @@ class Roof(ElementInstance):
             host_element=self,
             boundary=opening_boundary,
             depth=self.thickness + 2,  # +2mm for clean cut
-            name=name or f"Opening_{len(self._openings) + 1}"
+            name=name or f"Opening_{len(self._openings) + 1}",
         )
         self._openings.append(opening)
         self.invalidate_geometry()
         return opening
 
-    def remove_opening(self, opening: 'Opening') -> None:
+    def remove_opening(self, opening: "Opening") -> None:
         """
         Remove an opening from this roof.
 
@@ -210,7 +213,7 @@ class Roof(ElementInstance):
             GlobalId=self.guid,
             Name=self.name,
             Description=f"{self.type.name} roof",
-            PredefinedType="FLAT_ROOF"
+            PredefinedType="FLAT_ROOF",
         )
 
         # Set placement (at level elevation)
@@ -220,12 +223,11 @@ class Roof(ElementInstance):
         axis_placement = ifc_file.createIfcAxis2Placement3D(
             location,
             ifc_file.createIfcDirection((0.0, 0.0, 1.0)),
-            ifc_file.createIfcDirection((1.0, 0.0, 0.0))
+            ifc_file.createIfcDirection((1.0, 0.0, 0.0)),
         )
 
         local_placement = ifc_file.createIfcLocalPlacement(
-            ifc_building_storey.ObjectPlacement,
-            axis_placement
+            ifc_building_storey.ObjectPlacement, axis_placement
         )
 
         ifc_roof.ObjectPlacement = local_placement
@@ -245,14 +247,12 @@ class Roof(ElementInstance):
                     ifc_file.by_type("IfcGeometricRepresentationContext")[0],
                     "Body",
                     "Brep",
-                    [ifc_brep]
+                    [ifc_brep],
                 )
 
                 # Create product definition shape
                 product_shape = ifc_file.createIfcProductDefinitionShape(
-                    None,
-                    None,
-                    [shape_representation]
+                    None, None, [shape_representation]
                 )
 
                 ifc_roof.Representation = product_shape
@@ -264,7 +264,7 @@ class Roof(ElementInstance):
             f"Roof{self.name}Container",
             None,
             [ifc_roof],
-            ifc_building_storey
+            ifc_building_storey,
         )
 
         # Associate with material layer set
@@ -276,7 +276,7 @@ class Roof(ElementInstance):
             None,
             None,
             [ifc_roof],
-            material_layer_set
+            material_layer_set,
         )
 
         return ifc_roof
@@ -288,9 +288,7 @@ class Roof(ElementInstance):
             BoundingBox encompassing the roof geometry
         """
         return BoundingBox.from_polygon_2d(
-            self.boundary,
-            self.level.elevation_mm,
-            self.level.elevation_mm + self.thickness
+            self.boundary, self.level.elevation_mm, self.level.elevation_mm + self.thickness
         )
 
     def __repr__(self) -> str:

@@ -6,9 +6,9 @@ visibility and graphic representation in views.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import Enum
-from typing import Dict, List, Optional, Set, Tuple, TYPE_CHECKING
+from typing import TYPE_CHECKING
 
 from bimascode.drawing.line_styles import LineStyle, LineWeight
 from bimascode.drawing.view_base import DetailLevel, ScaleBehaviorConfig
@@ -42,11 +42,11 @@ class GraphicOverride:
     """
 
     visibility: CategoryVisibility = CategoryVisibility.VISIBLE
-    line_weight: Optional[LineWeight] = None
-    line_color: Optional[Tuple[int, int, int]] = None
+    line_weight: LineWeight | None = None
+    line_color: tuple[int, int, int] | None = None
     halftone: bool = False
-    cut_line_weight: Optional[LineWeight] = None
-    projection_line_weight: Optional[LineWeight] = None
+    cut_line_weight: LineWeight | None = None
+    projection_line_weight: LineWeight | None = None
 
     def apply_to_style(self, style: LineStyle) -> LineStyle:
         """Apply this override to a line style.
@@ -157,7 +157,7 @@ class ViewTemplate:
     def __init__(
         self,
         name: str,
-        visibility: Optional[ViewVisibilitySettings] = None,
+        visibility: ViewVisibilitySettings | None = None,
     ):
         """Create a view template.
 
@@ -167,11 +167,11 @@ class ViewTemplate:
         """
         self.name = name
         self.visibility = visibility or ViewVisibilitySettings()
-        self.category_overrides: Dict[str, GraphicOverride] = {}
-        self.view_scale: Optional["ViewScale"] = None
+        self.category_overrides: dict[str, GraphicOverride] = {}
+        self.view_scale: ViewScale | None = None
         # Scale behavior configuration
-        self.scale_behaviors: Dict["ViewScale", "ScaleBehaviorConfig"] = {}
-        self._active_scale: Optional["ViewScale"] = None
+        self.scale_behaviors: dict[ViewScale, ScaleBehaviorConfig] = {}
+        self._active_scale: ViewScale | None = None
 
     def set_category_override(
         self,
@@ -186,7 +186,7 @@ class ViewTemplate:
         """
         self.category_overrides[category] = override
 
-    def get_category_override(self, category: str) -> Optional[GraphicOverride]:
+    def get_category_override(self, category: str) -> GraphicOverride | None:
         """Get graphics override for a category.
 
         Args:
@@ -197,7 +197,7 @@ class ViewTemplate:
         """
         return self.category_overrides.get(category)
 
-    def filter_visible(self, elements: List) -> List:
+    def filter_visible(self, elements: list) -> list:
         """Filter elements by visibility settings.
 
         Args:
@@ -245,9 +245,9 @@ class ViewTemplate:
 
     def set_scale_behavior(
         self,
-        scale: "ViewScale",
+        scale: ViewScale,
         detail_level: DetailLevel,
-        custom_config: Optional[ScaleBehaviorConfig] = None,
+        custom_config: ScaleBehaviorConfig | None = None,
     ) -> None:
         """Configure behavior for a specific scale.
 
@@ -267,11 +267,9 @@ class ViewTemplate:
         if custom_config is not None:
             self.scale_behaviors[scale] = custom_config
         else:
-            self.scale_behaviors[scale] = ScaleBehaviorConfig.for_detail_level(
-                detail_level
-            )
+            self.scale_behaviors[scale] = ScaleBehaviorConfig.for_detail_level(detail_level)
 
-    def get_scale_behavior(self, scale: "ViewScale") -> ScaleBehaviorConfig:
+    def get_scale_behavior(self, scale: ViewScale) -> ScaleBehaviorConfig:
         """Get behavior configuration for a scale.
 
         Args:
@@ -284,7 +282,7 @@ class ViewTemplate:
             return self.scale_behaviors[scale]
         return scale.get_behavior_config()
 
-    def set_active_scale(self, scale: "ViewScale") -> None:
+    def set_active_scale(self, scale: ViewScale) -> None:
         """Set currently active scale.
 
         Used by views during generation to activate scale-dependent behavior.
@@ -294,9 +292,7 @@ class ViewTemplate:
         """
         self._active_scale = scale
 
-    def should_show_element(
-        self, element, size_hint: Optional[float] = None
-    ) -> bool:
+    def should_show_element(self, element, size_hint: float | None = None) -> bool:
         """Check if element should be visible at current scale.
 
         Args:
@@ -330,9 +326,7 @@ class ViewTemplate:
 
         return True
 
-    def apply_scale_adjusted_style(
-        self, element, style: LineStyle
-    ) -> LineStyle:
+    def apply_scale_adjusted_style(self, element, style: LineStyle) -> LineStyle:
         """Apply both category overrides and scale adjustments.
 
         Args:
@@ -350,16 +344,12 @@ class ViewTemplate:
             config = self.get_scale_behavior(self._active_scale)
 
             if config.line_weight_factor != 1.0:
-                adjusted_weight = self._adjust_line_weight(
-                    style.weight, config.line_weight_factor
-                )
+                adjusted_weight = self._adjust_line_weight(style.weight, config.line_weight_factor)
                 style = style.with_weight(adjusted_weight)
 
         return style
 
-    def _adjust_line_weight(
-        self, weight: LineWeight, factor: float
-    ) -> LineWeight:
+    def _adjust_line_weight(self, weight: LineWeight, factor: float) -> LineWeight:
         """Adjust line weight by factor, clamping to valid range.
 
         Args:
@@ -496,7 +486,7 @@ class ViewTemplate:
         return template
 
     @classmethod
-    def floor_plan_scaled(cls, scale: "ViewScale") -> ViewTemplate:
+    def floor_plan_scaled(cls, scale: ViewScale) -> ViewTemplate:
         """Create floor plan template optimized for a specific scale.
 
         Automatically configures detail level and visibility based on scale.
@@ -510,7 +500,6 @@ class ViewTemplate:
         Example:
             >>> template = ViewTemplate.floor_plan_scaled(ViewScale.SCALE_1_500)
         """
-        from bimascode.drawing.view_base import ViewScale
 
         template = cls.floor_plan_default()
         detail_level = scale.get_default_detail_level()
@@ -528,7 +517,7 @@ class ViewTemplate:
         return template
 
     @classmethod
-    def section_scaled(cls, scale: "ViewScale") -> ViewTemplate:
+    def section_scaled(cls, scale: ViewScale) -> ViewTemplate:
         """Create section template optimized for a specific scale.
 
         Automatically configures detail level and visibility based on scale.

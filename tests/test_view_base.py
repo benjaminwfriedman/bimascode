@@ -2,15 +2,13 @@
 Unit tests for view base classes.
 """
 
-import pytest
-import math
+from bimascode.drawing.line_styles import LineStyle
+from bimascode.drawing.primitives import Line2D, Point2D
 from bimascode.drawing.view_base import (
+    ViewCropRegion,
     ViewRange,
     ViewScale,
-    ViewCropRegion,
 )
-from bimascode.drawing.primitives import Point2D, Line2D
-from bimascode.drawing.line_styles import LineStyle
 
 
 class TestViewRange:

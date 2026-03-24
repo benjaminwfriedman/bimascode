@@ -6,17 +6,18 @@ All internal storage uses millimeters as the base unit.
 """
 
 from enum import Enum
-from typing import Union, Optional
 
 
 class UnitSystem(Enum):
     """Supported unit systems."""
+
     METRIC = "metric"
     IMPERIAL = "imperial"
 
 
 class LengthUnit(Enum):
     """Supported length units."""
+
     MILLIMETER = "mm"
     CENTIMETER = "cm"
     METER = "m"
@@ -26,6 +27,7 @@ class LengthUnit(Enum):
 
 class AreaUnit(Enum):
     """Supported area units."""
+
     SQUARE_MILLIMETER = "mm²"
     SQUARE_METER = "m²"
     SQUARE_INCH = "in²"
@@ -34,6 +36,7 @@ class AreaUnit(Enum):
 
 class VolumeUnit(Enum):
     """Supported volume units."""
+
     CUBIC_MILLIMETER = "mm³"
     CUBIC_METER = "m³"
     CUBIC_INCH = "in³"
@@ -42,6 +45,7 @@ class VolumeUnit(Enum):
 
 class AngleUnit(Enum):
     """Supported angle units."""
+
     DEGREE = "deg"
     RADIAN = "rad"
 
@@ -85,7 +89,7 @@ class Length:
     Stores internally in millimeters for consistency.
     """
 
-    def __init__(self, value: float, unit: Union[str, LengthUnit] = LengthUnit.MILLIMETER):
+    def __init__(self, value: float, unit: str | LengthUnit = LengthUnit.MILLIMETER):
         """
         Create a length measurement.
 
@@ -123,7 +127,7 @@ class Length:
         """Get value in feet."""
         return self._mm / LENGTH_TO_MM[LengthUnit.FOOT]
 
-    def to(self, unit: Union[str, LengthUnit]) -> float:
+    def to(self, unit: str | LengthUnit) -> float:
         """
         Convert to specified unit.
 
@@ -207,7 +211,7 @@ class Area:
     Stores internally in square millimeters for consistency.
     """
 
-    def __init__(self, value: float, unit: Union[str, AreaUnit] = AreaUnit.SQUARE_MILLIMETER):
+    def __init__(self, value: float, unit: str | AreaUnit = AreaUnit.SQUARE_MILLIMETER):
         """
         Create an area measurement.
 
@@ -240,7 +244,7 @@ class Area:
         """Get value in square feet."""
         return self._mm2 / AREA_TO_MM2[AreaUnit.SQUARE_FOOT]
 
-    def to(self, unit: Union[str, AreaUnit]) -> float:
+    def to(self, unit: str | AreaUnit) -> float:
         """
         Convert to specified unit.
 
@@ -269,7 +273,7 @@ class Volume:
     Stores internally in cubic millimeters for consistency.
     """
 
-    def __init__(self, value: float, unit: Union[str, VolumeUnit] = VolumeUnit.CUBIC_MILLIMETER):
+    def __init__(self, value: float, unit: str | VolumeUnit = VolumeUnit.CUBIC_MILLIMETER):
         """
         Create a volume measurement.
 
@@ -302,7 +306,7 @@ class Volume:
         """Get value in cubic feet."""
         return self._mm3 / VOLUME_TO_MM3[VolumeUnit.CUBIC_FOOT]
 
-    def to(self, unit: Union[str, VolumeUnit]) -> float:
+    def to(self, unit: str | VolumeUnit) -> float:
         """
         Convert to specified unit.
 
@@ -331,7 +335,7 @@ class Angle:
     Stores internally in radians for consistency.
     """
 
-    def __init__(self, value: float, unit: Union[str, AngleUnit] = AngleUnit.RADIAN):
+    def __init__(self, value: float, unit: str | AngleUnit = AngleUnit.RADIAN):
         """
         Create an angle measurement.
 
@@ -354,7 +358,7 @@ class Angle:
         """Get value in degrees."""
         return self._rad / ANGLE_TO_RAD[AngleUnit.DEGREE]
 
-    def to(self, unit: Union[str, AngleUnit]) -> float:
+    def to(self, unit: str | AngleUnit) -> float:
         """
         Convert to specified unit.
 
@@ -376,7 +380,9 @@ class Angle:
         return f"{self._rad} rad"
 
 
-def normalize_length(value: Union[float, int, Length], default_unit: LengthUnit = LengthUnit.MILLIMETER) -> Length:
+def normalize_length(
+    value: float | int | Length, default_unit: LengthUnit = LengthUnit.MILLIMETER
+) -> Length:
     """
     Normalize a value to a Length object.
 
@@ -395,7 +401,9 @@ def normalize_length(value: Union[float, int, Length], default_unit: LengthUnit 
         raise TypeError(f"Cannot convert {type(value)} to Length")
 
 
-def normalize_angle(value: Union[float, int, Angle], default_unit: AngleUnit = AngleUnit.RADIAN) -> Angle:
+def normalize_angle(
+    value: float | int | Angle, default_unit: AngleUnit = AngleUnit.RADIAN
+) -> Angle:
     """
     Normalize a value to an Angle object.
 

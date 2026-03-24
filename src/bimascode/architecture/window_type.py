@@ -6,16 +6,22 @@ with frame and glazing geometry. Window types specify standard dimensions
 that can be instantiated as Window elements hosted in walls.
 """
 
-from typing import Optional
 from enum import Enum
-from build123d import Box, Location, Compound
+from typing import TYPE_CHECKING
+
+from build123d import Box, Compound, Location
+
 from bimascode.core.type_instance import ElementType
 from bimascode.utils.materials import Material
 from bimascode.utils.units import Length, normalize_length
 
+if TYPE_CHECKING:
+    from bimascode.architecture.window import Window
+
 
 class WindowOperationType(Enum):
     """IFC window operation type."""
+
     SINGLE_PANEL = "SINGLE_PANEL"
     DOUBLE_PANEL_VERTICAL = "DOUBLE_PANEL_VERTICAL"
     DOUBLE_PANEL_HORIZONTAL = "DOUBLE_PANEL_HORIZONTAL"
@@ -48,9 +54,9 @@ class WindowType(ElementType):
         mullion_width: Length | float = 50.0,
         default_sill_height: Length | float = 900.0,
         operation_type: WindowOperationType = WindowOperationType.SINGLE_PANEL,
-        frame_material: Optional[Material] = None,
-        glazing_material: Optional[Material] = None,
-        description: Optional[str] = None
+        frame_material: Material | None = None,
+        glazing_material: Material | None = None,
+        description: str | None = None,
     ):
         """
         Create a window type.
@@ -136,7 +142,7 @@ class WindowType(ElementType):
         """Get overall window height including frame."""
         return self.height + 2 * self.frame_width
 
-    def create_geometry(self, instance: 'Window') -> Compound:
+    def create_geometry(self, instance: "Window") -> Compound:
         """
         Create 3D geometry for a window instance.
 
@@ -152,7 +158,6 @@ class WindowType(ElementType):
         Returns:
             build123d Compound representing the window (frame + glazing)
         """
-        from bimascode.architecture.window import Window  # Avoid circular import
 
         # Get dimensions
         width = self.width
@@ -168,34 +173,36 @@ class WindowType(ElementType):
         # Create frame pieces
         # Bottom sill
         sill = Box(width + 2 * frame_w, frame_d, frame_w)
-        sill = sill.locate(Location(
-            ((width + 2 * frame_w) / 2, frame_d / 2, frame_w / 2),
-            (0, 0, 1), 0
-        ))
+        sill = sill.locate(
+            Location(((width + 2 * frame_w) / 2, frame_d / 2, frame_w / 2), (0, 0, 1), 0)
+        )
         parts.append(sill)
 
         # Top rail
         top_rail = Box(width + 2 * frame_w, frame_d, frame_w)
-        top_rail = top_rail.locate(Location(
-            ((width + 2 * frame_w) / 2, frame_d / 2, frame_w + height + frame_w / 2),
-            (0, 0, 1), 0
-        ))
+        top_rail = top_rail.locate(
+            Location(
+                ((width + 2 * frame_w) / 2, frame_d / 2, frame_w + height + frame_w / 2),
+                (0, 0, 1),
+                0,
+            )
+        )
         parts.append(top_rail)
 
         # Left jamb
         left_jamb = Box(frame_w, frame_d, height)
-        left_jamb = left_jamb.locate(Location(
-            (frame_w / 2, frame_d / 2, frame_w + height / 2),
-            (0, 0, 1), 0
-        ))
+        left_jamb = left_jamb.locate(
+            Location((frame_w / 2, frame_d / 2, frame_w + height / 2), (0, 0, 1), 0)
+        )
         parts.append(left_jamb)
 
         # Right jamb
         right_jamb = Box(frame_w, frame_d, height)
-        right_jamb = right_jamb.locate(Location(
-            (frame_w + width + frame_w / 2, frame_d / 2, frame_w + height / 2),
-            (0, 0, 1), 0
-        ))
+        right_jamb = right_jamb.locate(
+            Location(
+                (frame_w + width + frame_w / 2, frame_d / 2, frame_w + height / 2), (0, 0, 1), 0
+            )
+        )
         parts.append(right_jamb)
 
         # Add mullions if specified
@@ -204,10 +211,9 @@ class WindowType(ElementType):
             for i in range(mullions):
                 mullion_x = frame_w + panel_width * (i + 1) + mullion_w * i + mullion_w / 2
                 mullion = Box(mullion_w, frame_d, height)
-                mullion = mullion.locate(Location(
-                    (mullion_x, frame_d / 2, frame_w + height / 2),
-                    (0, 0, 1), 0
-                ))
+                mullion = mullion.locate(
+                    Location((mullion_x, frame_d / 2, frame_w + height / 2), (0, 0, 1), 0)
+                )
                 parts.append(mullion)
 
         # Create glazing panels
@@ -217,10 +223,13 @@ class WindowType(ElementType):
         if mullions == 0:
             # Single glazing panel
             glazing = Box(width - 4, glazing_t, height - 4)
-            glazing = glazing.locate(Location(
-                (frame_w + width / 2, glazing_y + glazing_t / 2, frame_w + height / 2),
-                (0, 0, 1), 0
-            ))
+            glazing = glazing.locate(
+                Location(
+                    (frame_w + width / 2, glazing_y + glazing_t / 2, frame_w + height / 2),
+                    (0, 0, 1),
+                    0,
+                )
+            )
             parts.append(glazing)
         else:
             # Multiple glazing panels
@@ -228,15 +237,16 @@ class WindowType(ElementType):
             for i in range(num_panels):
                 panel_x = frame_w + panel_width / 2 + i * (panel_width + mullion_w)
                 glazing = Box(panel_width - 4, glazing_t, height - 4)
-                glazing = glazing.locate(Location(
-                    (panel_x, glazing_y + glazing_t / 2, frame_w + height / 2),
-                    (0, 0, 1), 0
-                ))
+                glazing = glazing.locate(
+                    Location(
+                        (panel_x, glazing_y + glazing_t / 2, frame_w + height / 2), (0, 0, 1), 0
+                    )
+                )
                 parts.append(glazing)
 
         return Compound(children=parts)
 
-    def create_opening_geometry(self, instance: 'Window') -> Box:
+    def create_opening_geometry(self, instance: "Window") -> Box:
         """
         Create the void geometry for cutting into the host wall.
 
@@ -253,7 +263,6 @@ class WindowType(ElementType):
         Returns:
             build123d Box for boolean subtraction from wall
         """
-        from bimascode.architecture.window import Window  # Avoid circular import
 
         # Get window dimensions
         width = self.overall_width
@@ -274,16 +283,16 @@ class WindowType(ElementType):
         # - X: centered on window position along wall
         # - Y: centered at Y=0 (wall centerline) - wall extends from -width/2 to +width/2
         # - Z: centered vertically on window
-        opening_box = opening_box.locate(Location(
-            (offset + width / 2, 0, sill_height + height / 2),
-            (0, 0, 1), 0
-        ))
+        opening_box = opening_box.locate(
+            Location((offset + width / 2, 0, sill_height + height / 2), (0, 0, 1), 0)
+        )
 
         return opening_box
 
     def _generate_guid(self) -> str:
         """Generate a unique IFC GUID."""
         import uuid
+
         return str(uuid.uuid4().hex[:22])
 
     def to_ifc(self, ifc_file):
@@ -301,20 +310,6 @@ class WindowType(ElementType):
         Returns:
             IfcWindowType entity
         """
-        # Map operation type to IFC
-        operation_map = {
-            WindowOperationType.SINGLE_PANEL: "SINGLE_PANEL",
-            WindowOperationType.DOUBLE_PANEL_VERTICAL: "DOUBLE_PANEL_VERTICAL",
-            WindowOperationType.DOUBLE_PANEL_HORIZONTAL: "DOUBLE_PANEL_HORIZONTAL",
-            WindowOperationType.TRIPLE_PANEL_VERTICAL: "TRIPLE_PANEL_VERTICAL",
-            WindowOperationType.SLIDING_HORIZONTAL: "SLIDING_HORIZONTAL",
-            WindowOperationType.SLIDING_VERTICAL: "SLIDING_VERTICAL",
-            WindowOperationType.FIXED: "FIXED",
-            WindowOperationType.CASEMENT: "CASEMENT",
-            WindowOperationType.AWNING: "AWNING",
-            WindowOperationType.HOPPER: "HOPPER",
-        }
-
         # Map panel operation type
         panel_operation_map = {
             WindowOperationType.SINGLE_PANEL: "SIDEHUNGRIGHTHAND",
@@ -344,10 +339,14 @@ class WindowType(ElementType):
             LiningThickness=float(self.frame_width),
             FirstTransomOffset=0.0,  # No horizontal division
             SecondTransomOffset=0.0,
-            FirstMullionOffset=float(self.width / (self.mullion_count + 1)) if self.mullion_count > 0 else 0.0,
-            SecondMullionOffset=float(2 * self.width / (self.mullion_count + 1)) if self.mullion_count > 1 else 0.0,
+            FirstMullionOffset=(
+                float(self.width / (self.mullion_count + 1)) if self.mullion_count > 0 else 0.0
+            ),
+            SecondMullionOffset=(
+                float(2 * self.width / (self.mullion_count + 1)) if self.mullion_count > 1 else 0.0
+            ),
             LiningToPanelOffsetX=2.0,  # Small clearance
-            LiningToPanelOffsetY=float((self.frame_depth - self.glazing_thickness) / 2)
+            LiningToPanelOffsetY=float((self.frame_depth - self.glazing_thickness) / 2),
         )
 
         # Create IfcWindowPanelProperties for each panel
@@ -371,7 +370,7 @@ class WindowType(ElementType):
                 OperationType=panel_operation_map.get(self.operation_type, "FIXEDCASEMENT"),
                 PanelPosition=position,
                 FrameDepth=float(self.frame_depth),
-                FrameThickness=float(self.frame_width)
+                FrameThickness=float(self.frame_width),
             )
             property_sets.append(panel_props)
 
@@ -384,7 +383,7 @@ class WindowType(ElementType):
             PartitioningType=partitioning,
             PredefinedType="WINDOW",
             ParameterTakesPrecedence=False,  # We provide explicit BREP geometry
-            HasPropertySets=property_sets
+            HasPropertySets=property_sets,
         )
 
         return ifc_window_type
@@ -401,7 +400,7 @@ def create_standard_window_type(
     name: str,
     width: Length | float = 1200.0,
     height: Length | float = 1500.0,
-    sill_height: Length | float = 900.0
+    sill_height: Length | float = 900.0,
 ) -> WindowType:
     """
     Create a standard single-panel window type.
@@ -422,7 +421,7 @@ def create_standard_window_type(
         default_sill_height=sill_height,
         mullion_count=0,
         operation_type=WindowOperationType.SINGLE_PANEL,
-        description=f"{name} - Standard Window"
+        description=f"{name} - Standard Window",
     )
 
 
@@ -430,7 +429,7 @@ def create_double_window_type(
     name: str,
     width: Length | float = 2400.0,
     height: Length | float = 1500.0,
-    sill_height: Length | float = 900.0
+    sill_height: Length | float = 900.0,
 ) -> WindowType:
     """
     Create a double-panel window type with center mullion.
@@ -451,7 +450,7 @@ def create_double_window_type(
         default_sill_height=sill_height,
         mullion_count=1,
         operation_type=WindowOperationType.DOUBLE_PANEL_VERTICAL,
-        description=f"{name} - Double Panel Window"
+        description=f"{name} - Double Panel Window",
     )
 
 
@@ -459,7 +458,7 @@ def create_fixed_window_type(
     name: str,
     width: Length | float = 1200.0,
     height: Length | float = 1500.0,
-    sill_height: Length | float = 900.0
+    sill_height: Length | float = 900.0,
 ) -> WindowType:
     """
     Create a fixed (non-opening) window type.
@@ -480,5 +479,5 @@ def create_fixed_window_type(
         default_sill_height=sill_height,
         mullion_count=0,
         operation_type=WindowOperationType.FIXED,
-        description=f"{name} - Fixed Window"
+        description=f"{name} - Fixed Window",
     )

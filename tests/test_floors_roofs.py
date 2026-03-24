@@ -2,16 +2,17 @@
 Unit tests for Floor, Roof, and FloorType classes.
 """
 
-import pytest
 from bimascode.architecture import (
-    FloorType, Floor, Roof,
+    Floor,
+    FloorType,
     LayerFunction,
+    Roof,
     create_basic_floor_type,
-    create_concrete_floor_type
+    create_concrete_floor_type,
 )
-from bimascode.utils.materials import MaterialLibrary
 from bimascode.spatial.building import Building
 from bimascode.spatial.level import Level
+from bimascode.utils.materials import MaterialLibrary
 
 
 class TestFloorType:
@@ -63,7 +64,7 @@ class TestFloorType:
             "Concrete Floor",
             slab_thickness=200,
             topping_thickness=50,
-            topping_material=MaterialLibrary.concrete()
+            topping_material=MaterialLibrary.concrete(),
         )
 
         assert floor_type.name == "Concrete Floor"
@@ -204,14 +205,7 @@ class TestFloor:
         floor_type = create_basic_floor_type("Test Floor", 200, MaterialLibrary.concrete())
 
         # L-shaped boundary
-        boundary = [
-            (0, 0),
-            (10000, 0),
-            (10000, 5000),
-            (5000, 5000),
-            (5000, 10000),
-            (0, 10000)
-        ]
+        boundary = [(0, 0), (10000, 0), (10000, 5000), (5000, 5000), (5000, 10000), (0, 10000)]
         floor = Floor(floor_type, boundary, level)
 
         # Area should be 75m² (100m² - 25m²)

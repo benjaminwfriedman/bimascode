@@ -5,7 +5,8 @@ This module implements rooms/spaces for spatial program definition.
 Rooms are defined by boundary polygons and compute area/volume.
 """
 
-from typing import List, Tuple, Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING
+
 from bimascode.core.element import Element
 from bimascode.performance.bounding_box import BoundingBox
 from bimascode.spatial.level import Level
@@ -30,13 +31,13 @@ class Room(Element):
         self,
         name: str,
         number: str,
-        boundary: List[Tuple[float, float]],
+        boundary: list[tuple[float, float]],
         level: Level,
-        floor_to_ceiling_height: Optional[Length | float] = None,
-        floor_finish: Optional[str] = None,
-        wall_finish: Optional[str] = None,
-        ceiling_finish: Optional[str] = None,
-        description: Optional[str] = None
+        floor_to_ceiling_height: Length | float | None = None,
+        floor_finish: str | None = None,
+        wall_finish: str | None = None,
+        ceiling_finish: str | None = None,
+        description: str | None = None,
     ):
         """
         Create a room.
@@ -70,11 +71,11 @@ class Room(Element):
         self.ceiling_finish = ceiling_finish
 
         # Register with level
-        if hasattr(level, 'add_element'):
+        if hasattr(level, "add_element"):
             level.add_element(self)
 
     @property
-    def boundary(self) -> List[Tuple[float, float]]:
+    def boundary(self) -> list[tuple[float, float]]:
         """Get room boundary polygon."""
         return self._boundary.copy()
 
@@ -174,7 +175,7 @@ class Room(Element):
         """Get room perimeter in meters."""
         return self.perimeter / 1000.0
 
-    def get_centroid(self) -> Tuple[float, float]:
+    def get_centroid(self) -> tuple[float, float]:
         """
         Calculate the centroid of the room boundary.
 
@@ -191,7 +192,7 @@ class Room(Element):
 
         return (x_sum / n, y_sum / n)
 
-    def get_center_3d(self) -> Tuple[float, float, float]:
+    def get_center_3d(self) -> tuple[float, float, float]:
         """
         Get the 3D center point of the room.
 
@@ -202,7 +203,7 @@ class Room(Element):
         z = self.level.elevation_mm + self._floor_to_ceiling_height / 2
         return (cx, cy, z)
 
-    def set_boundary(self, boundary: List[Tuple[float, float]]) -> None:
+    def set_boundary(self, boundary: list[tuple[float, float]]) -> None:
         """
         Set the room boundary.
 
@@ -245,7 +246,7 @@ class Room(Element):
             Name=f"{self.number} - {self.name}",
             Description=self.description,
             LongName=self.name,
-            PredefinedType="SPACE"
+            PredefinedType="SPACE",
         )
 
         # Set placement at room centroid
@@ -255,12 +256,11 @@ class Room(Element):
         axis_placement = ifc_file.createIfcAxis2Placement3D(
             location,
             ifc_file.createIfcDirection((0.0, 0.0, 1.0)),
-            ifc_file.createIfcDirection((1.0, 0.0, 0.0))
+            ifc_file.createIfcDirection((1.0, 0.0, 0.0)),
         )
 
         local_placement = ifc_file.createIfcLocalPlacement(
-            ifc_building_storey.ObjectPlacement,
-            axis_placement
+            ifc_building_storey.ObjectPlacement, axis_placement
         )
 
         ifc_space.ObjectPlacement = local_placement
@@ -268,8 +268,12 @@ class Room(Element):
         # Create boundary representation as polygon
         if len(self._boundary) >= 3:
             # Create 2D polyline for boundary
-            points = [ifc_file.createIfcCartesianPoint((float(p[0] - centroid[0]), float(p[1] - centroid[1])))
-                     for p in self._boundary]
+            points = [
+                ifc_file.createIfcCartesianPoint(
+                    (float(p[0] - centroid[0]), float(p[1] - centroid[1]))
+                )
+                for p in self._boundary
+            ]
             # Close the polyline
             points.append(points[0])
 
@@ -280,7 +284,7 @@ class Room(Element):
                 "IfcArbitraryClosedProfileDef",
                 ProfileType="AREA",
                 ProfileName=f"Room_{self.number}",
-                OuterCurve=polyline
+                OuterCurve=polyline,
             )
 
             # Create extruded solid
@@ -289,12 +293,10 @@ class Room(Element):
                 "IfcExtrudedAreaSolid",
                 SweptArea=profile,
                 Position=ifc_file.createIfcAxis2Placement3D(
-                    ifc_file.createIfcCartesianPoint((0.0, 0.0, 0.0)),
-                    None,
-                    None
+                    ifc_file.createIfcCartesianPoint((0.0, 0.0, 0.0)), None, None
                 ),
                 ExtrudedDirection=direction,
-                Depth=float(self._floor_to_ceiling_height)
+                Depth=float(self._floor_to_ceiling_height),
             )
 
             # Create shape representation
@@ -302,47 +304,39 @@ class Room(Element):
                 ifc_file.by_type("IfcGeometricRepresentationContext")[0],
                 "Body",
                 "SweptSolid",
-                [extruded_solid]
+                [extruded_solid],
             )
 
             product_shape = ifc_file.createIfcProductDefinitionShape(
-                None,
-                None,
-                [shape_representation]
+                None, None, [shape_representation]
             )
 
             ifc_space.Representation = product_shape
 
         # Add base quantities
         area_quantity = ifc_file.create_entity(
-            "IfcQuantityArea",
-            Name="NetFloorArea",
-            AreaValue=float(self.area_m2)
+            "IfcQuantityArea", Name="NetFloorArea", AreaValue=float(self.area_m2)
         )
 
         volume_quantity = ifc_file.create_entity(
-            "IfcQuantityVolume",
-            Name="NetVolume",
-            VolumeValue=float(self.volume_m3)
+            "IfcQuantityVolume", Name="NetVolume", VolumeValue=float(self.volume_m3)
         )
 
         height_quantity = ifc_file.create_entity(
             "IfcQuantityLength",
             Name="Height",
-            LengthValue=float(self._floor_to_ceiling_height / 1000.0)
+            LengthValue=float(self._floor_to_ceiling_height / 1000.0),
         )
 
         perimeter_quantity = ifc_file.create_entity(
-            "IfcQuantityLength",
-            Name="GrossPerimeter",
-            LengthValue=float(self.perimeter_m)
+            "IfcQuantityLength", Name="GrossPerimeter", LengthValue=float(self.perimeter_m)
         )
 
         element_quantity = ifc_file.create_entity(
             "IfcElementQuantity",
             GlobalId=self._generate_guid(),
             Name="BaseQuantities",
-            Quantities=[area_quantity, volume_quantity, height_quantity, perimeter_quantity]
+            Quantities=[area_quantity, volume_quantity, height_quantity, perimeter_quantity],
         )
 
         ifc_file.createIfcRelDefinesByProperties(
@@ -351,39 +345,45 @@ class Room(Element):
             None,
             None,
             [ifc_space],
-            element_quantity
+            element_quantity,
         )
 
         # Add finish property set if any finishes are defined
         finish_properties = []
 
         if self.floor_finish:
-            finish_properties.append(ifc_file.create_entity(
-                "IfcPropertySingleValue",
-                Name="FloorFinish",
-                NominalValue=ifc_file.create_entity("IfcText", self.floor_finish)
-            ))
+            finish_properties.append(
+                ifc_file.create_entity(
+                    "IfcPropertySingleValue",
+                    Name="FloorFinish",
+                    NominalValue=ifc_file.create_entity("IfcText", self.floor_finish),
+                )
+            )
 
         if self.wall_finish:
-            finish_properties.append(ifc_file.create_entity(
-                "IfcPropertySingleValue",
-                Name="WallFinish",
-                NominalValue=ifc_file.create_entity("IfcText", self.wall_finish)
-            ))
+            finish_properties.append(
+                ifc_file.create_entity(
+                    "IfcPropertySingleValue",
+                    Name="WallFinish",
+                    NominalValue=ifc_file.create_entity("IfcText", self.wall_finish),
+                )
+            )
 
         if self.ceiling_finish:
-            finish_properties.append(ifc_file.create_entity(
-                "IfcPropertySingleValue",
-                Name="CeilingFinish",
-                NominalValue=ifc_file.create_entity("IfcText", self.ceiling_finish)
-            ))
+            finish_properties.append(
+                ifc_file.create_entity(
+                    "IfcPropertySingleValue",
+                    Name="CeilingFinish",
+                    NominalValue=ifc_file.create_entity("IfcText", self.ceiling_finish),
+                )
+            )
 
         if finish_properties:
             finish_pset = ifc_file.create_entity(
                 "IfcPropertySet",
                 GlobalId=self._generate_guid(),
                 Name="Pset_SpaceFinishes",
-                HasProperties=finish_properties
+                HasProperties=finish_properties,
             )
 
             ifc_file.createIfcRelDefinesByProperties(
@@ -392,7 +392,7 @@ class Room(Element):
                 None,
                 None,
                 [ifc_space],
-                finish_pset
+                finish_pset,
             )
 
         # Associate with building storey
@@ -402,7 +402,7 @@ class Room(Element):
             f"Room{self.number}Container",
             None,
             [ifc_space],
-            ifc_building_storey
+            ifc_building_storey,
         )
 
         return ifc_space
@@ -425,7 +425,7 @@ class Room(Element):
             "perimeter_m": round(self.perimeter_m, 2),
             "floor_finish": self.floor_finish or "",
             "wall_finish": self.wall_finish or "",
-            "ceiling_finish": self.ceiling_finish or ""
+            "ceiling_finish": self.ceiling_finish or "",
         }
 
     def get_bounding_box(self) -> BoundingBox:
@@ -437,7 +437,7 @@ class Room(Element):
         return BoundingBox.from_polygon_2d(
             self._boundary,
             self.level.elevation_mm,
-            self.level.elevation_mm + self._floor_to_ceiling_height
+            self.level.elevation_mm + self._floor_to_ceiling_height,
         )
 
     def __repr__(self) -> str:
