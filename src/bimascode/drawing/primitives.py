@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING, Union
 from bimascode.drawing.line_styles import LineStyle
 
 if TYPE_CHECKING:
-    from bimascode.drawing.tags import DoorTag, WindowTag
+    from bimascode.drawing.tags import DoorTag, RoomTag, WindowTag
 
 
 @dataclass(frozen=True)
@@ -566,6 +566,7 @@ class ViewResult:
         text_notes: List of text annotations
         door_tags: List of door tags
         window_tags: List of window tags
+        room_tags: List of room tags
         view_name: Name of the view that generated this result
         generation_time: Time taken to generate in seconds
         element_count: Number of elements processed
@@ -581,6 +582,7 @@ class ViewResult:
     text_notes: list[TextNote2D] = field(default_factory=list)
     door_tags: list["DoorTag"] = field(default_factory=list)
     window_tags: list["WindowTag"] = field(default_factory=list)
+    room_tags: list["RoomTag"] = field(default_factory=list)
     view_name: str = ""
     generation_time: float = 0.0
     element_count: int = 0
@@ -599,6 +601,7 @@ class ViewResult:
             + len(self.text_notes)
             + len(self.door_tags)
             + len(self.window_tags)
+            + len(self.room_tags)
         )
 
     @property
@@ -625,6 +628,7 @@ class ViewResult:
         self.text_notes.extend(other.text_notes)
         self.door_tags.extend(other.door_tags)
         self.window_tags.extend(other.window_tags)
+        self.room_tags.extend(other.room_tags)
         self.element_count += other.element_count
         self.cache_hits += other.cache_hits
 
@@ -640,6 +644,7 @@ class ViewResult:
             text_notes=[t.translate(dx, dy) for t in self.text_notes],
             door_tags=[t.translate(dx, dy) for t in self.door_tags],
             window_tags=[t.translate(dx, dy) for t in self.window_tags],
+            room_tags=[t.translate(dx, dy) for t in self.room_tags],
             view_name=self.view_name,
             generation_time=self.generation_time,
             element_count=self.element_count,
@@ -704,6 +709,10 @@ class ViewResult:
             all_points.append(tag.insertion_point)
 
         for tag in self.window_tags:
+            # Include tag position
+            all_points.append(tag.insertion_point)
+
+        for tag in self.room_tags:
             # Include tag position
             all_points.append(tag.insertion_point)
 

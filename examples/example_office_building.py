@@ -38,7 +38,7 @@ from bimascode.drawing.dxf_exporter import DXFExporter
 from bimascode.drawing.floor_plan_view import FloorPlanView
 from bimascode.drawing.line_styles import LineWeight
 from bimascode.drawing.primitives import Point2D, TextAlignment, TextNote2D
-from bimascode.drawing.tags import DoorTag, TagStyle, WindowTag
+from bimascode.drawing.tags import DoorTag, RoomTag, TagStyle, WindowTag
 from bimascode.drawing.section_view import SectionView
 from bimascode.drawing.view_base import ViewRange, ViewScale
 from bimascode.drawing.view_templates import CategoryVisibility, GraphicOverride, ViewTemplate
@@ -46,6 +46,7 @@ from bimascode.performance.representation_cache import RepresentationCache
 from bimascode.performance.spatial_index import SpatialIndex
 from bimascode.spatial.building import Building
 from bimascode.spatial.level import Level
+from bimascode.spatial.room import Room
 from bimascode.structure import (
     Beam,
     StructuralColumn,
@@ -260,6 +261,7 @@ def create_ground_floor(building, types):
     all_windows = []
     all_floors = []
     all_ceilings = []
+    all_rooms = []
 
     ext_wall = types["exterior_wall"]
     int_wall = types["interior_wall"]
@@ -329,6 +331,15 @@ def create_ground_floor(building, types):
     )
     all_walls.append(reception_wall)
 
+    # Create reception room
+    reception_room = Room(
+        name="Reception",
+        number="G-01",
+        boundary=[(0, 0), (reception_width, 0), (reception_width, reception_depth), (0, reception_depth)],
+        level=ground,
+    )
+    all_rooms.append(reception_room)
+
     # Meeting rooms (4 rooms along west wall, behind reception)
     meeting_room_width = 5000
     meeting_room_depth = 4000
@@ -373,10 +384,53 @@ def create_ground_floor(building, types):
         )
         all_doors.append(door)
 
+        # Create meeting room
+        meeting_room = Room(
+            name=f"Meeting {i+1}",
+            number=f"G-{i+2:02d}",
+            boundary=[
+                (0, room_y),
+                (meeting_room_width, room_y),
+                (meeting_room_width, room_y + meeting_room_depth),
+                (0, room_y + meeting_room_depth),
+            ],
+            level=ground,
+        )
+        all_rooms.append(meeting_room)
+
     # Core walls and doors
     core_walls, core_doors = create_core(ground, types, 0)
     all_walls.extend(core_walls)
     all_doors.extend(core_doors)
+
+    # Create core room
+    core_y = GRID_Y[1]
+    core_room = Room(
+        name="Core",
+        number="CORE",
+        boundary=[
+            (CORE_X, core_y),
+            (CORE_X + CORE_WIDTH, core_y),
+            (CORE_X + CORE_WIDTH, core_y + CORE_DEPTH),
+            (CORE_X, core_y + CORE_DEPTH),
+        ],
+        level=ground,
+    )
+    all_rooms.append(core_room)
+
+    # Create open workspace room (approximate - main open area)
+    open_workspace_room = Room(
+        name="Open Workspace",
+        number="G-OS",
+        boundary=[
+            (reception_width + 1000, 0),
+            (BUILDING_LENGTH, 0),
+            (BUILDING_LENGTH, BUILDING_WIDTH),
+            (reception_width + 1000, BUILDING_WIDTH),
+        ],
+        level=ground,
+    )
+    all_rooms.append(open_workspace_room)
 
     # Floor slab
     floor_boundary = [
@@ -407,7 +461,7 @@ def create_ground_floor(building, types):
     # Structure
     columns, beams = create_structural_grid(ground, types, 0)
 
-    return ground, all_walls, all_doors, all_windows, all_floors, all_ceilings, columns, beams
+    return ground, all_walls, all_doors, all_windows, all_floors, all_ceilings, columns, beams, all_rooms
 
 
 def create_first_floor(building, types):
@@ -419,6 +473,7 @@ def create_first_floor(building, types):
     all_windows = []
     all_floors = []
     all_ceilings = []
+    all_rooms = []
 
     ext_wall = types["exterior_wall"]
     int_wall = types["interior_wall"]
@@ -492,6 +547,20 @@ def create_first_floor(building, types):
         )
         all_doors.append(door)
 
+        # Create office room
+        office_room = Room(
+            name=f"Office {i+1}",
+            number=f"1-{i+1:02d}",
+            boundary=[
+                (office_x, 0),
+                (office_x + office_width, 0),
+                (office_x + office_width, office_depth),
+                (office_x, office_depth),
+            ],
+            level=first,
+        )
+        all_rooms.append(office_room)
+
     # Conference rooms along north wall (2 large rooms)
     conf_width = 8000
     conf_depth = 5000
@@ -536,10 +605,54 @@ def create_first_floor(building, types):
         )
         all_doors.append(door)
 
+        # Create conference room
+        conf_name = "Conference Room A" if i == 0 else "Conference Room B"
+        conf_room = Room(
+            name=conf_name,
+            number=f"1-C{i+1}",
+            boundary=[
+                (conf_x, conf_y),
+                (conf_x + conf_width, conf_y),
+                (conf_x + conf_width, BUILDING_WIDTH),
+                (conf_x, BUILDING_WIDTH),
+            ],
+            level=first,
+        )
+        all_rooms.append(conf_room)
+
     # Core
     core_walls, core_doors = create_core(first, types, 1)
     all_walls.extend(core_walls)
     all_doors.extend(core_doors)
+
+    # Create core room
+    core_y = GRID_Y[1]
+    core_room = Room(
+        name="Core",
+        number="CORE",
+        boundary=[
+            (CORE_X, core_y),
+            (CORE_X + CORE_WIDTH, core_y),
+            (CORE_X + CORE_WIDTH, core_y + CORE_DEPTH),
+            (CORE_X, core_y + CORE_DEPTH),
+        ],
+        level=first,
+    )
+    all_rooms.append(core_room)
+
+    # Create open workspace room (center area)
+    open_workspace_room = Room(
+        name="Open Workspace",
+        number="1-OS",
+        boundary=[
+            (0, office_depth + 1000),
+            (BUILDING_LENGTH, office_depth + 1000),
+            (BUILDING_LENGTH, conf_y - 1000),
+            (0, conf_y - 1000),
+        ],
+        level=first,
+    )
+    all_rooms.append(open_workspace_room)
 
     # Floor slab
     floor_boundary = [
@@ -581,7 +694,7 @@ def create_first_floor(building, types):
     # Structure
     columns, beams = create_structural_grid(first, types, 1)
 
-    return first, all_walls, all_doors, all_windows, all_floors, all_ceilings, columns, beams
+    return first, all_walls, all_doors, all_windows, all_floors, all_ceilings, columns, beams, all_rooms
 
 
 def create_view_templates():
@@ -669,48 +782,15 @@ def create_view_templates():
     return arch_template, struct_template
 
 
-def add_ground_floor_annotations(result):
-    """Add text notes to ground floor plan."""
-    # Room labels
-    result.text_notes.append(
-        TextNote2D(
-            position=Point2D(4000, 3000),
-            content="RECEPTION",
-            height=250,
-            alignment=TextAlignment.MIDDLE_CENTER,
-        )
-    )
-    result.text_notes.append(
-        TextNote2D(
-            position=Point2D(18000, 10000),
-            content="OPEN WORKSPACE",
-            height=300,
-            alignment=TextAlignment.MIDDLE_CENTER,
-        )
-    )
-    result.text_notes.append(
-        TextNote2D(
-            position=Point2D(CORE_X + CORE_WIDTH / 2, GRID_Y[1] + CORE_DEPTH / 2),
-            content="CORE",
-            height=200,
-            alignment=TextAlignment.MIDDLE_CENTER,
-        )
-    )
+def add_ground_floor_annotations(result, rooms=None):
+    """Add text notes and room tags to ground floor plan."""
+    # Room tags (using RoomTag instead of TextNote for room labels)
+    if rooms:
+        room_style = TagStyle.room_default()
+        for room in rooms:
+            result.room_tags.append(RoomTag(room=room, style=room_style))
 
-    # Meeting room labels
-    meeting_y_start = 7000
-    for i in range(3):
-        room_y = meeting_y_start + i * 4500
-        result.text_notes.append(
-            TextNote2D(
-                position=Point2D(2500, room_y + 2000),
-                content=f"MEETING\n{i + 1}",
-                height=150,
-                alignment=TextAlignment.MIDDLE_CENTER,
-            )
-        )
-
-    # General note
+    # General note (keep as TextNote - this is a title, not a room label)
     result.text_notes.append(
         TextNote2D(
             position=Point2D(-500, -2000),
@@ -737,63 +817,15 @@ def add_tags(result, doors, windows):
             result.window_tags.append(WindowTag(window=window, style=window_style))
 
 
-def add_first_floor_annotations(result):
-    """Add text notes to first floor plan."""
-    # Office labels
-    office_start_x = 1000
-    office_width = 4000
-    for i in range(6):
-        office_x = office_start_x + i * 4500
-        if office_x + office_width > BUILDING_LENGTH - 1000:
-            break
-        result.text_notes.append(
-            TextNote2D(
-                position=Point2D(office_x + office_width / 2, 2000),
-                content=f"OFFICE\n{i + 1}",
-                height=150,
-                alignment=TextAlignment.MIDDLE_CENTER,
-            )
-        )
+def add_first_floor_annotations(result, rooms=None):
+    """Add text notes and room tags to first floor plan."""
+    # Room tags (using RoomTag instead of TextNote for room labels)
+    if rooms:
+        room_style = TagStyle.room_default()
+        for room in rooms:
+            result.room_tags.append(RoomTag(room=room, style=room_style))
 
-    # Conference room labels
-    result.text_notes.append(
-        TextNote2D(
-            position=Point2D(7000, 17500),
-            content="CONFERENCE\nROOM A",
-            height=200,
-            alignment=TextAlignment.MIDDLE_CENTER,
-        )
-    )
-    result.text_notes.append(
-        TextNote2D(
-            position=Point2D(21000, 17500),
-            content="CONFERENCE\nROOM B",
-            height=200,
-            alignment=TextAlignment.MIDDLE_CENTER,
-        )
-    )
-
-    # Open workspace (positioned between conference rooms and office corridor)
-    result.text_notes.append(
-        TextNote2D(
-            position=Point2D(15000, 12500),
-            content="OPEN WORKSPACE",
-            height=300,
-            alignment=TextAlignment.MIDDLE_CENTER,
-        )
-    )
-
-    # Core
-    result.text_notes.append(
-        TextNote2D(
-            position=Point2D(CORE_X + CORE_WIDTH / 2, GRID_Y[1] + CORE_DEPTH / 2),
-            content="CORE",
-            height=200,
-            alignment=TextAlignment.MIDDLE_CENTER,
-        )
-    )
-
-    # General note
+    # General note (keep as TextNote - this is a title, not a room label)
     result.text_notes.append(
         TextNote2D(
             position=Point2D(-500, -2000),
@@ -815,6 +847,7 @@ def generate_floor_plan(
     add_annotations_fn=None,
     doors=None,
     windows=None,
+    rooms=None,
 ):
     """Generate and export a floor plan."""
     print(f"  Generating {name}...")
@@ -825,7 +858,7 @@ def generate_floor_plan(
 
     # Add annotations if function provided
     if add_annotations_fn:
-        add_annotations_fn(result)
+        add_annotations_fn(result, rooms=rooms)
 
     # Add door and window tags
     if doors or windows:
@@ -834,8 +867,10 @@ def generate_floor_plan(
     print(f"    Elements: {result.element_count}, Geometry: {result.total_geometry_count}")
     if result.text_notes:
         print(f"    Text notes: {len(result.text_notes)}")
-    if result.door_tags or result.window_tags:
-        print(f"    Tags: {len(result.door_tags)} doors, {len(result.window_tags)} windows")
+    if result.door_tags or result.window_tags or result.room_tags:
+        print(
+            f"    Tags: {len(result.door_tags)} doors, {len(result.window_tags)} windows, {len(result.room_tags)} rooms"
+        )
 
     exporter = DXFExporter()
     exporter.export(result, str(output_path))
@@ -881,12 +916,12 @@ def main():
 
     # Create floors
     print("\n  Ground Floor...")
-    ground, g_walls, g_doors, g_windows, g_floors, g_ceilings, g_columns, g_beams = (
+    ground, g_walls, g_doors, g_windows, g_floors, g_ceilings, g_columns, g_beams, g_rooms = (
         create_ground_floor(building, types)
     )
 
     print("  First Floor...")
-    first, f_walls, f_doors, f_windows, f_floors, f_ceilings, f_columns, f_beams = (
+    first, f_walls, f_doors, f_windows, f_floors, f_ceilings, f_columns, f_beams, f_rooms = (
         create_first_floor(building, types)
     )
 
@@ -956,6 +991,7 @@ def main():
         add_ground_floor_annotations,
         doors=g_doors,
         windows=g_windows,
+        rooms=g_rooms,
     )
     generate_floor_plan(
         "Ground Floor - Structural",
@@ -975,6 +1011,7 @@ def main():
         add_first_floor_annotations,
         doors=f_doors,
         windows=f_windows,
+        rooms=f_rooms,
     )
     generate_floor_plan(
         "First Floor - Structural",
