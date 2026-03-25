@@ -17,6 +17,7 @@ from bimascode.drawing.section_cutter import get_section_cutter
 from bimascode.drawing.view_base import ViewBase, ViewCropRegion, ViewRange, ViewScale
 
 if TYPE_CHECKING:
+    from bimascode.drawing.symbology import SymbologySettings
     from bimascode.performance.representation_cache import RepresentationCache
     from bimascode.performance.spatial_index import SpatialIndex
     from bimascode.spatial.level import Level
@@ -47,6 +48,7 @@ class FloorPlanView(ViewBase):
         scale: ViewScale = ViewScale.SCALE_1_100,
         crop_region: ViewCropRegion | None = None,
         template=None,
+        symbology: SymbologySettings | None = None,
     ):
         """Create a floor plan view.
 
@@ -57,8 +59,9 @@ class FloorPlanView(ViewBase):
             scale: View scale
             crop_region: Optional crop region
             template: Optional view template for visibility control
+            symbology: Optional symbology settings for element visualization
         """
-        super().__init__(name, scale, crop_region)
+        super().__init__(name, scale, crop_region, symbology)
 
         self.level = level
         self.view_range = view_range or ViewRange()
@@ -73,20 +76,28 @@ class FloorPlanView(ViewBase):
         self,
         spatial_index: SpatialIndex,
         representation_cache: RepresentationCache,
+        symbology: SymbologySettings | None = None,
     ) -> ViewResult:
         """Generate 2D linework from 3D model.
 
         Args:
             spatial_index: Spatial index for element queries
             representation_cache: Cache for 2D representations
+            symbology: Optional symbology override (highest priority).
+                Resolution order: this param > view.symbology > defaults
 
         Returns:
             ViewResult containing all 2D geometry
         """
+        from bimascode.drawing.symbology import SymbologySettings
+
         start_time = time.time()
 
         result = ViewResult(view_name=self.name)
         cache_hits = 0
+
+        # Resolve symbology: param > view._symbology > defaults
+        effective_symbology = symbology or self._symbology or SymbologySettings()
 
         # Activate scale behavior in template
         if self._template is not None:
@@ -112,11 +123,16 @@ class FloorPlanView(ViewBase):
 
         # Process each element
         for element in elements:
-            linework = self._process_element(element, cut_z, representation_cache)
+            linework = self._process_element(
+                element, cut_z, representation_cache, effective_symbology
+            )
 
             if linework is not None:
                 # Track cache hits
-                if representation_cache.get(element, cut_z) is not None:
+                if (
+                    representation_cache.get(element, cut_z, effective_symbology.version)
+                    is not None
+                ):
                     cache_hits += 1
 
                 # Filter linework by scale
@@ -149,6 +165,7 @@ class FloorPlanView(ViewBase):
         element,
         cut_z: float,
         cache: RepresentationCache,
+        symbology: SymbologySettings,
     ) -> list | None:
         """Process a single element for floor plan generation.
 
@@ -156,6 +173,7 @@ class FloorPlanView(ViewBase):
             element: Element to process
             cut_z: Absolute Z coordinate of cut plane
             cache: Representation cache
+            symbology: Symbology settings to use
 
         Returns:
             List of 2D geometry primitives, or None
@@ -163,15 +181,16 @@ class FloorPlanView(ViewBase):
 
         # Try to use cached representation first
         def compute_representation(elem, cut_height):
-            return self._compute_element_linework(elem, cut_height)
+            return self._compute_element_linework(elem, cut_height, symbology)
 
-        linework = cache.get_or_compute(element, cut_z, compute_representation)
+        linework = cache.get_or_compute(element, cut_z, compute_representation, symbology.version)
         return linework
 
     def _compute_element_linework(
         self,
         element,
         cut_z: float,
+        symbology: SymbologySettings,
     ) -> list:
         """Compute 2D linework for an element.
 
@@ -182,6 +201,7 @@ class FloorPlanView(ViewBase):
         Args:
             element: Element to compute linework for
             cut_z: Absolute Z coordinate of cut plane
+            symbology: Symbology settings to use
 
         Returns:
             List of 2D geometry primitives
@@ -189,7 +209,8 @@ class FloorPlanView(ViewBase):
         # Check if element has get_plan_representation method
         # (may not implement full Drawable2D protocol)
         if hasattr(element, "get_plan_representation"):
-            return element.get_plan_representation(cut_z, self.view_range)
+            element_symbology = symbology.get_for_element(element)
+            return element.get_plan_representation(cut_z, self.view_range, element_symbology)
 
         # Fall back to OCCT section cutting
         if isinstance(element, HasGeometry):

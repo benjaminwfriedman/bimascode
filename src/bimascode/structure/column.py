@@ -18,6 +18,7 @@ if TYPE_CHECKING:
     from build123d import Location
 
     from bimascode.drawing.primitives import Arc2D, Hatch2D, Line2D, Polyline2D
+    from bimascode.drawing.symbology import ElementSymbology
     from bimascode.drawing.view_base import ViewRange
     from bimascode.structure.column_type import ColumnType
 
@@ -359,6 +360,7 @@ class StructuralColumn(ElementInstance, FreestandingElementMixin):
         self,
         cut_height: float,
         view_range: "ViewRange",
+        symbology: "ElementSymbology | None" = None,
     ) -> list[Union["Line2D", "Arc2D", "Polyline2D", "Hatch2D"]]:
         """Generate floor plan linework for this column.
 
@@ -367,12 +369,18 @@ class StructuralColumn(ElementInstance, FreestandingElementMixin):
         Args:
             cut_height: Z coordinate of the section cut
             view_range: View range parameters
+            symbology: Optional symbology settings (None uses AIA defaults)
 
         Returns:
             List of 2D geometry primitives
         """
         from bimascode.drawing.line_styles import Layer, LineStyle
         from bimascode.drawing.primitives import Line2D, Point2D, Polyline2D
+        from bimascode.drawing.symbology import get_default_symbology
+
+        # Use provided symbology or get default
+        if symbology is None:
+            symbology = get_default_symbology("StructuralColumn")
 
         result: list[Line2D | Arc2D | Polyline2D | Hatch2D] = []
 
@@ -381,9 +389,9 @@ class StructuralColumn(ElementInstance, FreestandingElementMixin):
         is_cut = bbox.min_z <= cut_height <= bbox.max_z
 
         if is_cut:
-            style = LineStyle.cut_heavy()
+            style = symbology.cut_style or LineStyle.cut_heavy()
         else:
-            style = LineStyle.visible()
+            style = symbology.visible_style or LineStyle.visible()
 
         # Calculate column corners with rotation
         pos = self.position
@@ -425,8 +433,8 @@ class StructuralColumn(ElementInstance, FreestandingElementMixin):
         )
         result.append(column_outline)
 
-        # Add X pattern for cut columns (structural convention)
-        if is_cut:
+        # Add X pattern for cut columns if symbology allows
+        if is_cut and symbology.show_x_pattern:
             # Diagonal from corner 0 to corner 2
             diag1 = Line2D(
                 start=corners[0],

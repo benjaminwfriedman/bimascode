@@ -17,6 +17,7 @@ from bimascode.drawing.primitives import (
 )
 
 if TYPE_CHECKING:
+    from bimascode.drawing.symbology import ElementSymbology
     from bimascode.drawing.view_base import ViewRange
 
 
@@ -41,6 +42,7 @@ class Drawable2D(Protocol):
         self,
         cut_height: float,
         view_range: ViewRange,
+        symbology: ElementSymbology | None = None,
     ) -> list[Linework2D]:
         """Generate floor plan linework.
 
@@ -50,6 +52,7 @@ class Drawable2D(Protocol):
         Args:
             cut_height: Z coordinate of the section cut
             view_range: View range parameters
+            symbology: Optional symbology settings (None uses AIA defaults)
 
         Returns:
             List of 2D geometry primitives

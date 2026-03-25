@@ -17,6 +17,7 @@ from bimascode.utils.units import Length, normalize_length
 if TYPE_CHECKING:
     from bimascode.architecture.wall_type import WallType
     from bimascode.drawing.primitives import Arc2D, Hatch2D, Line2D, Polyline2D
+    from bimascode.drawing.symbology import ElementSymbology
     from bimascode.drawing.view_base import ViewRange
 
 
@@ -390,6 +391,7 @@ class Wall(ElementInstance, FreestandingElementMixin):
         self,
         cut_height: float,
         view_range: "ViewRange",
+        symbology: "ElementSymbology | None" = None,
     ) -> list[Union["Line2D", "Arc2D", "Polyline2D", "Hatch2D"]]:
         """Generate floor plan linework for this wall.
 
@@ -400,6 +402,7 @@ class Wall(ElementInstance, FreestandingElementMixin):
         Args:
             cut_height: Z coordinate of the section cut
             view_range: View range parameters
+            symbology: Optional symbology settings (None uses AIA defaults)
 
         Returns:
             List of 2D geometry primitives
@@ -407,15 +410,20 @@ class Wall(ElementInstance, FreestandingElementMixin):
         from bimascode.drawing.hatch_patterns import get_hatch_pattern_for_layer
         from bimascode.drawing.line_styles import Layer, LineStyle
         from bimascode.drawing.primitives import Hatch2D, Point2D, Polyline2D
+        from bimascode.drawing.symbology import FillMode, get_default_symbology
+
+        # Use provided symbology or get default
+        if symbology is None:
+            symbology = get_default_symbology("Wall")
 
         # Check if wall is cut by the section plane
         bbox = self.get_bounding_box()
         is_cut = bbox.min_z <= cut_height <= bbox.max_z
 
         if not is_cut:
-            style = LineStyle.visible()
+            style = symbology.visible_style or LineStyle.visible()
         else:
-            style = LineStyle.cut_heavy()
+            style = symbology.cut_style or LineStyle.cut_heavy()
 
         # Wall geometry
         start = self.start_point
@@ -477,20 +485,30 @@ class Wall(ElementInstance, FreestandingElementMixin):
                 layer=Layer.WALL,
             )
             result.append(wall_outline)
-            # Add per-layer hatches for cut walls
+            # Add fill for cut walls based on symbology
             if is_cut:
-                result.extend(
-                    self._generate_layer_hatches(
-                        adj_start_x,
-                        adj_start_y,
-                        adj_end_x,
-                        adj_end_y,
-                        cos_a,
-                        sin_a,
-                        half_width,
-                        get_hatch_pattern_for_layer,
+                if symbology.fill_mode == FillMode.SOLID:
+                    # Solid fill hatch using wall outline
+                    solid_hatch = Hatch2D(
+                        boundary=corners,
+                        pattern=None,  # Solid fill
+                        layer=Layer.WALL,
+                        color=symbology.fill_color or (0, 0, 0),
                     )
-                )
+                    result.append(solid_hatch)
+                elif symbology.show_hatching and symbology.fill_mode == FillMode.MATERIAL:
+                    result.extend(
+                        self._generate_layer_hatches(
+                            adj_start_x,
+                            adj_start_y,
+                            adj_end_x,
+                            adj_end_y,
+                            cos_a,
+                            sin_a,
+                            half_width,
+                            get_hatch_pattern_for_layer,
+                        )
+                    )
         else:
             # Draw wall segments between openings
             # Build list of solid segments: (start_offset, end_offset)
@@ -536,20 +554,30 @@ class Wall(ElementInstance, FreestandingElementMixin):
                     layer=Layer.WALL,
                 )
                 result.append(seg_outline)
-                # Add per-layer hatches for cut wall segments
+                # Add fill for cut wall segments based on symbology
                 if is_cut:
-                    result.extend(
-                        self._generate_layer_hatches(
-                            s_x,
-                            s_y,
-                            e_x,
-                            e_y,
-                            cos_a,
-                            sin_a,
-                            half_width,
-                            get_hatch_pattern_for_layer,
+                    if symbology.fill_mode == FillMode.SOLID:
+                        # Solid fill hatch using segment outline
+                        solid_hatch = Hatch2D(
+                            boundary=corners,
+                            pattern=None,  # Solid fill
+                            layer=Layer.WALL,
+                            color=symbology.fill_color or (0, 0, 0),
                         )
-                    )
+                        result.append(solid_hatch)
+                    elif symbology.show_hatching and symbology.fill_mode == FillMode.MATERIAL:
+                        result.extend(
+                            self._generate_layer_hatches(
+                                s_x,
+                                s_y,
+                                e_x,
+                                e_y,
+                                cos_a,
+                                sin_a,
+                                half_width,
+                                get_hatch_pattern_for_layer,
+                            )
+                        )
 
         return result
 

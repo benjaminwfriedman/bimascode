@@ -19,6 +19,7 @@ if TYPE_CHECKING:
     from bimascode.architecture.door_type import DoorType
     from bimascode.architecture.wall import Wall
     from bimascode.drawing.primitives import Arc2D, Hatch2D, Line2D, Polyline2D
+    from bimascode.drawing.symbology import ElementSymbology
     from bimascode.drawing.view_base import ViewRange
 
 
@@ -430,6 +431,7 @@ class Door(ElementInstance, HostedElementMixin):
         self,
         cut_height: float,
         view_range: "ViewRange",
+        symbology: "ElementSymbology | None" = None,
     ) -> list[Union["Line2D", "Arc2D", "Polyline2D", "Hatch2D"]]:
         """Generate floor plan linework for this door.
 
@@ -438,12 +440,18 @@ class Door(ElementInstance, HostedElementMixin):
         Args:
             cut_height: Z coordinate of the section cut
             view_range: View range parameters
+            symbology: Optional symbology settings (None uses AIA defaults)
 
         Returns:
             List of 2D geometry primitives
         """
         from bimascode.drawing.line_styles import Layer, LineStyle
         from bimascode.drawing.primitives import Arc2D, Line2D, Point2D
+        from bimascode.drawing.symbology import get_default_symbology
+
+        # Use provided symbology or get default
+        if symbology is None:
+            symbology = get_default_symbology("Door")
 
         result: list[Line2D | Arc2D | Polyline2D | Hatch2D] = []
 
@@ -455,7 +463,7 @@ class Door(ElementInstance, HostedElementMixin):
             return result
 
         # Door style (cut lines for openings)
-        style = LineStyle.cut_wide()
+        style = symbology.cut_style or LineStyle.cut_wide()
 
         wall = self._host_wall
         wall_start = wall.start_point
@@ -477,51 +485,54 @@ class Door(ElementInstance, HostedElementMixin):
         swing_x = wall_start[0] + (offset + width) * cos_a
         swing_y = wall_start[1] + (offset + width) * sin_a
 
-        # Draw door swing arc (90 degree arc from closed to open position)
-        # Arc center is at hinge point, radius is door width
-        # Start angle is wall angle, end angle is wall angle + 90 degrees
-        swing_arc = Arc2D(
-            center=Point2D(hinge_x, hinge_y),
-            radius=width,
-            start_angle=wall_angle,
-            end_angle=wall_angle + math.pi / 2,
-            style=LineStyle.visible().with_weight(LineStyle.visible().weight),
-            layer=Layer.DOOR,
-        )
-        result.append(swing_arc)
+        # Draw door swing arc if symbology allows
+        if symbology.show_swing:
+            # Arc center is at hinge point, radius is door width
+            # Start angle is wall angle, end angle is wall angle + 90 degrees
+            swing_arc = Arc2D(
+                center=Point2D(hinge_x, hinge_y),
+                radius=width,
+                start_angle=wall_angle,
+                end_angle=wall_angle + math.pi / 2,
+                style=LineStyle.visible().with_weight(LineStyle.visible().weight),
+                layer=Layer.DOOR,
+            )
+            result.append(swing_arc)
 
-        # Draw door panel in open position (perpendicular to wall)
-        panel_end_x = hinge_x - width * sin_a  # Perpendicular to wall
-        panel_end_y = hinge_y + width * cos_a
+        # Draw door panel in open position if symbology allows
+        if symbology.show_panel:
+            panel_end_x = hinge_x - width * sin_a  # Perpendicular to wall
+            panel_end_y = hinge_y + width * cos_a
 
-        panel_line = Line2D(
-            start=Point2D(hinge_x, hinge_y),
-            end=Point2D(panel_end_x, panel_end_y),
-            style=style,
-            layer=Layer.DOOR,
-        )
-        result.append(panel_line)
+            panel_line = Line2D(
+                start=Point2D(hinge_x, hinge_y),
+                end=Point2D(panel_end_x, panel_end_y),
+                style=style,
+                layer=Layer.DOOR,
+            )
+            result.append(panel_line)
 
-        # Draw opening threshold lines (sides of the opening)
-        half_wall = wall.width / 2.0
+        # Draw opening threshold lines (jambs) if symbology allows
+        if symbology.show_jambs:
+            half_wall = wall.width / 2.0
 
-        # Left jamb line
-        left_jamb = Line2D(
-            start=Point2D(hinge_x - half_wall * sin_a, hinge_y + half_wall * cos_a),
-            end=Point2D(hinge_x + half_wall * sin_a, hinge_y - half_wall * cos_a),
-            style=style,
-            layer=Layer.DOOR,
-        )
-        result.append(left_jamb)
+            # Left jamb line
+            left_jamb = Line2D(
+                start=Point2D(hinge_x - half_wall * sin_a, hinge_y + half_wall * cos_a),
+                end=Point2D(hinge_x + half_wall * sin_a, hinge_y - half_wall * cos_a),
+                style=style,
+                layer=Layer.DOOR,
+            )
+            result.append(left_jamb)
 
-        # Right jamb line
-        right_jamb = Line2D(
-            start=Point2D(swing_x - half_wall * sin_a, swing_y + half_wall * cos_a),
-            end=Point2D(swing_x + half_wall * sin_a, swing_y - half_wall * cos_a),
-            style=style,
-            layer=Layer.DOOR,
-        )
-        result.append(right_jamb)
+            # Right jamb line
+            right_jamb = Line2D(
+                start=Point2D(swing_x - half_wall * sin_a, swing_y + half_wall * cos_a),
+                end=Point2D(swing_x + half_wall * sin_a, swing_y - half_wall * cos_a),
+                style=style,
+                layer=Layer.DOOR,
+            )
+            result.append(right_jamb)
 
         return result
 

@@ -24,6 +24,7 @@ class CachedRepresentation:
 
     element_id: int  # id() of the element
     cut_height: float  # Z height of the section cut
+    symbology_version: int  # SymbologySettings version when cached
     linework: Any  # The cached 2D geometry (lines, arcs, etc.)
     timestamp: float  # When this was cached
     element_modified: float  # Element's modification timestamp when cached
@@ -78,24 +79,30 @@ class RepresentationCache:
         Args:
             max_entries: Maximum number of cached entries before eviction
         """
-        # Key: (element_id, cut_height) -> CachedRepresentation
-        self._cache: dict[tuple[int, float], CachedRepresentation] = {}
+        # Key: (element_id, cut_height, symbology_version) -> CachedRepresentation
+        self._cache: dict[tuple[int, float, int], CachedRepresentation] = {}
         self._max_entries = max_entries
         self._stats = CacheStats()
         # Track access order for LRU eviction
-        self._access_order: list[tuple[int, float]] = []
+        self._access_order: list[tuple[int, float, int]] = []
 
-    def get(self, element: Element, cut_height: float) -> Any | None:
+    def get(
+        self,
+        element: Element,
+        cut_height: float,
+        symbology_version: int = 0,
+    ) -> Any | None:
         """Get a cached 2D representation if available and valid.
 
         Args:
             element: The element to get representation for
             cut_height: Z height of the section cut
+            symbology_version: Version of symbology settings used
 
         Returns:
             Cached linework if valid, None otherwise
         """
-        key = (id(element), cut_height)
+        key = (id(element), cut_height, symbology_version)
 
         if key not in self._cache:
             return None
@@ -124,6 +131,7 @@ class RepresentationCache:
         element: Element,
         cut_height: float,
         linework: Any,
+        symbology_version: int = 0,
         compute_time: float = 0.0,
     ) -> None:
         """Store a 2D representation in the cache.
@@ -132,9 +140,10 @@ class RepresentationCache:
             element: The element this representation is for
             cut_height: Z height of the section cut
             linework: The 2D geometry to cache
+            symbology_version: Version of symbology settings used
             compute_time: Time taken to compute (for stats)
         """
-        key = (id(element), cut_height)
+        key = (id(element), cut_height, symbology_version)
 
         # Evict if at capacity
         if len(self._cache) >= self._max_entries and key not in self._cache:
@@ -146,6 +155,7 @@ class RepresentationCache:
         self._cache[key] = CachedRepresentation(
             element_id=id(element),
             cut_height=cut_height,
+            symbology_version=symbology_version,
             linework=linework,
             timestamp=time.time(),
             element_modified=element_modified,
@@ -161,6 +171,7 @@ class RepresentationCache:
         element: Element,
         cut_height: float,
         compute_func: callable,
+        symbology_version: int = 0,
     ) -> Any:
         """Get cached representation or compute and cache it.
 
@@ -171,12 +182,13 @@ class RepresentationCache:
             element: The element to get representation for
             cut_height: Z height of the section cut
             compute_func: Function to call if cache miss (element, cut_height) -> linework
+            symbology_version: Version of symbology settings used
 
         Returns:
             The 2D linework (cached or freshly computed)
         """
         # Try cache first
-        cached = self.get(element, cut_height)
+        cached = self.get(element, cut_height, symbology_version)
         if cached is not None:
             return cached
 
@@ -188,7 +200,7 @@ class RepresentationCache:
         compute_time = time.time() - start_time
 
         # Store in cache
-        self.put(element, cut_height, linework, compute_time)
+        self.put(element, cut_height, linework, symbology_version, compute_time)
 
         return linework
 
@@ -223,6 +235,7 @@ class RepresentationCache:
         Returns:
             Number of cache entries invalidated
         """
+        # key[1] is cut_height in (element_id, cut_height, symbology_version)
         keys_to_remove = [key for key in self._cache if key[1] == cut_height]
 
         for key in keys_to_remove:
