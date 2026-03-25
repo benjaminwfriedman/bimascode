@@ -37,6 +37,7 @@ from bimascode.architecture.window_type import WindowType
 from bimascode.drawing.dxf_exporter import DXFExporter
 from bimascode.drawing.floor_plan_view import FloorPlanView
 from bimascode.drawing.line_styles import LineWeight
+from bimascode.drawing.primitives import Point2D, TextAlignment, TextNote2D
 from bimascode.drawing.section_view import SectionView
 from bimascode.drawing.view_base import ViewRange, ViewScale
 from bimascode.drawing.view_templates import CategoryVisibility, GraphicOverride, ViewTemplate
@@ -636,7 +637,130 @@ def create_view_templates():
     return arch_template, struct_template
 
 
-def generate_floor_plan(name, level, spatial_index, cache, output_path, template=None):
+def add_ground_floor_annotations(result):
+    """Add text notes to ground floor plan."""
+    # Room labels
+    result.text_notes.append(
+        TextNote2D(
+            position=Point2D(4000, 3000),
+            content="RECEPTION",
+            height=250,
+            alignment=TextAlignment.MIDDLE_CENTER,
+        )
+    )
+    result.text_notes.append(
+        TextNote2D(
+            position=Point2D(18000, 10000),
+            content="OPEN WORKSPACE",
+            height=300,
+            alignment=TextAlignment.MIDDLE_CENTER,
+        )
+    )
+    result.text_notes.append(
+        TextNote2D(
+            position=Point2D(CORE_X + CORE_WIDTH / 2, GRID_Y[1] + CORE_DEPTH / 2),
+            content="CORE",
+            height=200,
+            alignment=TextAlignment.MIDDLE_CENTER,
+        )
+    )
+
+    # Meeting room labels
+    meeting_y_start = 7000
+    for i in range(3):
+        room_y = meeting_y_start + i * 4500
+        result.text_notes.append(
+            TextNote2D(
+                position=Point2D(2500, room_y + 2000),
+                content=f"MEETING\n{i + 1}",
+                height=150,
+                alignment=TextAlignment.MIDDLE_CENTER,
+            )
+        )
+
+    # General note
+    result.text_notes.append(
+        TextNote2D(
+            position=Point2D(-500, -2000),
+            content="GROUND FLOOR PLAN\nScale: 1:100",
+            height=150,
+            alignment=TextAlignment.TOP_LEFT,
+            width=3000,
+        )
+    )
+
+
+def add_first_floor_annotations(result):
+    """Add text notes to first floor plan."""
+    # Office labels
+    office_start_x = 1000
+    office_width = 4000
+    for i in range(6):
+        office_x = office_start_x + i * 4500
+        if office_x + office_width > BUILDING_LENGTH - 1000:
+            break
+        result.text_notes.append(
+            TextNote2D(
+                position=Point2D(office_x + office_width / 2, 2000),
+                content=f"OFFICE\n{i + 1}",
+                height=150,
+                alignment=TextAlignment.MIDDLE_CENTER,
+            )
+        )
+
+    # Conference room labels
+    result.text_notes.append(
+        TextNote2D(
+            position=Point2D(7000, 17500),
+            content="CONFERENCE\nROOM A",
+            height=200,
+            alignment=TextAlignment.MIDDLE_CENTER,
+        )
+    )
+    result.text_notes.append(
+        TextNote2D(
+            position=Point2D(21000, 17500),
+            content="CONFERENCE\nROOM B",
+            height=200,
+            alignment=TextAlignment.MIDDLE_CENTER,
+        )
+    )
+
+    # Open workspace (positioned between conference rooms and office corridor)
+    result.text_notes.append(
+        TextNote2D(
+            position=Point2D(15000, 12500),
+            content="OPEN WORKSPACE",
+            height=300,
+            alignment=TextAlignment.MIDDLE_CENTER,
+        )
+    )
+
+    # Core
+    result.text_notes.append(
+        TextNote2D(
+            position=Point2D(CORE_X + CORE_WIDTH / 2, GRID_Y[1] + CORE_DEPTH / 2),
+            content="CORE",
+            height=200,
+            alignment=TextAlignment.MIDDLE_CENTER,
+        )
+    )
+
+    # General note
+    result.text_notes.append(
+        TextNote2D(
+            position=Point2D(-500, -2000),
+            content="FIRST FLOOR PLAN\nScale: 1:100",
+            height=150,
+            alignment=TextAlignment.TOP_LEFT,
+            width=3000,
+        )
+    )
+
+
+def generate_floor_plan(
+    name, level, spatial_index, cache, output_path, template=None, add_annotations_fn=None
+):
     """Generate and export a floor plan."""
     print(f"  Generating {name}...")
 
@@ -644,7 +768,13 @@ def generate_floor_plan(name, level, spatial_index, cache, output_path, template
     floor_plan = FloorPlanView(name=name, level=level, view_range=view_range, template=template)
     result = floor_plan.generate(spatial_index, cache)
 
+    # Add annotations if function provided
+    if add_annotations_fn:
+        add_annotations_fn(result)
+
     print(f"    Elements: {result.element_count}, Geometry: {result.total_geometry_count}")
+    if result.text_notes:
+        print(f"    Text notes: {len(result.text_notes)}")
 
     exporter = DXFExporter()
     exporter.export(result, str(output_path))
@@ -762,6 +892,7 @@ def main():
         cache,
         output_dir / "ground_floor_arch.dxf",
         arch_template,
+        add_ground_floor_annotations,
     )
     generate_floor_plan(
         "Ground Floor - Structural",
@@ -778,6 +909,7 @@ def main():
         cache,
         output_dir / "first_floor_arch.dxf",
         arch_template,
+        add_first_floor_annotations,
     )
     generate_floor_plan(
         "First Floor - Structural",

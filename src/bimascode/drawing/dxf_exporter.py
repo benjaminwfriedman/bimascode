@@ -16,6 +16,7 @@ from bimascode.drawing.primitives import (
     Line2D,
     LinearDimension2D,
     Polyline2D,
+    TextNote2D,
     ViewResult,
 )
 
@@ -115,6 +116,7 @@ class DXFExporter:
         self._export_polylines(msp, view_result.polylines, scale)
         self._export_hatches(msp, view_result.hatches, scale)
         self._export_dimensions(msp, view_result.dimensions, scale)
+        self._export_text_notes(msp, view_result.text_notes, scale)
 
         # Save file
         doc.saveas(filepath)
@@ -135,6 +137,8 @@ class DXFExporter:
             layers.add(hatch.layer)
         for dim in view_result.dimensions:
             layers.add(dim.layer)
+        for text in view_result.text_notes:
+            layers.add(text.layer)
 
         # Create layers with standard AIA colors
         layer_colors = {
@@ -321,6 +325,46 @@ class DXFExporter:
             )
             dim_override.render()
 
+    def _export_text_notes(
+        self,
+        msp,
+        text_notes: list[TextNote2D],
+        scale: float,
+    ) -> None:
+        """Export TextNote2D objects to DXF MTEXT entities."""
+        # Map TextAlignment to ezdxf attachment point constants
+        # ezdxf uses integers 1-9 for MTEXT attachment points
+        attachment_map = {
+            "TOP_LEFT": 1,
+            "TOP_CENTER": 2,
+            "TOP_RIGHT": 3,
+            "MIDDLE_LEFT": 4,
+            "MIDDLE_CENTER": 5,
+            "MIDDLE_RIGHT": 6,
+            "BOTTOM_LEFT": 7,
+            "BOTTOM_CENTER": 8,
+            "BOTTOM_RIGHT": 9,
+        }
+
+        for text in text_notes:
+            attrs = {
+                "layer": text.layer,
+                "char_height": text.height * scale,
+                "rotation": text.rotation,
+                "attachment_point": attachment_map.get(text.alignment, 4),
+            }
+
+            # Set width for word wrapping (0 means no width constraint)
+            if text.width > 0:
+                attrs["width"] = text.width * scale
+
+            msp.add_mtext(
+                text.content,
+                dxfattribs=attrs,
+            ).set_location(
+                insert=(text.position.x * scale, text.position.y * scale),
+            )
+
     def export_multiple(
         self,
         views: list[tuple[ViewResult, tuple[float, float]]],
@@ -359,6 +403,8 @@ class DXFExporter:
                 all_layers.add(hatch.layer)
             for dim in view_result.dimensions:
                 all_layers.add(dim.layer)
+            for text in view_result.text_notes:
+                all_layers.add(text.layer)
 
         # Setup layers and line types
         for layer_name in all_layers:
@@ -376,6 +422,7 @@ class DXFExporter:
             self._export_polylines(msp, translated.polylines, scale)
             self._export_hatches(msp, translated.hatches, scale)
             self._export_dimensions(msp, translated.dimensions, scale)
+            self._export_text_notes(msp, translated.text_notes, scale)
 
         # Save file
         doc.saveas(filepath)
