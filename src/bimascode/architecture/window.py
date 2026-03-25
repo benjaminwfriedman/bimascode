@@ -19,6 +19,7 @@ if TYPE_CHECKING:
     from bimascode.architecture.wall import Wall
     from bimascode.architecture.window_type import WindowType
     from bimascode.drawing.primitives import Arc2D, Hatch2D, Line2D, Polyline2D
+    from bimascode.drawing.symbology import ElementSymbology
     from bimascode.drawing.view_base import ViewRange
 
 
@@ -427,20 +428,28 @@ class Window(ElementInstance, HostedElementMixin):
         self,
         cut_height: float,
         view_range: "ViewRange",
+        symbology: "ElementSymbology | None" = None,
     ) -> list[Union["Line2D", "Arc2D", "Polyline2D", "Hatch2D"]]:
         """Generate floor plan linework for this window.
 
-        Windows are shown with three parallel lines (jambs and glass line).
+        Windows are shown with three parallel lines (jambs and glass line),
+        or just outer/inner lines if outline_only is set in symbology.
 
         Args:
             cut_height: Z coordinate of the section cut
             view_range: View range parameters
+            symbology: Optional symbology settings (None uses AIA defaults)
 
         Returns:
             List of 2D geometry primitives
         """
         from bimascode.drawing.line_styles import Layer, LineStyle
         from bimascode.drawing.primitives import Line2D, Point2D
+        from bimascode.drawing.symbology import get_default_symbology
+
+        # Use provided symbology or get default
+        if symbology is None:
+            symbology = get_default_symbology("Window")
 
         result: list[Line2D | Arc2D | Polyline2D | Hatch2D] = []
 
@@ -452,7 +461,7 @@ class Window(ElementInstance, HostedElementMixin):
             return result
 
         # Window style
-        style = LineStyle.cut_wide()
+        style = symbology.cut_style or LineStyle.cut_wide()
 
         wall = self._host_wall
         wall_start = wall.start_point
@@ -472,16 +481,15 @@ class Window(ElementInstance, HostedElementMixin):
         right_x = wall_start[0] + (offset + width) * cos_a
         right_y = wall_start[1] + (offset + width) * sin_a
 
-        # Three lines representing the window:
-        # 1. Outer jamb line
-        # 2. Glass line (center)
-        # 3. Inner jamb line
+        # Determine which lines to draw based on symbology
+        if symbology.outline_only:
+            # Only draw outer and inner lines (no center glass line)
+            offset_mults = [-0.35, 0.35]
+        else:
+            # Three lines: outer jamb, glass (center), inner jamb
+            offset_mults = [-0.35, 0.0, 0.35]
 
-        for offset_mult, line_style in [
-            (-0.35, style),  # Outer jamb (35% of half-wall towards outside)
-            (0.0, style),  # Glass (center line)
-            (0.35, style),  # Inner jamb (35% of half-wall towards inside)
-        ]:
+        for offset_mult in offset_mults:
             perp_offset = half_wall * offset_mult
 
             line = Line2D(
@@ -493,41 +501,42 @@ class Window(ElementInstance, HostedElementMixin):
                     right_x - perp_offset * sin_a,
                     right_y + perp_offset * cos_a,
                 ),
-                style=line_style,
+                style=style,
                 layer=Layer.WINDOW,
             )
             result.append(line)
 
-        # Draw jamb end caps (perpendicular lines at each end)
-        # Left jamb cap
-        left_cap = Line2D(
-            start=Point2D(
-                left_x - half_wall * 0.35 * sin_a,
-                left_y + half_wall * 0.35 * cos_a,
-            ),
-            end=Point2D(
-                left_x + half_wall * 0.35 * sin_a,
-                left_y - half_wall * 0.35 * cos_a,
-            ),
-            style=style,
-            layer=Layer.WINDOW,
-        )
-        result.append(left_cap)
+        # Draw jamb end caps if symbology allows
+        if symbology.show_jambs:
+            # Left jamb cap
+            left_cap = Line2D(
+                start=Point2D(
+                    left_x - half_wall * 0.35 * sin_a,
+                    left_y + half_wall * 0.35 * cos_a,
+                ),
+                end=Point2D(
+                    left_x + half_wall * 0.35 * sin_a,
+                    left_y - half_wall * 0.35 * cos_a,
+                ),
+                style=style,
+                layer=Layer.WINDOW,
+            )
+            result.append(left_cap)
 
-        # Right jamb cap
-        right_cap = Line2D(
-            start=Point2D(
-                right_x - half_wall * 0.35 * sin_a,
-                right_y + half_wall * 0.35 * cos_a,
-            ),
-            end=Point2D(
-                right_x + half_wall * 0.35 * sin_a,
-                right_y - half_wall * 0.35 * cos_a,
-            ),
-            style=style,
-            layer=Layer.WINDOW,
-        )
-        result.append(right_cap)
+            # Right jamb cap
+            right_cap = Line2D(
+                start=Point2D(
+                    right_x - half_wall * 0.35 * sin_a,
+                    right_y + half_wall * 0.35 * cos_a,
+                ),
+                end=Point2D(
+                    right_x + half_wall * 0.35 * sin_a,
+                    right_y - half_wall * 0.35 * cos_a,
+                ),
+                style=style,
+                layer=Layer.WINDOW,
+            )
+            result.append(right_cap)
 
         return result
 

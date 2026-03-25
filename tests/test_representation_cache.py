@@ -275,6 +275,7 @@ class TestCachedRepresentation:
         cached = CachedRepresentation(
             element_id=12345,
             cut_height=1200.0,
+            symbology_version=0,
             linework=MockLinework([]),
             timestamp=time.time(),
             element_modified=time.time(),
@@ -290,6 +291,7 @@ class TestCachedRepresentation:
         cached = CachedRepresentation(
             element_id=12345,
             cut_height=1200.0,
+            symbology_version=0,
             linework=MockLinework([]),
             timestamp=old_time,
             element_modified=old_time,

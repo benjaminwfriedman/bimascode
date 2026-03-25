@@ -18,6 +18,7 @@ if TYPE_CHECKING:
     from bimascode.architecture.floor_type import FloorType
     from bimascode.architecture.opening import Opening
     from bimascode.drawing.primitives import Arc2D, Hatch2D, Line2D, Polyline2D
+    from bimascode.drawing.symbology import ElementSymbology
     from bimascode.drawing.view_base import ViewRange
 
 
@@ -336,6 +337,7 @@ class Floor(ElementInstance, FreestandingElementMixin):
         self,
         cut_height: float,
         view_range: "ViewRange",
+        symbology: "ElementSymbology | None" = None,
     ) -> list[Union["Line2D", "Arc2D", "Polyline2D", "Hatch2D"]]:
         """Generate floor plan linework for this floor.
 
@@ -344,6 +346,7 @@ class Floor(ElementInstance, FreestandingElementMixin):
         Args:
             cut_height: Z coordinate of the section cut
             view_range: View range parameters
+            symbology: Optional symbology settings (None uses AIA defaults)
 
         Returns:
             List of 2D geometry primitives
@@ -351,6 +354,11 @@ class Floor(ElementInstance, FreestandingElementMixin):
         from bimascode.drawing.hatch_patterns import get_hatch_pattern_for_layer
         from bimascode.drawing.line_styles import Layer, LineStyle
         from bimascode.drawing.primitives import Hatch2D, Point2D, Polyline2D
+        from bimascode.drawing.symbology import FillMode, get_default_symbology
+
+        # Use provided symbology or get default
+        if symbology is None:
+            symbology = get_default_symbology("Floor")
 
         result: list[Line2D | Arc2D | Polyline2D | Hatch2D] = []
 
@@ -359,9 +367,9 @@ class Floor(ElementInstance, FreestandingElementMixin):
         is_cut = bbox.min_z <= cut_height <= bbox.max_z
 
         if is_cut:
-            style = LineStyle.cut_medium()
+            style = symbology.cut_style or LineStyle.cut_medium()
         else:
-            style = LineStyle.visible()
+            style = symbology.visible_style or LineStyle.visible()
 
         # Create polyline from boundary
         boundary = self.boundary
@@ -375,8 +383,8 @@ class Floor(ElementInstance, FreestandingElementMixin):
             )
             result.append(floor_outline)
 
-            # Add per-layer hatches when floor is cut
-            if is_cut:
+            # Add per-layer hatches when floor is cut if symbology allows
+            if is_cut and symbology.show_hatching and symbology.fill_mode == FillMode.MATERIAL:
                 for layer in self.type.layers:
                     pattern = get_hatch_pattern_for_layer(layer)
                     hatch = Hatch2D(

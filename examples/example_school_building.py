@@ -34,77 +34,16 @@ from bimascode.architecture.door_type import DoorType, create_double_door_type
 from bimascode.architecture.floor_type import FloorType, LayerFunction
 from bimascode.architecture.wall_type import WallType
 from bimascode.architecture.window_type import WindowType
+from bimascode.drawing import ElementSymbology, FillMode, SymbologySettings
 from bimascode.drawing.dxf_exporter import DXFExporter
 from bimascode.drawing.floor_plan_view import FloorPlanView
 from bimascode.drawing.line_styles import LineStyle, LineWeight
-from bimascode.drawing.primitives import Point2D, Polyline2D
 from bimascode.drawing.view_base import ViewRange
 from bimascode.performance.representation_cache import RepresentationCache
 from bimascode.performance.spatial_index import SpatialIndex
 from bimascode.spatial.building import Building
 from bimascode.spatial.level import Level
 from bimascode.utils.materials import MaterialLibrary
-
-
-def add_window_outlines(result, windows, cut_height):
-    """Add black rectangular outlines around windows in the view result.
-
-    This creates a cleaner architectural representation with windows shown
-    as outlined rectangles rather than the default three-line representation.
-
-    Args:
-        result: ViewResult to add outlines to
-        windows: List of Window objects
-        cut_height: The cut height to check if windows are visible
-    """
-    import math
-
-    from bimascode.drawing.line_styles import Layer
-
-    outline_style = LineStyle(weight=LineWeight.MEDIUM, color=(0, 0, 0))
-
-    for window in windows:
-        bbox = window.get_bounding_box()
-        # Only add outline if window is cut by the view plane
-        if not (bbox.min_z <= cut_height <= bbox.max_z):
-            continue
-
-        wall = window._host_wall
-        wall_start = wall.start_point
-        wall_angle = wall.angle
-        half_wall = wall.width / 2.0
-
-        cos_a = math.cos(wall_angle)
-        sin_a = math.sin(wall_angle)
-
-        offset = window.offset
-        width = window.width
-
-        # Window jamb positions along wall
-        left_x = wall_start[0] + offset * cos_a
-        left_y = wall_start[1] + offset * sin_a
-        right_x = wall_start[0] + (offset + width) * cos_a
-        right_y = wall_start[1] + (offset + width) * sin_a
-
-        # Use full wall width for outline (perpendicular to wall)
-        perp_out = half_wall * 0.35  # Same as window jamb lines
-
-        # Four corners of the rectangle
-        corners = [
-            Point2D(left_x - perp_out * sin_a, left_y + perp_out * cos_a),
-            Point2D(right_x - perp_out * sin_a, right_y + perp_out * cos_a),
-            Point2D(right_x + perp_out * sin_a, right_y - perp_out * cos_a),
-            Point2D(left_x + perp_out * sin_a, left_y - perp_out * cos_a),
-        ]
-
-        outline = Polyline2D(
-            points=corners,
-            closed=True,
-            style=outline_style,
-            layer=Layer.WINDOW,
-        )
-        result.polylines.append(outline)
-
 
 # Building dimensions (mm)
 CLASSROOM_WIDTH = 9000  # 9m wide classrooms
@@ -889,18 +828,39 @@ def main():
 
     cache = RepresentationCache()
 
+    # Configure symbology
+    symbology = SymbologySettings()
+
+    # Windows: outline only with empty fill
+    symbology.set(
+        Window,
+        ElementSymbology(
+            cut_style=LineStyle(weight=LineWeight.MEDIUM, color=(0, 0, 0)),
+            outline_only=True,
+            fill_mode=FillMode.EMPTY,
+        ),
+    )
+
+    # Walls: solid black fill
+    symbology.set(
+        Wall,
+        ElementSymbology(
+            cut_style=LineStyle(weight=LineWeight.MEDIUM, color=(0, 0, 0)),
+            fill_mode=FillMode.SOLID,
+            fill_color=(0, 0, 0),
+            show_hatching=False,
+        ),
+    )
+
     # Floor plan
     print("  Generating floor plan...")
     view_range = ViewRange(cut_height=1200, top=3000, bottom=0, view_depth=0)
     floor_plan = FloorPlanView(name="Ground Floor Plan", level=ground, view_range=view_range)
-    result = floor_plan.generate(spatial_index, cache)
-
-    # Add window outlines (black rectangles with empty fill)
-    add_window_outlines(result, all_windows, view_range.cut_height)
+    result = floor_plan.generate(spatial_index, cache, symbology=symbology)
 
     print(f"    Elements: {result.element_count}, Geometry: {result.total_geometry_count}")
     print(f"    Lines: {len(result.lines)}, Arcs: {len(result.arcs)}")
-    print(f"    Polylines: {len(result.polylines)} (includes window outlines)")
+    print(f"    Polylines: {len(result.polylines)}")
     print(f"    Generation time: {result.generation_time*1000:.1f}ms")
 
     exporter = DXFExporter()

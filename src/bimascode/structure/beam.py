@@ -18,6 +18,7 @@ if TYPE_CHECKING:
     from build123d import Location
 
     from bimascode.drawing.primitives import Arc2D, Hatch2D, Line2D, Polyline2D
+    from bimascode.drawing.symbology import ElementSymbology
     from bimascode.drawing.view_base import ViewRange
     from bimascode.structure.beam_type import BeamType
 
@@ -364,6 +365,7 @@ class Beam(ElementInstance, FreestandingElementMixin):
         self,
         cut_height: float,
         view_range: "ViewRange",
+        symbology: "ElementSymbology | None" = None,
     ) -> list[Union["Line2D", "Arc2D", "Polyline2D", "Hatch2D"]]:
         """Generate floor plan linework for this beam.
 
@@ -373,12 +375,18 @@ class Beam(ElementInstance, FreestandingElementMixin):
         Args:
             cut_height: Z coordinate of the section cut
             view_range: View range parameters
+            symbology: Optional symbology settings (None uses AIA defaults)
 
         Returns:
             List of 2D geometry primitives
         """
         from bimascode.drawing.line_styles import Layer, LineStyle
         from bimascode.drawing.primitives import Point2D, Polyline2D
+        from bimascode.drawing.symbology import get_default_symbology
+
+        # Use provided symbology or get default
+        if symbology is None:
+            symbology = get_default_symbology("Beam")
 
         result: list[Line2D | Arc2D | Polyline2D | Hatch2D] = []
 
@@ -390,10 +398,10 @@ class Beam(ElementInstance, FreestandingElementMixin):
             return result
         elif bbox.min_z > cut_height:
             # Beam is above cut plane - show with dashed lines
-            style = LineStyle.above_cut()
+            style = symbology.above_style or LineStyle.above_cut()
         else:
             # Beam is cut - show with solid lines
-            style = LineStyle.cut_heavy()
+            style = symbology.cut_style or LineStyle.cut_heavy()
 
         # Calculate beam outline in plan view
         start = self.start_point

@@ -51,6 +51,14 @@ from bimascode.drawing.protocols import (
     Linework2D,
 )
 
+# Symbology
+from bimascode.drawing.symbology import (
+    ElementSymbology,
+    FillMode,
+    SymbologySettings,
+    get_default_symbology,
+)
+
 # Utilities
 from bimascode.drawing.section_cutter import SectionCutter, get_section_cutter
 from bimascode.drawing.section_view import SectionView
@@ -100,6 +108,11 @@ __all__ = [
     "HasBoundingBox",
     "HasGeometry",
     "Linework2D",
+    # Symbology
+    "ElementSymbology",
+    "FillMode",
+    "SymbologySettings",
+    "get_default_symbology",
     # Views
     "FloorPlanView",
     "SectionView",

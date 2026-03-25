@@ -22,6 +22,7 @@ from bimascode.drawing.primitives import (
 )
 
 if TYPE_CHECKING:
+    from bimascode.drawing.symbology import SymbologySettings
     from bimascode.performance.representation_cache import RepresentationCache
     from bimascode.performance.spatial_index import SpatialIndex
 
@@ -746,6 +747,7 @@ class ViewBase(ABC):
         name: str,
         scale: ViewScale = ViewScale.SCALE_1_100,
         crop_region: ViewCropRegion | None = None,
+        symbology: SymbologySettings | None = None,
     ):
         """Initialize a view.
 
@@ -753,11 +755,13 @@ class ViewBase(ABC):
             name: View name
             scale: View scale
             crop_region: Optional crop region
+            symbology: Optional symbology settings for element visualization
         """
         self.name = name
         self.scale = scale
         self.crop_region = crop_region
         self._template = None
+        self._symbology = symbology
 
     @property
     def template(self):
@@ -768,6 +772,16 @@ class ViewBase(ABC):
     def template(self, value):
         """Set the view template."""
         self._template = value
+
+    @property
+    def symbology(self) -> SymbologySettings | None:
+        """Get the view's symbology settings."""
+        return self._symbology
+
+    @symbology.setter
+    def symbology(self, value: SymbologySettings | None) -> None:
+        """Set symbology settings for this view."""
+        self._symbology = value
 
     @abstractmethod
     def generate(
