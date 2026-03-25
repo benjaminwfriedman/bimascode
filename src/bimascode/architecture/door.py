@@ -38,6 +38,7 @@ class Door(ElementInstance, HostedElementMixin):
         offset: Length | float,
         sill_height: Length | float = 0.0,
         name: str | None = None,
+        mark: str | None = None,
     ):
         """
         Create a door.
@@ -48,10 +49,12 @@ class Door(ElementInstance, HostedElementMixin):
             offset: Distance from wall start point to door start
             sill_height: Height from floor to bottom of door (usually 0)
             name: Optional name for this door
+            mark: Optional mark/identifier for tagging (e.g., "101", "D-1")
         """
         super().__init__(door_type, name)
 
         self._host_wall = host_wall
+        self._mark = mark
 
         # Store geometric parameters
         self.set_parameter("offset", normalize_length(offset).mm, override=False)
@@ -90,6 +93,16 @@ class Door(ElementInstance, HostedElementMixin):
     def level(self):
         """Get the level from the host wall."""
         return self._host_wall.level
+
+    @property
+    def mark(self) -> str | None:
+        """Get the door mark/identifier for tagging."""
+        return self._mark
+
+    @mark.setter
+    def mark(self, value: str | None) -> None:
+        """Set the door mark/identifier."""
+        self._mark = value
 
     def get_opening_geometry(self):
         """

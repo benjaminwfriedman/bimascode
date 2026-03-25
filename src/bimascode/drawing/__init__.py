@@ -63,6 +63,9 @@ from bimascode.drawing.symbology import (
 from bimascode.drawing.section_cutter import SectionCutter, get_section_cutter
 from bimascode.drawing.section_view import SectionView
 
+# Tags
+from bimascode.drawing.tags import DoorTag, Tag2D, TagShape, TagStyle, WindowTag
+
 # View base classes
 from bimascode.drawing.view_base import (
     ViewBase,
@@ -131,4 +134,10 @@ __all__ = [
     "get_hlr_processor",
     "DXFExporter",
     "get_dxf_exporter",
+    # Tags
+    "DoorTag",
+    "WindowTag",
+    "TagStyle",
+    "TagShape",
+    "Tag2D",
 ]

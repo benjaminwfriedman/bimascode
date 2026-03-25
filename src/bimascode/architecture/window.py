@@ -38,6 +38,7 @@ class Window(ElementInstance, HostedElementMixin):
         offset: Length | float,
         sill_height: Length | float | None = None,
         name: str | None = None,
+        mark: str | None = None,
     ):
         """
         Create a window.
@@ -49,10 +50,12 @@ class Window(ElementInstance, HostedElementMixin):
             sill_height: Height from floor to bottom of window
                         (defaults to type's default_sill_height)
             name: Optional name for this window
+            mark: Optional mark/identifier for tagging (e.g., "W-1", "A")
         """
         super().__init__(window_type, name)
 
         self._host_wall = host_wall
+        self._mark = mark
 
         # Store geometric parameters
         self.set_parameter("offset", normalize_length(offset).mm, override=False)
@@ -95,6 +98,16 @@ class Window(ElementInstance, HostedElementMixin):
     def level(self):
         """Get the level from the host wall."""
         return self._host_wall.level
+
+    @property
+    def mark(self) -> str | None:
+        """Get the window mark/identifier for tagging."""
+        return self._mark
+
+    @mark.setter
+    def mark(self, value: str | None) -> None:
+        """Set the window mark/identifier."""
+        self._mark = value
 
     def get_opening_geometry(self):
         """

@@ -38,6 +38,7 @@ from bimascode.drawing.dxf_exporter import DXFExporter
 from bimascode.drawing.floor_plan_view import FloorPlanView
 from bimascode.drawing.line_styles import LineWeight
 from bimascode.drawing.primitives import Point2D, TextAlignment, TextNote2D
+from bimascode.drawing.tags import DoorTag, TagStyle, WindowTag
 from bimascode.drawing.section_view import SectionView
 from bimascode.drawing.view_base import ViewRange, ViewScale
 from bimascode.drawing.view_templates import CategoryVisibility, GraphicOverride, ViewTemplate
@@ -243,6 +244,7 @@ def create_core(level, types, floor_num):
         walls[0],
         offset=CORE_WIDTH / 2 - door_type.width / 2,
         name=f"Core_Door_F{floor_num}",
+        mark=f"D-C{floor_num}",
     )
     doors.append(core_door)
 
@@ -279,27 +281,41 @@ def create_ground_floor(building, types):
         wall_south,
         offset=BUILDING_LENGTH / 2 - types["glass_door"].width / 2,
         name="Main_Entry",
+        mark="D-01",
     )
     all_doors.append(main_entry)
 
     # Windows on exterior walls
     window_type = types["curtain_window"]
+    win_num = 1
     for i in range(4):
         # South windows (skip center for door)
         if i != 1 and i != 2:
-            win = Window(window_type, wall_south, offset=3000 + i * 6000, name=f"Win_S_{i}")
+            win = Window(
+                window_type, wall_south, offset=3000 + i * 6000, name=f"Win_S_{i}", mark=f"W-{win_num:02d}"
+            )
             all_windows.append(win)
+            win_num += 1
         # North windows
-        win = Window(window_type, wall_north, offset=3000 + i * 6000, name=f"Win_N_{i}")
+        win = Window(
+            window_type, wall_north, offset=3000 + i * 6000, name=f"Win_N_{i}", mark=f"W-{win_num:02d}"
+        )
         all_windows.append(win)
+        win_num += 1
 
     for i in range(3):
         # East windows
-        win = Window(window_type, wall_east, offset=2500 + i * 5000, name=f"Win_E_{i}")
+        win = Window(
+            window_type, wall_east, offset=2500 + i * 5000, name=f"Win_E_{i}", mark=f"W-{win_num:02d}"
+        )
         all_windows.append(win)
+        win_num += 1
         # West windows
-        win = Window(window_type, wall_west, offset=2500 + i * 5000, name=f"Win_W_{i}")
+        win = Window(
+            window_type, wall_west, offset=2500 + i * 5000, name=f"Win_W_{i}", mark=f"W-{win_num:02d}"
+        )
         all_windows.append(win)
+        win_num += 1
 
     # Reception area (front, south-west corner)
     reception_width = 8000
@@ -353,6 +369,7 @@ def create_ground_floor(building, types):
             room_east,
             offset=meeting_room_depth / 2 - types["single_door"].width / 2,
             name=f"Meeting{i+1}_Door_G",
+            mark=f"D-{i+2:02d}",
         )
         all_doors.append(door)
 
@@ -419,14 +436,27 @@ def create_first_floor(building, types):
 
     # Windows
     window_type = types["curtain_window"]
+    win_num = 20  # Start numbering for first floor
     for i in range(5):
-        win_s = Window(window_type, wall_south, offset=2000 + i * 5500, name=f"Win_S1_{i}")
-        win_n = Window(window_type, wall_north, offset=2000 + i * 5500, name=f"Win_N1_{i}")
+        win_s = Window(
+            window_type, wall_south, offset=2000 + i * 5500, name=f"Win_S1_{i}", mark=f"W-{win_num:02d}"
+        )
+        win_num += 1
+        win_n = Window(
+            window_type, wall_north, offset=2000 + i * 5500, name=f"Win_N1_{i}", mark=f"W-{win_num:02d}"
+        )
+        win_num += 1
         all_windows.extend([win_s, win_n])
 
     for i in range(3):
-        win_e = Window(window_type, wall_east, offset=2500 + i * 5000, name=f"Win_E1_{i}")
-        win_w = Window(window_type, wall_west, offset=2500 + i * 5000, name=f"Win_W1_{i}")
+        win_e = Window(
+            window_type, wall_east, offset=2500 + i * 5000, name=f"Win_E1_{i}", mark=f"W-{win_num:02d}"
+        )
+        win_num += 1
+        win_w = Window(
+            window_type, wall_west, offset=2500 + i * 5000, name=f"Win_W1_{i}", mark=f"W-{win_num:02d}"
+        )
+        win_num += 1
         all_windows.extend([win_e, win_w])
 
     # Private offices along south wall (6 offices, 4m x 4m each)
@@ -458,6 +488,7 @@ def create_first_floor(building, types):
             corridor_wall,
             offset=office_x + office_width / 2 - types["single_door"].width / 2,
             name=f"Office{i+1}_Door_1",
+            mark=f"D-{10+i:02d}",
         )
         all_doors.append(door)
 
@@ -501,6 +532,7 @@ def create_first_floor(building, types):
             conf_corridor,
             offset=conf_x + conf_width / 2 - types["double_door"].width / 2,
             name=f"Conf{i+1}_Door_1",
+            mark=f"D-{20+i:02d}",
         )
         all_doors.append(door)
 
@@ -690,6 +722,21 @@ def add_ground_floor_annotations(result):
     )
 
 
+def add_tags(result, doors, windows):
+    """Add door and window tags to floor plan."""
+    # Door tags with hexagon style
+    door_style = TagStyle(size=600.0, text_height=150.0)
+    for door in doors:
+        if door.mark:
+            result.door_tags.append(DoorTag(door=door, style=door_style))
+
+    # Window tags with circle style
+    window_style = TagStyle.window_default()
+    for window in windows:
+        if window.mark:
+            result.window_tags.append(WindowTag(window=window, style=window_style))
+
+
 def add_first_floor_annotations(result):
     """Add text notes to first floor plan."""
     # Office labels
@@ -759,7 +806,15 @@ def add_first_floor_annotations(result):
 
 
 def generate_floor_plan(
-    name, level, spatial_index, cache, output_path, template=None, add_annotations_fn=None
+    name,
+    level,
+    spatial_index,
+    cache,
+    output_path,
+    template=None,
+    add_annotations_fn=None,
+    doors=None,
+    windows=None,
 ):
     """Generate and export a floor plan."""
     print(f"  Generating {name}...")
@@ -772,9 +827,15 @@ def generate_floor_plan(
     if add_annotations_fn:
         add_annotations_fn(result)
 
+    # Add door and window tags
+    if doors or windows:
+        add_tags(result, doors or [], windows or [])
+
     print(f"    Elements: {result.element_count}, Geometry: {result.total_geometry_count}")
     if result.text_notes:
         print(f"    Text notes: {len(result.text_notes)}")
+    if result.door_tags or result.window_tags:
+        print(f"    Tags: {len(result.door_tags)} doors, {len(result.window_tags)} windows")
 
     exporter = DXFExporter()
     exporter.export(result, str(output_path))
@@ -893,6 +954,8 @@ def main():
         output_dir / "ground_floor_arch.dxf",
         arch_template,
         add_ground_floor_annotations,
+        doors=g_doors,
+        windows=g_windows,
     )
     generate_floor_plan(
         "Ground Floor - Structural",
@@ -910,6 +973,8 @@ def main():
         output_dir / "first_floor_arch.dxf",
         arch_template,
         add_first_floor_annotations,
+        doors=f_doors,
+        windows=f_windows,
     )
     generate_floor_plan(
         "First Floor - Structural",

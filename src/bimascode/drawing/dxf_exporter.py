@@ -20,6 +20,7 @@ from bimascode.drawing.primitives import (
     TextNote2D,
     ViewResult,
 )
+from bimascode.drawing.tags import DoorTag, TagShape, WindowTag
 
 if TYPE_CHECKING:
     pass
@@ -119,6 +120,8 @@ class DXFExporter:
         self._export_dimensions(msp, view_result.dimensions, scale)
         self._export_chain_dimensions(msp, view_result.chain_dimensions, scale)
         self._export_text_notes(msp, view_result.text_notes, scale)
+        self._export_door_tags(doc, msp, view_result.door_tags, scale)
+        self._export_window_tags(doc, msp, view_result.window_tags, scale)
 
         # Save file
         doc.saveas(filepath)
@@ -143,6 +146,10 @@ class DXFExporter:
             layers.add(chain.layer)
         for text in view_result.text_notes:
             layers.add(text.layer)
+        for tag in view_result.door_tags:
+            layers.add(tag.layer)
+        for tag in view_result.window_tags:
+            layers.add(tag.layer)
 
         # Create layers with standard AIA colors
         layer_colors = {
@@ -156,6 +163,7 @@ class DXFExporter:
             Layer.BEAM: 3,  # Green
             Layer.ANNOTATION: 7,  # White
             Layer.DIMENSION: 7,  # White
+            Layer.SYMBOL: 7,  # White (for tags)
             "0": 7,  # Default layer
         }
 
@@ -384,6 +392,157 @@ class DXFExporter:
                 insert=(text.position.x * scale, text.position.y * scale),
             )
 
+    def _create_tag_block(
+        self,
+        doc,
+        block_name: str,
+        shape: TagShape,
+        size: float,
+        text_height: float,
+    ) -> None:
+        """Create a tag block definition if it doesn't exist.
+
+        Args:
+            doc: DXF document
+            block_name: Name for the block
+            shape: Tag shape (hexagon, circle, etc.)
+            size: Size of the tag symbol in mm
+            text_height: Height of the text in mm
+        """
+        if block_name in doc.blocks:
+            return
+
+        block = doc.blocks.new(name=block_name)
+        half_size = size / 2
+
+        if shape == TagShape.CIRCLE:
+            # Draw circle
+            block.add_circle(center=(0, 0), radius=half_size)
+        elif shape == TagShape.HEXAGON:
+            # Draw hexagon (6 sides)
+            import math
+
+            points = []
+            for i in range(6):
+                angle = math.pi / 6 + i * math.pi / 3  # Start at 30 degrees
+                x = half_size * math.cos(angle)
+                y = half_size * math.sin(angle)
+                points.append((x, y))
+            block.add_lwpolyline(points, close=True)
+        elif shape == TagShape.RECTANGLE:
+            # Draw rectangle
+            block.add_lwpolyline(
+                [
+                    (-half_size, -half_size * 0.6),
+                    (half_size, -half_size * 0.6),
+                    (half_size, half_size * 0.6),
+                    (-half_size, half_size * 0.6),
+                ],
+                close=True,
+            )
+        elif shape == TagShape.DIAMOND:
+            # Draw diamond
+            block.add_lwpolyline(
+                [
+                    (0, half_size),
+                    (half_size, 0),
+                    (0, -half_size),
+                    (-half_size, 0),
+                ],
+                close=True,
+            )
+
+        # Add attribute definition for the mark text
+        block.add_attdef(
+            tag="MARK",
+            insert=(0, 0),
+            dxfattribs={
+                "height": text_height,
+                "halign": 4,  # Middle center
+                "valign": 2,  # Middle
+            },
+        )
+
+    def _export_door_tags(
+        self,
+        doc,
+        msp,
+        tags: list[DoorTag],
+        scale: float,
+    ) -> None:
+        """Export DoorTag objects to DXF as BLOCK references with ATTRIB."""
+        for tag in tags:
+            # Skip tags without text
+            if not tag.text:
+                continue
+
+            # Create block definition if needed
+            self._create_tag_block(
+                doc,
+                tag.block_name,
+                tag.style.shape,
+                tag.style.size * scale,
+                tag.style.text_height * scale,
+            )
+
+            # Insert block reference
+            insert_point = (
+                tag.insertion_point.x * scale,
+                tag.insertion_point.y * scale,
+            )
+
+            block_ref = msp.add_blockref(
+                tag.block_name,
+                insert=insert_point,
+                dxfattribs={
+                    "layer": tag.layer,
+                    "rotation": tag.rotation,
+                },
+            )
+
+            # Add attribute with the mark value
+            block_ref.add_auto_attribs({"MARK": tag.text})
+
+    def _export_window_tags(
+        self,
+        doc,
+        msp,
+        tags: list[WindowTag],
+        scale: float,
+    ) -> None:
+        """Export WindowTag objects to DXF as BLOCK references with ATTRIB."""
+        for tag in tags:
+            # Skip tags without text
+            if not tag.text:
+                continue
+
+            # Create block definition if needed
+            self._create_tag_block(
+                doc,
+                tag.block_name,
+                tag.style.shape,
+                tag.style.size * scale,
+                tag.style.text_height * scale,
+            )
+
+            # Insert block reference
+            insert_point = (
+                tag.insertion_point.x * scale,
+                tag.insertion_point.y * scale,
+            )
+
+            block_ref = msp.add_blockref(
+                tag.block_name,
+                insert=insert_point,
+                dxfattribs={
+                    "layer": tag.layer,
+                    "rotation": tag.rotation,
+                },
+            )
+
+            # Add attribute with the mark value
+            block_ref.add_auto_attribs({"MARK": tag.text})
+
     def export_multiple(
         self,
         views: list[tuple[ViewResult, tuple[float, float]]],
@@ -426,6 +585,10 @@ class DXFExporter:
                 all_layers.add(chain.layer)
             for text in view_result.text_notes:
                 all_layers.add(text.layer)
+            for tag in view_result.door_tags:
+                all_layers.add(tag.layer)
+            for tag in view_result.window_tags:
+                all_layers.add(tag.layer)
 
         # Setup layers and line types
         for layer_name in all_layers:
@@ -445,6 +608,8 @@ class DXFExporter:
             self._export_dimensions(msp, translated.dimensions, scale)
             self._export_chain_dimensions(msp, translated.chain_dimensions, scale)
             self._export_text_notes(msp, translated.text_notes, scale)
+            self._export_door_tags(doc, msp, translated.door_tags, scale)
+            self._export_window_tags(doc, msp, translated.window_tags, scale)
 
         # Save file
         doc.saveas(filepath)
