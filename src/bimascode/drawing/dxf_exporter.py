@@ -280,11 +280,17 @@ class DXFExporter:
             if hatch_obj.pattern == "SOLID":
                 hatch.set_solid_fill()
             else:
-                # Use predefined pattern
+                # Use predefined pattern with rotation
                 hatch.set_pattern_fill(
                     hatch_obj.pattern,
                     scale=hatch_obj.scale,
+                    angle=hatch_obj.rotation,
                 )
+
+            # Apply RGB color if specified
+            if hatch_obj.color is not None:
+                r, g, b = hatch_obj.color
+                hatch.rgb = (r, g, b)
 
             # Add boundary
             points = [(p.x * scale, p.y * scale) for p in hatch_obj.boundary]

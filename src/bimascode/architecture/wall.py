@@ -404,6 +404,7 @@ class Wall(ElementInstance, FreestandingElementMixin):
         Returns:
             List of 2D geometry primitives
         """
+        from bimascode.drawing.hatch_patterns import get_hatch_pattern_for_layer
         from bimascode.drawing.line_styles import Layer, LineStyle
         from bimascode.drawing.primitives import Hatch2D, Point2D, Polyline2D
 
@@ -476,15 +477,20 @@ class Wall(ElementInstance, FreestandingElementMixin):
                 layer=Layer.WALL,
             )
             result.append(wall_outline)
-            # Add solid fill for cut walls
+            # Add per-layer hatches for cut walls
             if is_cut:
-                hatch = Hatch2D(
-                    boundary=corners,
-                    pattern="SOLID",
-                    scale=1.0,
-                    layer=Layer.WALL,
+                result.extend(
+                    self._generate_layer_hatches(
+                        adj_start_x,
+                        adj_start_y,
+                        adj_end_x,
+                        adj_end_y,
+                        cos_a,
+                        sin_a,
+                        half_width,
+                        get_hatch_pattern_for_layer,
+                    )
                 )
-                result.append(hatch)
         else:
             # Draw wall segments between openings
             # Build list of solid segments: (start_offset, end_offset)
@@ -530,17 +536,96 @@ class Wall(ElementInstance, FreestandingElementMixin):
                     layer=Layer.WALL,
                 )
                 result.append(seg_outline)
-                # Add solid fill for cut wall segments
+                # Add per-layer hatches for cut wall segments
                 if is_cut:
-                    hatch = Hatch2D(
-                        boundary=corners,
-                        pattern="SOLID",
-                        scale=1.0,
-                        layer=Layer.WALL,
+                    result.extend(
+                        self._generate_layer_hatches(
+                            s_x,
+                            s_y,
+                            e_x,
+                            e_y,
+                            cos_a,
+                            sin_a,
+                            half_width,
+                            get_hatch_pattern_for_layer,
+                        )
                     )
-                    result.append(hatch)
 
         return result
+
+    def _generate_layer_hatches(
+        self,
+        start_x: float,
+        start_y: float,
+        end_x: float,
+        end_y: float,
+        cos_a: float,
+        sin_a: float,
+        half_width: float,
+        get_hatch_pattern_for_layer,
+    ) -> list:
+        """Generate per-layer hatches for a wall segment.
+
+        Creates one hatch per material layer, positioned from exterior to interior.
+
+        Args:
+            start_x, start_y: Segment start point on centerline
+            end_x, end_y: Segment end point on centerline
+            cos_a, sin_a: Direction cosines for wall angle
+            half_width: Half of total wall width
+            get_hatch_pattern_for_layer: Function to get hatch pattern for a layer
+
+        Returns:
+            List of Hatch2D objects, one per layer
+        """
+        from bimascode.drawing.line_styles import Layer
+        from bimascode.drawing.primitives import Hatch2D, Point2D
+
+        hatches = []
+
+        # Current offset from centerline, starting at exterior edge
+        current_offset = -half_width
+
+        for layer in self.type.layers:
+            layer_thickness = layer.thickness_mm
+
+            # Calculate perpendicular offsets for this layer's edges
+            # Exterior edge of this layer
+            ext_offset = current_offset
+            # Interior edge of this layer
+            int_offset = current_offset + layer_thickness
+
+            # Perpendicular vectors for each edge
+            ext_perp_x = -sin_a * ext_offset
+            ext_perp_y = cos_a * ext_offset
+            int_perp_x = -sin_a * int_offset
+            int_perp_y = cos_a * int_offset
+
+            # Layer boundary corners (exterior edge first, then interior)
+            layer_corners = [
+                Point2D(start_x - ext_perp_x, start_y - ext_perp_y),
+                Point2D(end_x - ext_perp_x, end_y - ext_perp_y),
+                Point2D(end_x - int_perp_x, end_y - int_perp_y),
+                Point2D(start_x - int_perp_x, start_y - int_perp_y),
+            ]
+
+            # Get material-based hatch pattern
+            pattern = get_hatch_pattern_for_layer(layer)
+
+            hatch = Hatch2D(
+                boundary=layer_corners,
+                pattern=pattern.name,
+                scale=pattern.scale,
+                rotation=pattern.rotation,
+                color=pattern.color,
+                layer=Layer.WALL,
+            )
+            hatches.append(hatch)
+
+            # Move to next layer
+            current_offset += layer_thickness
+
+        return hatches
 
     def __repr__(self) -> str:
         return (

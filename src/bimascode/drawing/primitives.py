@@ -298,8 +298,9 @@ class Hatch2D:
 
     Attributes:
         boundary: List of boundary points (closed polygon)
-        pattern: Hatch pattern name (e.g., "SOLID", "ANSI31")
+        pattern: Hatch pattern name (e.g., "SOLID", "ANSI31", "AR-CONC")
         scale: Pattern scale factor
+        rotation: Pattern rotation in degrees
         color: Fill color as RGB tuple (0-255)
         layer: CAD layer name
     """
@@ -307,6 +308,7 @@ class Hatch2D:
     boundary: list[Point2D]
     pattern: str = "SOLID"
     scale: float = 1.0
+    rotation: float = 0.0
     color: tuple[int, int, int] | None = None
     layer: str = "0"
 
@@ -321,6 +323,7 @@ class Hatch2D:
             boundary=[p.translate(dx, dy) for p in self.boundary],
             pattern=self.pattern,
             scale=self.scale,
+            rotation=self.rotation,
             color=self.color,
             layer=self.layer,
         )

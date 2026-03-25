@@ -348,8 +348,9 @@ class Floor(ElementInstance, FreestandingElementMixin):
         Returns:
             List of 2D geometry primitives
         """
+        from bimascode.drawing.hatch_patterns import get_hatch_pattern_for_layer
         from bimascode.drawing.line_styles import Layer, LineStyle
-        from bimascode.drawing.primitives import Point2D, Polyline2D
+        from bimascode.drawing.primitives import Hatch2D, Point2D, Polyline2D
 
         result: list[Line2D | Arc2D | Polyline2D | Hatch2D] = []
 
@@ -373,6 +374,20 @@ class Floor(ElementInstance, FreestandingElementMixin):
                 layer=Layer.FLOOR,
             )
             result.append(floor_outline)
+
+            # Add per-layer hatches when floor is cut
+            if is_cut:
+                for layer in self.type.layers:
+                    pattern = get_hatch_pattern_for_layer(layer)
+                    hatch = Hatch2D(
+                        boundary=points,
+                        pattern=pattern.name,
+                        scale=pattern.scale,
+                        rotation=pattern.rotation,
+                        color=pattern.color,
+                        layer=Layer.FLOOR,
+                    )
+                    result.append(hatch)
 
         return result
 

@@ -34,6 +34,7 @@ from bimascode.architecture import (
 from bimascode.architecture.ceiling_type import CeilingType
 from bimascode.architecture.door_type import DoorType, create_double_door_type
 from bimascode.architecture.floor_type import FloorType, LayerFunction
+from bimascode.architecture.wall_type import WallType
 from bimascode.architecture.window_type import WindowType
 from bimascode.drawing.dxf_exporter import DXFExporter
 from bimascode.drawing.floor_plan_view import FloorPlanView
@@ -63,11 +64,31 @@ def create_materials_and_types():
     concrete = MaterialLibrary.concrete()
     wood = MaterialLibrary.timber()
     gypsum = MaterialLibrary.gypsum_board()
+    insulation = MaterialLibrary.insulation_mineral_wool()
+    brick = MaterialLibrary.brick()
+
+    # Create compound exterior wall type with multiple layers
+    # This demonstrates per-layer hatching with different material patterns:
+    # - Brick exterior (AR-BRSTD pattern)
+    # - Insulation (INSUL pattern)
+    # - Concrete structure (AR-CONC pattern)
+    # - Gypsum interior (SOLID with color)
+    exterior_wall_type = WallType("Exterior Wall - Compound")
+    exterior_wall_type.add_layer(brick, 100, LayerFunction.FINISH_EXTERIOR)
+    exterior_wall_type.add_layer(insulation, 50, LayerFunction.THERMAL_INSULATION)
+    exterior_wall_type.add_layer(concrete, 100, LayerFunction.STRUCTURE, structural=True)
+    exterior_wall_type.add_layer(gypsum, 12.5, LayerFunction.FINISH_INTERIOR)
+
+    # Interior wall with gypsum on both sides and wood studs
+    interior_wall_type = WallType("Interior Wall - Stud")
+    interior_wall_type.add_layer(gypsum, 12.5, LayerFunction.FINISH_INTERIOR)
+    interior_wall_type.add_layer(wood, 90, LayerFunction.STRUCTURE, structural=True)
+    interior_wall_type.add_layer(gypsum, 12.5, LayerFunction.FINISH_INTERIOR)
 
     types = {
-        # Walls
-        "exterior_wall": create_basic_wall_type("Exterior Wall", EXT_WALL_THICKNESS, concrete),
-        "interior_wall": create_basic_wall_type("Interior Wall", INT_WALL_THICKNESS, gypsum),
+        # Walls - compound types for per-layer hatching
+        "exterior_wall": exterior_wall_type,
+        "interior_wall": interior_wall_type,
         "garage_wall": create_basic_wall_type("Garage Wall", 200, concrete),
         # Doors
         "entry_door": DoorType(name="Entry Door", width=1000, height=2200),
@@ -109,9 +130,17 @@ def create_materials_and_types():
         "roof": FloorType("Flat Roof"),
     }
 
-    # Add floor layers
+    # Add floor layers - compound for hatching demonstration
+    # Ground floor: concrete slab with insulation below
+    types["ground_floor"].add_layer(insulation, 50, LayerFunction.THERMAL_INSULATION)
     types["ground_floor"].add_layer(concrete, 150, LayerFunction.STRUCTURE, structural=True)
+
+    # Upper floor: wood structure with gypsum ceiling below
+    types["upper_floor"].add_layer(gypsum, 12.5, LayerFunction.FINISH_INTERIOR)
     types["upper_floor"].add_layer(wood, 200, LayerFunction.STRUCTURE, structural=True)
+
+    # Roof: concrete with insulation
+    types["roof"].add_layer(insulation, 100, LayerFunction.THERMAL_INSULATION)
     types["roof"].add_layer(concrete, 150, LayerFunction.STRUCTURE, structural=True)
 
     return types
