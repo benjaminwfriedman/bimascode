@@ -20,7 +20,7 @@ from bimascode.drawing.primitives import (
     TextNote2D,
     ViewResult,
 )
-from bimascode.drawing.tags import DoorTag, TagShape, WindowTag
+from bimascode.drawing.tags import DoorTag, RoomTag, TagShape, WindowTag
 
 if TYPE_CHECKING:
     pass
@@ -122,6 +122,7 @@ class DXFExporter:
         self._export_text_notes(msp, view_result.text_notes, scale)
         self._export_door_tags(doc, msp, view_result.door_tags, scale)
         self._export_window_tags(doc, msp, view_result.window_tags, scale)
+        self._export_room_tags(doc, msp, view_result.room_tags, scale)
 
         # Save file
         doc.saveas(filepath)
@@ -149,6 +150,8 @@ class DXFExporter:
         for tag in view_result.door_tags:
             layers.add(tag.layer)
         for tag in view_result.window_tags:
+            layers.add(tag.layer)
+        for tag in view_result.room_tags:
             layers.add(tag.layer)
 
         # Create layers with standard AIA colors
@@ -543,6 +546,144 @@ class DXFExporter:
             # Add attribute with the mark value
             block_ref.add_auto_attribs({"MARK": tag.text})
 
+    def _create_room_tag_block(
+        self,
+        doc,
+        block_name: str,
+        shape: TagShape,
+        size: float,
+        width: float,
+        text_height: float,
+    ) -> None:
+        """Create a room tag block definition if it doesn't exist.
+
+        Room tags display two lines of text: room name and room number.
+        The block is sized to accommodate both lines.
+
+        Args:
+            doc: DXF document
+            block_name: Name for the block
+            shape: Tag shape (rectangle recommended for rooms)
+            size: Size of the tag symbol in mm (height for rectangle)
+            width: Width of the tag symbol in mm (for rectangle)
+            text_height: Height of the text in mm
+        """
+        if block_name in doc.blocks:
+            return
+
+        block = doc.blocks.new(name=block_name)
+        half_width = width / 2
+        half_height = size / 2
+
+        if shape == TagShape.CIRCLE:
+            # Draw circle (use larger of width/height as diameter)
+            radius = max(half_width, half_height)
+            block.add_circle(center=(0, 0), radius=radius)
+        elif shape == TagShape.HEXAGON:
+            import math
+
+            # Use larger dimension for hexagon
+            hex_size = max(half_width, half_height)
+            points = []
+            for i in range(6):
+                angle = math.pi / 6 + i * math.pi / 3
+                x = hex_size * math.cos(angle)
+                y = hex_size * math.sin(angle)
+                points.append((x, y))
+            block.add_lwpolyline(points, close=True)
+        elif shape == TagShape.RECTANGLE:
+            # Draw rectangle (default for room tags)
+            block.add_lwpolyline(
+                [
+                    (-half_width, -half_height),
+                    (half_width, -half_height),
+                    (half_width, half_height),
+                    (-half_width, half_height),
+                ],
+                close=True,
+            )
+        elif shape == TagShape.DIAMOND:
+            block.add_lwpolyline(
+                [
+                    (0, half_height),
+                    (half_width, 0),
+                    (0, -half_height),
+                    (-half_width, 0),
+                ],
+                close=True,
+            )
+
+        # Add attribute definition for room NAME (upper line)
+        line_spacing = text_height * 1.5
+        block.add_attdef(
+            tag="NAME",
+            insert=(0, line_spacing / 2),
+            dxfattribs={
+                "height": text_height,
+                "halign": 4,  # Middle center
+                "valign": 2,  # Middle
+            },
+        )
+
+        # Add attribute definition for room NUMBER (lower line)
+        block.add_attdef(
+            tag="NUMBER",
+            insert=(0, -line_spacing / 2),
+            dxfattribs={
+                "height": text_height,
+                "halign": 4,  # Middle center
+                "valign": 2,  # Middle
+            },
+        )
+
+    def _export_room_tags(
+        self,
+        doc,
+        msp,
+        tags: list[RoomTag],
+        scale: float,
+    ) -> None:
+        """Export RoomTag objects to DXF as BLOCK references with ATTRIB.
+
+        Room tags display both room name and room number as separate
+        attribute values within the block.
+        """
+        for tag in tags:
+            # Skip tags without any text
+            if not tag.name_text and not tag.number_text:
+                continue
+
+            # Create block definition if needed
+            self._create_room_tag_block(
+                doc,
+                tag.block_name,
+                tag.style.shape,
+                tag.style.size * scale,
+                tag.calculated_width * scale,
+                tag.style.text_height * scale,
+            )
+
+            # Insert block reference
+            insert_point = (
+                tag.insertion_point.x * scale,
+                tag.insertion_point.y * scale,
+            )
+
+            block_ref = msp.add_blockref(
+                tag.block_name,
+                insert=insert_point,
+                dxfattribs={
+                    "layer": tag.layer,
+                    "rotation": tag.rotation,
+                },
+            )
+
+            # Add attributes with the name and number values
+            block_ref.add_auto_attribs({
+                "NAME": tag.name_text,
+                "NUMBER": tag.number_text,
+            })
+
     def export_multiple(
         self,
         views: list[tuple[ViewResult, tuple[float, float]]],
@@ -589,6 +730,8 @@ class DXFExporter:
                 all_layers.add(tag.layer)
             for tag in view_result.window_tags:
                 all_layers.add(tag.layer)
+            for tag in view_result.room_tags:
+                all_layers.add(tag.layer)
 
         # Setup layers and line types
         for layer_name in all_layers:
@@ -610,6 +753,7 @@ class DXFExporter:
             self._export_text_notes(msp, translated.text_notes, scale)
             self._export_door_tags(doc, msp, translated.door_tags, scale)
             self._export_window_tags(doc, msp, translated.window_tags, scale)
+            self._export_room_tags(doc, msp, translated.room_tags, scale)
 
         # Save file
         doc.saveas(filepath)

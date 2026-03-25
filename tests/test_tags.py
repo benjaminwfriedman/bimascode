@@ -1,5 +1,5 @@
 """
-Tests for door and window tags.
+Tests for door, window, and room tags.
 """
 
 import pytest
@@ -11,9 +11,10 @@ from bimascode.architecture.wall_type import LayerFunction, WallType
 from bimascode.architecture.window import Window
 from bimascode.architecture.window_type import create_standard_window_type
 from bimascode.drawing.primitives import Point2D, ViewResult
-from bimascode.drawing.tags import DoorTag, TagShape, TagStyle, WindowTag
+from bimascode.drawing.tags import DoorTag, RoomTag, TagShape, TagStyle, WindowTag
 from bimascode.spatial.building import Building
 from bimascode.spatial.level import Level
+from bimascode.spatial.room import Room
 from bimascode.utils.materials import MaterialLibrary
 
 
@@ -36,6 +37,16 @@ class TestTagStyle:
         assert style.shape == TagShape.CIRCLE
         assert style.size == 450.0
         assert style.text_height == 150.0
+
+    def test_default_room_style(self):
+        """Test default room tag style."""
+        style = TagStyle.room_default()
+
+        assert style.shape == TagShape.RECTANGLE
+        assert style.size == 400.0  # Height
+        assert style.width is None  # Auto-size based on text length
+        assert style.text_height == 120.0
+        assert style.show_border is True
 
     def test_custom_style(self):
         """Test creating a custom tag style."""
@@ -369,3 +380,212 @@ class TestWindowMarkProperty:
 
         window.mark = "A"
         assert window.mark == "A"
+
+
+class TestRoomTag:
+    """Tests for RoomTag class."""
+
+    @pytest.fixture
+    def room(self):
+        """Create a room for testing."""
+        building = Building("Test Building")
+        level = Level(building, "Ground Floor", elevation=0)
+
+        # Simple rectangular boundary
+        boundary = [
+            (0, 0),
+            (4000, 0),
+            (4000, 3000),
+            (0, 3000),
+        ]
+
+        return Room("Living Room", "101", boundary, level)
+
+    def test_room_tag_creation(self, room):
+        """Test creating a room tag."""
+        tag = RoomTag(room=room)
+
+        assert tag.room == room
+        assert tag.name_text == "Living Room"
+        assert tag.number_text == "101"
+        assert tag.style.shape == TagShape.RECTANGLE
+
+    def test_room_tag_text_combined(self, room):
+        """Test combined text property."""
+        tag = RoomTag(room=room)
+
+        assert tag.text == "Living Room\n101"
+
+    def test_room_tag_insertion_point_auto(self, room):
+        """Test automatic tag position from room centroid."""
+        tag = RoomTag(room=room)
+
+        position = tag.insertion_point
+        centroid = room.get_centroid()
+
+        assert position.x == centroid[0]
+        assert position.y == centroid[1]
+        # For a 4000x3000 rectangle, centroid should be at (2000, 1500)
+        assert position.x == 2000.0
+        assert position.y == 1500.0
+
+    def test_room_tag_custom_position(self, room):
+        """Test tag with custom position override."""
+        custom_pos = Point2D(1000, 1000)
+        tag = RoomTag(room=room, position=custom_pos)
+
+        assert tag.insertion_point == custom_pos
+        assert tag.insertion_point.x == 1000
+        assert tag.insertion_point.y == 1000
+
+    def test_room_tag_custom_style(self, room):
+        """Test tag with custom style."""
+        style = TagStyle(shape=TagShape.CIRCLE, size=500.0, text_height=100.0)
+        tag = RoomTag(room=room, style=style)
+
+        assert tag.style.shape == TagShape.CIRCLE
+        assert tag.style.size == 500.0
+        assert tag.style.text_height == 100.0
+
+    def test_room_tag_translate(self, room):
+        """Test translating a room tag."""
+        tag = RoomTag(room=room)
+        original_pos = tag.insertion_point
+
+        translated = tag.translate(100, 200)
+
+        assert translated.insertion_point.x == original_pos.x + 100
+        assert translated.insertion_point.y == original_pos.y + 200
+        assert translated.room == room
+
+    def test_room_tag_block_name(self, room):
+        """Test block name generation includes style parameters."""
+        tag = RoomTag(room=room)
+
+        # Default style: size=400 (height), auto-calculated width, text_height=120
+        # "Living Room" = 11 chars, width = 11 * (120 * 0.8) + (120 * 2.5) = 1356
+        assert tag.block_name == "ROOM_TAG_RECTANGLE_400_1356_120"
+
+    def test_room_tag_calculated_width_auto(self, room):
+        """Test auto-calculated width based on text length."""
+        tag = RoomTag(room=room)
+
+        # "Living Room" = 11 chars
+        # char_width = 120 * 0.8 = 96
+        # padding = 120 * 2.5 = 300
+        # calculated = 11 * 96 + 300 = 1356
+        assert tag.calculated_width == 1356.0
+
+    def test_room_tag_calculated_width_explicit(self, room):
+        """Test explicit width overrides auto-calculation."""
+        style = TagStyle(
+            shape=TagShape.RECTANGLE,
+            size=400.0,
+            text_height=120.0,
+            width=2000.0,  # Explicit width
+        )
+        tag = RoomTag(room=room, style=style)
+
+        assert tag.calculated_width == 2000.0
+
+    def test_room_tag_layer(self, room):
+        """Test tag layer property."""
+        tag = RoomTag(room=room)
+
+        from bimascode.drawing.line_styles import Layer
+
+        assert tag.layer == Layer.SYMBOL
+
+    def test_room_tag_rotation(self, room):
+        """Test tag rotation property."""
+        tag = RoomTag(room=room, rotation=45.0)
+
+        assert tag.rotation == 45.0
+
+    def test_room_tag_empty_name(self):
+        """Test tag when room has empty name."""
+        building = Building("Test Building")
+        level = Level(building, "Ground Floor", elevation=0)
+        boundary = [(0, 0), (1000, 0), (1000, 1000), (0, 1000)]
+
+        room = Room("", "102", boundary, level)
+        tag = RoomTag(room=room)
+
+        assert tag.name_text == ""
+        assert tag.number_text == "102"
+        assert tag.text == "102"
+
+    def test_room_tag_empty_number(self):
+        """Test tag when room has empty number."""
+        building = Building("Test Building")
+        level = Level(building, "Ground Floor", elevation=0)
+        boundary = [(0, 0), (1000, 0), (1000, 1000), (0, 1000)]
+
+        room = Room("Kitchen", "", boundary, level)
+        tag = RoomTag(room=room)
+
+        assert tag.name_text == "Kitchen"
+        assert tag.number_text == ""
+        assert tag.text == "Kitchen"
+
+
+class TestViewResultWithRoomTags:
+    """Tests for ViewResult with room tag support."""
+
+    @pytest.fixture
+    def room_tag(self):
+        """Create a room tag for testing."""
+        building = Building("Test Building")
+        level = Level(building, "Ground Floor", elevation=0)
+        boundary = [(0, 0), (5000, 0), (5000, 4000), (0, 4000)]
+
+        room = Room("Office", "201", boundary, level)
+        return RoomTag(room=room)
+
+    def test_view_result_with_room_tags(self, room_tag):
+        """Test ViewResult containing room tags."""
+        result = ViewResult(room_tags=[room_tag])
+
+        assert len(result.room_tags) == 1
+        assert result.room_tags[0].name_text == "Office"
+        assert result.room_tags[0].number_text == "201"
+
+    def test_view_result_total_count_includes_room_tags(self, room_tag):
+        """Test that total_geometry_count includes room tags."""
+        result = ViewResult(room_tags=[room_tag])
+
+        assert result.total_geometry_count == 1
+
+    def test_view_result_extend_with_room_tags(self, room_tag):
+        """Test extending ViewResult preserves room tags."""
+        result1 = ViewResult()
+        result2 = ViewResult(room_tags=[room_tag])
+
+        result1.extend(result2)
+
+        assert len(result1.room_tags) == 1
+        assert result1.room_tags[0].number_text == "201"
+
+    def test_view_result_translate_with_room_tags(self, room_tag):
+        """Test translating ViewResult includes room tags."""
+        result = ViewResult(room_tags=[room_tag])
+
+        original_pos = room_tag.insertion_point
+
+        translated = result.translate(500, 300)
+
+        assert translated.room_tags[0].insertion_point.x == original_pos.x + 500
+        assert translated.room_tags[0].insertion_point.y == original_pos.y + 300
+
+    def test_view_result_bounds_includes_room_tags(self, room_tag):
+        """Test that get_bounds includes room tag positions."""
+        result = ViewResult(room_tags=[room_tag])
+
+        bounds = result.get_bounds()
+
+        assert bounds is not None
+        min_x, min_y, max_x, max_y = bounds
+
+        # Bounds should include room tag position
+        assert min_x <= room_tag.insertion_point.x <= max_x
+        assert min_y <= room_tag.insertion_point.y <= max_y

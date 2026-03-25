@@ -64,7 +64,7 @@ from bimascode.drawing.section_cutter import SectionCutter, get_section_cutter
 from bimascode.drawing.section_view import SectionView
 
 # Tags
-from bimascode.drawing.tags import DoorTag, Tag2D, TagShape, TagStyle, WindowTag
+from bimascode.drawing.tags import DoorTag, RoomTag, Tag2D, TagShape, TagStyle, WindowTag
 
 # View base classes
 from bimascode.drawing.view_base import (
@@ -137,6 +137,7 @@ __all__ = [
     # Tags
     "DoorTag",
     "WindowTag",
+    "RoomTag",
     "TagStyle",
     "TagShape",
     "Tag2D",
