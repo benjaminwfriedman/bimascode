@@ -453,8 +453,93 @@ class LinearDimension2D:
         )
 
 
+@dataclass(frozen=True)
+class ChainDimension2D:
+    """2D chain dimension connecting multiple points along a continuous baseline.
+
+    Represents a series of connected dimension segments that share a common
+    baseline. Used for dimensioning wall runs, grid lines, or any series of
+    aligned points.
+
+    Attributes:
+        points: Sequence of measurement points (minimum 2)
+        offset: Perpendicular distance from baseline to dimension line
+        text: Dimension text for segments ("<>" = auto-calculate)
+        precision: Decimal places for auto-calculated text
+        style: Line styling for dimension/extension lines
+        layer: CAD layer name
+
+    Example:
+        >>> points = [Point2D(0, 0), Point2D(1000, 0), Point2D(2500, 0)]
+        >>> chain = ChainDimension2D(points=points, offset=500)
+        >>> len(chain.segments)  # 2 segments
+        2
+    """
+
+    points: tuple[Point2D, ...]
+    offset: float
+    text: str = "<>"
+    precision: int = 0
+    style: LineStyle = field(default_factory=LineStyle.default)
+    layer: str = "G-ANNO-DIMS"
+
+    def __post_init__(self):
+        """Validate that at least 2 points are provided."""
+        if len(self.points) < 2:
+            raise ValueError("ChainDimension2D requires at least 2 points")
+
+    @property
+    def num_segments(self) -> int:
+        """Get the number of dimension segments."""
+        return len(self.points) - 1
+
+    @property
+    def segments(self) -> list[LinearDimension2D]:
+        """Generate individual LinearDimension2D segments.
+
+        Returns:
+            List of LinearDimension2D objects, one for each consecutive
+            pair of points.
+        """
+        result = []
+        for i in range(len(self.points) - 1):
+            result.append(
+                LinearDimension2D(
+                    start=self.points[i],
+                    end=self.points[i + 1],
+                    offset=self.offset,
+                    text=self.text,
+                    precision=self.precision,
+                    style=self.style,
+                    layer=self.layer,
+                )
+            )
+        return result
+
+    @property
+    def total_distance(self) -> float:
+        """Get the total distance across all segments."""
+        total = 0.0
+        for i in range(len(self.points) - 1):
+            total += self.points[i].distance_to(self.points[i + 1])
+        return total
+
+    def translate(self, dx: float, dy: float) -> ChainDimension2D:
+        """Return a translated copy."""
+        return ChainDimension2D(
+            points=tuple(p.translate(dx, dy) for p in self.points),
+            offset=self.offset,
+            text=self.text,
+            precision=self.precision,
+            style=self.style,
+            layer=self.layer,
+        )
+
+
 # Type alias for any 2D geometry primitive
-Geometry2D = Union[Line2D, Arc2D, Polyline2D, Hatch2D, LinearDimension2D, TextNote2D]
+Geometry2D = Union[
+    Line2D, Arc2D, Polyline2D, Hatch2D, LinearDimension2D, ChainDimension2D, TextNote2D
+]
 
 
 @dataclass
@@ -469,7 +554,8 @@ class ViewResult:
         arcs: List of arcs
         polylines: List of polylines
         hatches: List of hatches
-        dimensions: List of dimensions
+        dimensions: List of linear dimensions
+        chain_dimensions: List of chain dimensions
         view_name: Name of the view that generated this result
         generation_time: Time taken to generate in seconds
         element_count: Number of elements processed
@@ -481,6 +567,7 @@ class ViewResult:
     polylines: list[Polyline2D] = field(default_factory=list)
     hatches: list[Hatch2D] = field(default_factory=list)
     dimensions: list[LinearDimension2D] = field(default_factory=list)
+    chain_dimensions: list[ChainDimension2D] = field(default_factory=list)
     text_notes: list[TextNote2D] = field(default_factory=list)
     view_name: str = ""
     generation_time: float = 0.0
@@ -496,6 +583,7 @@ class ViewResult:
             + len(self.polylines)
             + len(self.hatches)
             + len(self.dimensions)
+            + len(self.chain_dimensions)
             + len(self.text_notes)
         )
 
@@ -508,6 +596,7 @@ class ViewResult:
         result.extend(self.polylines)
         result.extend(self.hatches)
         result.extend(self.dimensions)
+        result.extend(self.chain_dimensions)
         result.extend(self.text_notes)
         return result
 
@@ -518,6 +607,7 @@ class ViewResult:
         self.polylines.extend(other.polylines)
         self.hatches.extend(other.hatches)
         self.dimensions.extend(other.dimensions)
+        self.chain_dimensions.extend(other.chain_dimensions)
         self.text_notes.extend(other.text_notes)
         self.element_count += other.element_count
         self.cache_hits += other.cache_hits
@@ -530,6 +620,7 @@ class ViewResult:
             polylines=[pl.translate(dx, dy) for pl in self.polylines],
             hatches=[h.translate(dx, dy) for h in self.hatches],
             dimensions=[d.translate(dx, dy) for d in self.dimensions],
+            chain_dimensions=[c.translate(dx, dy) for c in self.chain_dimensions],
             text_notes=[t.translate(dx, dy) for t in self.text_notes],
             view_name=self.view_name,
             generation_time=self.generation_time,
@@ -574,6 +665,17 @@ class ViewResult:
             offset_y = dim.offset * math.sin(perp_angle)
             all_points.append(Point2D(dim.start.x + offset_x, dim.start.y + offset_y))
             all_points.append(Point2D(dim.end.x + offset_x, dim.end.y + offset_y))
+
+        for chain in self.chain_dimensions:
+            # Include all chain points and offset positions
+            for seg in chain.segments:
+                all_points.append(seg.start)
+                all_points.append(seg.end)
+                perp_angle = seg.angle + math.pi / 2
+                offset_x = seg.offset * math.cos(perp_angle)
+                offset_y = seg.offset * math.sin(perp_angle)
+                all_points.append(Point2D(seg.start.x + offset_x, seg.start.y + offset_y))
+                all_points.append(Point2D(seg.end.x + offset_x, seg.end.y + offset_y))
 
         for text in self.text_notes:
             # Include text position (approximate - actual bounds depend on content)
