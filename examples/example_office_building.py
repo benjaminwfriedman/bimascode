@@ -32,6 +32,7 @@ from bimascode.architecture import (
 from bimascode.architecture.ceiling_type import CeilingType
 from bimascode.architecture.door_type import DoorType, create_double_door_type
 from bimascode.architecture.floor_type import FloorType, LayerFunction
+from bimascode.architecture.wall_type import WallType
 from bimascode.architecture.window_type import WindowType
 from bimascode.drawing.dxf_exporter import DXFExporter
 from bimascode.drawing.floor_plan_view import FloorPlanView
@@ -71,11 +72,27 @@ def create_materials_and_types():
     """Create all material and element types."""
     concrete = MaterialLibrary.concrete()
     steel = MaterialLibrary.steel()
+    glass = MaterialLibrary.glass()
+    insulation = MaterialLibrary.insulation_mineral_wool()
+    gypsum = MaterialLibrary.gypsum_board()
+
+    # Compound exterior wall: glass + insulation + concrete
+    # Demonstrates per-layer hatching with different patterns
+    exterior_wall_type = WallType("Exterior Wall - Curtain")
+    exterior_wall_type.add_layer(glass, 25, LayerFunction.FINISH_EXTERIOR)
+    exterior_wall_type.add_layer(insulation, 75, LayerFunction.THERMAL_INSULATION)
+    exterior_wall_type.add_layer(concrete, 200, LayerFunction.STRUCTURE, structural=True)
+
+    # Interior partition: gypsum + steel stud + gypsum
+    interior_wall_type = WallType("Interior Partition")
+    interior_wall_type.add_layer(gypsum, 12.5, LayerFunction.FINISH_INTERIOR)
+    interior_wall_type.add_layer(steel, 75, LayerFunction.STRUCTURE)
+    interior_wall_type.add_layer(gypsum, 12.5, LayerFunction.FINISH_INTERIOR)
 
     types = {
-        # Walls
-        "exterior_wall": create_basic_wall_type("Exterior Wall", 300, concrete),
-        "interior_wall": create_basic_wall_type("Interior Wall", 150, concrete),
+        # Walls - compound types for per-layer hatching
+        "exterior_wall": exterior_wall_type,
+        "interior_wall": interior_wall_type,
         "core_wall": create_basic_wall_type("Core Wall", 200, concrete),
         # Doors
         "single_door": DoorType(name="Single Door", width=900, height=2100),
@@ -108,7 +125,8 @@ def create_materials_and_types():
         ),
     }
 
-    # Add floor layers
+    # Add floor layers - compound for hatching demonstration
+    types["floor"].add_layer(insulation, 50, LayerFunction.THERMAL_INSULATION)
     types["floor"].add_layer(concrete, 200, LayerFunction.STRUCTURE, structural=True)
 
     return types

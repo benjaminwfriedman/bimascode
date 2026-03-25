@@ -27,21 +27,84 @@ from bimascode.architecture import (
     Floor,
     Wall,
     Window,
-    create_basic_wall_type,
     detect_and_process_wall_joins,
 )
 from bimascode.architecture.ceiling_type import CeilingType
 from bimascode.architecture.door_type import DoorType, create_double_door_type
 from bimascode.architecture.floor_type import FloorType, LayerFunction
+from bimascode.architecture.wall_type import WallType
 from bimascode.architecture.window_type import WindowType
 from bimascode.drawing.dxf_exporter import DXFExporter
 from bimascode.drawing.floor_plan_view import FloorPlanView
+from bimascode.drawing.line_styles import LineStyle, LineWeight
+from bimascode.drawing.primitives import Point2D, Polyline2D
 from bimascode.drawing.view_base import ViewRange
 from bimascode.performance.representation_cache import RepresentationCache
 from bimascode.performance.spatial_index import SpatialIndex
 from bimascode.spatial.building import Building
 from bimascode.spatial.level import Level
 from bimascode.utils.materials import MaterialLibrary
+
+
+def add_window_outlines(result, windows, cut_height):
+    """Add black rectangular outlines around windows in the view result.
+
+    This creates a cleaner architectural representation with windows shown
+    as outlined rectangles rather than the default three-line representation.
+
+    Args:
+        result: ViewResult to add outlines to
+        windows: List of Window objects
+        cut_height: The cut height to check if windows are visible
+    """
+    import math
+
+    from bimascode.drawing.line_styles import Layer
+
+    outline_style = LineStyle(weight=LineWeight.MEDIUM, color=(0, 0, 0))
+
+    for window in windows:
+        bbox = window.get_bounding_box()
+        # Only add outline if window is cut by the view plane
+        if not (bbox.min_z <= cut_height <= bbox.max_z):
+            continue
+
+        wall = window._host_wall
+        wall_start = wall.start_point
+        wall_angle = wall.angle
+        half_wall = wall.width / 2.0
+
+        cos_a = math.cos(wall_angle)
+        sin_a = math.sin(wall_angle)
+
+        offset = window.offset
+        width = window.width
+
+        # Window jamb positions along wall
+        left_x = wall_start[0] + offset * cos_a
+        left_y = wall_start[1] + offset * sin_a
+        right_x = wall_start[0] + (offset + width) * cos_a
+        right_y = wall_start[1] + (offset + width) * sin_a
+
+        # Use full wall width for outline (perpendicular to wall)
+        perp_out = half_wall * 0.35  # Same as window jamb lines
+
+        # Four corners of the rectangle
+        corners = [
+            Point2D(left_x - perp_out * sin_a, left_y + perp_out * cos_a),
+            Point2D(right_x - perp_out * sin_a, right_y + perp_out * cos_a),
+            Point2D(right_x + perp_out * sin_a, right_y - perp_out * cos_a),
+            Point2D(left_x + perp_out * sin_a, left_y - perp_out * cos_a),
+        ]
+
+        outline = Polyline2D(
+            points=corners,
+            closed=True,
+            style=outline_style,
+            layer=Layer.WINDOW,
+        )
+        result.polylines.append(outline)
+
 
 # Building dimensions (mm)
 CLASSROOM_WIDTH = 9000  # 9m wide classrooms
@@ -59,13 +122,34 @@ BATHROOM_DEPTH = 4500
 def create_materials_and_types():
     """Create all materials and element types."""
     concrete = MaterialLibrary.concrete()
-    cmu = MaterialLibrary.concrete()  # Using concrete for CMU
+    brick = MaterialLibrary.brick()
+    insulation = MaterialLibrary.insulation_mineral_wool()
+    gypsum = MaterialLibrary.gypsum_board()
+
+    # Compound exterior wall: brick + insulation + CMU + gypsum
+    # Demonstrates per-layer hatching with different patterns
+    exterior_wall_type = WallType("Exterior CMU Wall - Compound")
+    exterior_wall_type.add_layer(brick, 100, LayerFunction.FINISH_EXTERIOR)
+    exterior_wall_type.add_layer(insulation, 50, LayerFunction.THERMAL_INSULATION)
+    exterior_wall_type.add_layer(concrete, 150, LayerFunction.STRUCTURE, structural=True)
+
+    # Interior wall: gypsum + concrete + gypsum
+    interior_wall_type = WallType("Interior Wall - Finished")
+    interior_wall_type.add_layer(gypsum, 12.5, LayerFunction.FINISH_INTERIOR)
+    interior_wall_type.add_layer(concrete, 100, LayerFunction.STRUCTURE)
+    interior_wall_type.add_layer(gypsum, 12.5, LayerFunction.FINISH_INTERIOR)
+
+    # Corridor wall: concrete CMU (thicker)
+    corridor_wall_type = WallType("Corridor Wall - CMU")
+    corridor_wall_type.add_layer(gypsum, 12.5, LayerFunction.FINISH_INTERIOR)
+    corridor_wall_type.add_layer(concrete, 175, LayerFunction.STRUCTURE, structural=True)
+    corridor_wall_type.add_layer(gypsum, 12.5, LayerFunction.FINISH_INTERIOR)
 
     types = {
-        # Walls
-        "exterior_wall": create_basic_wall_type("Exterior CMU Wall", 300, cmu),
-        "interior_wall": create_basic_wall_type("Interior Wall", 150, concrete),
-        "corridor_wall": create_basic_wall_type("Corridor Wall", 200, cmu),
+        # Walls - compound types for per-layer hatching
+        "exterior_wall": exterior_wall_type,
+        "interior_wall": interior_wall_type,
+        "corridor_wall": corridor_wall_type,
         # Doors
         "classroom_door": DoorType(name="Classroom Door", width=900, height=2100),
         "double_door": create_double_door_type("Double Door", width=1800, height=2100),
@@ -98,6 +182,8 @@ def create_materials_and_types():
         "gym_ceiling": CeilingType("Exposed Structure", thickness=10),
     }
 
+    # Floor layers - compound for hatching demonstration
+    types["floor"].add_layer(insulation, 50, LayerFunction.THERMAL_INSULATION)
     types["floor"].add_layer(concrete, 150, LayerFunction.STRUCTURE, structural=True)
 
     return types
@@ -750,7 +836,9 @@ def main():
         max(w_bounds[0] + w_bounds[2], e_bounds[0] + e_bounds[2], c_bounds[0] + c_bounds[2]) + 500
     )
     # Y bounds: from south entry to north of gym
-    min_y = c_bounds[1] - 8000  # South of central wing (entry lobby)
+    # The lobby extends south from central_start_y (-6000)
+    central_start_y_floor = -6000  # Same as central_start_y passed to create_central_wing
+    min_y = central_start_y_floor - 500  # South of entry lobby
     # Gym extends from gym_start_y to gym_start_y + 24000 (gym_depth)
     gym_depth = 24000
     max_y = gym_start_y + gym_depth + 500  # Include full gym
@@ -807,8 +895,12 @@ def main():
     floor_plan = FloorPlanView(name="Ground Floor Plan", level=ground, view_range=view_range)
     result = floor_plan.generate(spatial_index, cache)
 
+    # Add window outlines (black rectangles with empty fill)
+    add_window_outlines(result, all_windows, view_range.cut_height)
+
     print(f"    Elements: {result.element_count}, Geometry: {result.total_geometry_count}")
     print(f"    Lines: {len(result.lines)}, Arcs: {len(result.arcs)}")
+    print(f"    Polylines: {len(result.polylines)} (includes window outlines)")
     print(f"    Generation time: {result.generation_time*1000:.1f}ms")
 
     exporter = DXFExporter()

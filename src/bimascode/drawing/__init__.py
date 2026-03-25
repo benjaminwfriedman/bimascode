@@ -16,6 +16,13 @@ from bimascode.drawing.elevation_view import (
 
 # View types
 from bimascode.drawing.floor_plan_view import FloorPlanView
+
+# Hatch patterns
+from bimascode.drawing.hatch_patterns import (
+    HatchPattern,
+    get_hatch_pattern_for_layer,
+    get_hatch_pattern_for_material,
+)
 from bimascode.drawing.hlr_processor import HLRProcessor, get_hlr_processor
 
 # Line styles
@@ -79,6 +86,10 @@ __all__ = [
     "LineType",
     "LineStyle",
     "Layer",
+    # Hatch patterns
+    "HatchPattern",
+    "get_hatch_pattern_for_material",
+    "get_hatch_pattern_for_layer",
     # View base
     "ViewRange",
     "ViewScale",

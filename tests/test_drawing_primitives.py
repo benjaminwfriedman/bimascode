@@ -248,6 +248,30 @@ class TestHatch2D:
         assert hatch.pattern == "SOLID"
         assert hatch.layer == "A-WALL"
 
+    def test_hatch_with_rotation(self):
+        """Test creating a hatch with rotation."""
+        boundary = [Point2D(0, 0), Point2D(100, 0), Point2D(100, 100), Point2D(0, 100)]
+        hatch = Hatch2D(
+            boundary=boundary,
+            pattern="ANSI31",
+            scale=0.5,
+            rotation=45.0,
+            layer="A-WALL",
+        )
+        assert hatch.rotation == 45.0
+        assert hatch.scale == 0.5
+        assert hatch.pattern == "ANSI31"
+
+    def test_hatch_with_color(self):
+        """Test creating a hatch with RGB color."""
+        boundary = [Point2D(0, 0), Point2D(100, 0), Point2D(100, 100), Point2D(0, 100)]
+        hatch = Hatch2D(
+            boundary=boundary,
+            pattern="SOLID",
+            color=(200, 230, 255),
+        )
+        assert hatch.color == (200, 230, 255)
+
     def test_hatch_translate(self):
         """Test hatch translation."""
         boundary = [Point2D(0, 0), Point2D(100, 0), Point2D(100, 100), Point2D(0, 100)]
@@ -255,6 +279,19 @@ class TestHatch2D:
         hatch2 = hatch.translate(50, 50)
         assert hatch2.boundary[0].x == 50
         assert hatch2.boundary[0].y == 50
+
+    def test_hatch_translate_preserves_rotation(self):
+        """Test that translation preserves rotation."""
+        boundary = [Point2D(0, 0), Point2D(100, 0), Point2D(100, 100), Point2D(0, 100)]
+        hatch = Hatch2D(boundary=boundary, pattern="ANSI31", rotation=30.0)
+        hatch2 = hatch.translate(50, 50)
+        assert hatch2.rotation == 30.0
+
+    def test_hatch_default_rotation(self):
+        """Test that hatch defaults to 0 rotation."""
+        boundary = [Point2D(0, 0), Point2D(100, 0), Point2D(100, 100)]
+        hatch = Hatch2D(boundary=boundary)
+        assert hatch.rotation == 0.0
 
 
 class TestLinearDimension2D:
