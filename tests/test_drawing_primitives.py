@@ -9,6 +9,7 @@ import pytest
 from bimascode.drawing.line_styles import LineStyle
 from bimascode.drawing.primitives import (
     Arc2D,
+    ChainDimension2D,
     Hatch2D,
     Line2D,
     LinearDimension2D,
@@ -754,3 +755,257 @@ class TestViewResult:
         )
         all_geom = result.all_geometry
         assert len(all_geom) == 2
+
+
+class TestChainDimension2D:
+    """Tests for ChainDimension2D class."""
+
+    def test_chain_dimension_creation(self):
+        """Test creating a chain dimension."""
+        points = (Point2D(0, 0), Point2D(1000, 0), Point2D(2500, 0))
+        chain = ChainDimension2D(
+            points=points,
+            offset=500,
+            style=LineStyle.dimension(),
+        )
+        assert len(chain.points) == 3
+        assert chain.offset == 500
+        assert chain.layer == "G-ANNO-DIMS"
+
+    def test_chain_dimension_frozen(self):
+        """Test that ChainDimension2D is immutable."""
+        points = (Point2D(0, 0), Point2D(1000, 0))
+        chain = ChainDimension2D(
+            points=points,
+            offset=500,
+            style=LineStyle.dimension(),
+        )
+        with pytest.raises(AttributeError):
+            chain.offset = 600
+
+    def test_chain_dimension_minimum_points(self):
+        """Test that at least 2 points are required."""
+        with pytest.raises(ValueError, match="at least 2 points"):
+            ChainDimension2D(
+                points=(Point2D(0, 0),),
+                offset=500,
+                style=LineStyle.dimension(),
+            )
+
+    def test_chain_dimension_empty_points(self):
+        """Test that empty points raises error."""
+        with pytest.raises(ValueError, match="at least 2 points"):
+            ChainDimension2D(
+                points=(),
+                offset=500,
+                style=LineStyle.dimension(),
+            )
+
+    def test_chain_dimension_num_segments(self):
+        """Test num_segments property."""
+        points = (Point2D(0, 0), Point2D(1000, 0), Point2D(2500, 0), Point2D(4000, 0))
+        chain = ChainDimension2D(
+            points=points,
+            offset=500,
+            style=LineStyle.dimension(),
+        )
+        assert chain.num_segments == 3
+
+    def test_chain_dimension_two_points_one_segment(self):
+        """Test that 2 points creates 1 segment."""
+        points = (Point2D(0, 0), Point2D(1000, 0))
+        chain = ChainDimension2D(
+            points=points,
+            offset=500,
+            style=LineStyle.dimension(),
+        )
+        assert chain.num_segments == 1
+
+    def test_chain_dimension_segments(self):
+        """Test segments property returns correct LinearDimension2D objects."""
+        points = (Point2D(0, 0), Point2D(1000, 0), Point2D(2500, 0))
+        chain = ChainDimension2D(
+            points=points,
+            offset=500,
+            precision=1,
+            style=LineStyle.dimension(),
+        )
+        segments = chain.segments
+        assert len(segments) == 2
+
+        # Check first segment
+        assert segments[0].start.x == 0
+        assert segments[0].end.x == 1000
+        assert segments[0].offset == 500
+        assert segments[0].precision == 1
+
+        # Check second segment
+        assert segments[1].start.x == 1000
+        assert segments[1].end.x == 2500
+        assert segments[1].offset == 500
+
+    def test_chain_dimension_total_distance(self):
+        """Test total_distance property."""
+        points = (Point2D(0, 0), Point2D(1000, 0), Point2D(2500, 0))
+        chain = ChainDimension2D(
+            points=points,
+            offset=500,
+            style=LineStyle.dimension(),
+        )
+        # 1000 + 1500 = 2500
+        assert chain.total_distance == 2500.0
+
+    def test_chain_dimension_total_distance_diagonal(self):
+        """Test total_distance with diagonal segments."""
+        points = (Point2D(0, 0), Point2D(3000, 4000))
+        chain = ChainDimension2D(
+            points=points,
+            offset=500,
+            style=LineStyle.dimension(),
+        )
+        # 3-4-5 triangle
+        assert chain.total_distance == 5000.0
+
+    def test_chain_dimension_translate(self):
+        """Test translate method."""
+        points = (Point2D(0, 0), Point2D(1000, 0), Point2D(2500, 0))
+        chain = ChainDimension2D(
+            points=points,
+            offset=500,
+            style=LineStyle.dimension(),
+        )
+        translated = chain.translate(100, 200)
+
+        assert translated.points[0].x == 100
+        assert translated.points[0].y == 200
+        assert translated.points[1].x == 1100
+        assert translated.points[1].y == 200
+        assert translated.points[2].x == 2600
+        assert translated.points[2].y == 200
+
+        # Original unchanged
+        assert chain.points[0].x == 0
+        assert chain.points[0].y == 0
+
+    def test_chain_dimension_default_text(self):
+        """Test default text is auto-calculate marker."""
+        points = (Point2D(0, 0), Point2D(1000, 0))
+        chain = ChainDimension2D(
+            points=points,
+            offset=500,
+            style=LineStyle.dimension(),
+        )
+        assert chain.text == "<>"
+
+    def test_chain_dimension_custom_text(self):
+        """Test custom text propagates to segments."""
+        points = (Point2D(0, 0), Point2D(1000, 0), Point2D(2000, 0))
+        chain = ChainDimension2D(
+            points=points,
+            offset=500,
+            text="1m",
+            style=LineStyle.dimension(),
+        )
+        segments = chain.segments
+        assert segments[0].text == "1m"
+        assert segments[1].text == "1m"
+
+    def test_chain_dimension_precision(self):
+        """Test precision propagates to segments."""
+        points = (Point2D(0, 0), Point2D(1000, 0))
+        chain = ChainDimension2D(
+            points=points,
+            offset=500,
+            precision=2,
+            style=LineStyle.dimension(),
+        )
+        segments = chain.segments
+        assert segments[0].precision == 2
+
+    def test_chain_dimension_layer(self):
+        """Test custom layer."""
+        points = (Point2D(0, 0), Point2D(1000, 0))
+        chain = ChainDimension2D(
+            points=points,
+            offset=500,
+            layer="CUSTOM-DIMS",
+            style=LineStyle.dimension(),
+        )
+        assert chain.layer == "CUSTOM-DIMS"
+        assert chain.segments[0].layer == "CUSTOM-DIMS"
+
+
+class TestViewResultChainDimensions:
+    """Tests for ViewResult chain_dimensions integration."""
+
+    def test_view_result_chain_dimensions_default(self):
+        """Test ViewResult has empty chain_dimensions by default."""
+        result = ViewResult()
+        assert result.chain_dimensions == []
+
+    def test_view_result_total_geometry_count_includes_chains(self):
+        """Test total_geometry_count includes chain dimensions."""
+        result = ViewResult()
+        result.chain_dimensions.append(
+            ChainDimension2D(
+                points=(Point2D(0, 0), Point2D(1000, 0)),
+                offset=500,
+                style=LineStyle.dimension(),
+            )
+        )
+        assert result.total_geometry_count == 1
+
+    def test_view_result_all_geometry_includes_chains(self):
+        """Test all_geometry includes chain dimensions."""
+        result = ViewResult()
+        chain = ChainDimension2D(
+            points=(Point2D(0, 0), Point2D(1000, 0)),
+            offset=500,
+            style=LineStyle.dimension(),
+        )
+        result.chain_dimensions.append(chain)
+        assert chain in result.all_geometry
+
+    def test_view_result_extend_includes_chains(self):
+        """Test extend method includes chain dimensions."""
+        result1 = ViewResult()
+        result2 = ViewResult()
+        chain = ChainDimension2D(
+            points=(Point2D(0, 0), Point2D(1000, 0)),
+            offset=500,
+            style=LineStyle.dimension(),
+        )
+        result2.chain_dimensions.append(chain)
+
+        result1.extend(result2)
+        assert len(result1.chain_dimensions) == 1
+
+    def test_view_result_translate_includes_chains(self):
+        """Test translate method translates chain dimensions."""
+        result = ViewResult()
+        chain = ChainDimension2D(
+            points=(Point2D(0, 0), Point2D(1000, 0)),
+            offset=500,
+            style=LineStyle.dimension(),
+        )
+        result.chain_dimensions.append(chain)
+
+        translated = result.translate(100, 200)
+        assert translated.chain_dimensions[0].points[0].x == 100
+        assert translated.chain_dimensions[0].points[0].y == 200
+
+    def test_view_result_get_bounds_includes_chains(self):
+        """Test get_bounds includes chain dimension points."""
+        result = ViewResult()
+        chain = ChainDimension2D(
+            points=(Point2D(0, 0), Point2D(1000, 0)),
+            offset=500,
+            style=LineStyle.dimension(),
+        )
+        result.chain_dimensions.append(chain)
+
+        bounds = result.get_bounds()
+        assert bounds is not None
+        min_x, min_y, max_x, max_y = bounds
+        assert min_x == 0
+        assert max_x == 1000

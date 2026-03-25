@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING
 from bimascode.drawing.line_styles import Layer, LineType, LineWeight
 from bimascode.drawing.primitives import (
     Arc2D,
+    ChainDimension2D,
     Hatch2D,
     Line2D,
     LinearDimension2D,
@@ -116,6 +117,7 @@ class DXFExporter:
         self._export_polylines(msp, view_result.polylines, scale)
         self._export_hatches(msp, view_result.hatches, scale)
         self._export_dimensions(msp, view_result.dimensions, scale)
+        self._export_chain_dimensions(msp, view_result.chain_dimensions, scale)
         self._export_text_notes(msp, view_result.text_notes, scale)
 
         # Save file
@@ -137,6 +139,8 @@ class DXFExporter:
             layers.add(hatch.layer)
         for dim in view_result.dimensions:
             layers.add(dim.layer)
+        for chain in view_result.chain_dimensions:
+            layers.add(chain.layer)
         for text in view_result.text_notes:
             layers.add(text.layer)
 
@@ -325,6 +329,21 @@ class DXFExporter:
             )
             dim_override.render()
 
+    def _export_chain_dimensions(
+        self,
+        msp,
+        chain_dimensions: list[ChainDimension2D],
+        scale: float,
+    ) -> None:
+        """Export ChainDimension2D objects to DXF DIMENSION entities.
+
+        Each chain dimension is decomposed into its LinearDimension2D
+        segments and exported as individual aligned dimensions.
+        """
+        for chain in chain_dimensions:
+            # Export each segment as a separate dimension
+            self._export_dimensions(msp, chain.segments, scale)
+
     def _export_text_notes(
         self,
         msp,
@@ -403,6 +422,8 @@ class DXFExporter:
                 all_layers.add(hatch.layer)
             for dim in view_result.dimensions:
                 all_layers.add(dim.layer)
+            for chain in view_result.chain_dimensions:
+                all_layers.add(chain.layer)
             for text in view_result.text_notes:
                 all_layers.add(text.layer)
 
@@ -422,6 +443,7 @@ class DXFExporter:
             self._export_polylines(msp, translated.polylines, scale)
             self._export_hatches(msp, translated.hatches, scale)
             self._export_dimensions(msp, translated.dimensions, scale)
+            self._export_chain_dimensions(msp, translated.chain_dimensions, scale)
             self._export_text_notes(msp, translated.text_notes, scale)
 
         # Save file
