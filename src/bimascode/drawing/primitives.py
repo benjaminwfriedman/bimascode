@@ -329,6 +329,72 @@ class Hatch2D:
         )
 
 
+class TextAlignment:
+    """Text alignment options for TextNote2D.
+
+    These values map directly to ezdxf MTEXT attachment points.
+    """
+
+    TOP_LEFT = "TOP_LEFT"
+    TOP_CENTER = "TOP_CENTER"
+    TOP_RIGHT = "TOP_RIGHT"
+    MIDDLE_LEFT = "MIDDLE_LEFT"
+    MIDDLE_CENTER = "MIDDLE_CENTER"
+    MIDDLE_RIGHT = "MIDDLE_RIGHT"
+    BOTTOM_LEFT = "BOTTOM_LEFT"
+    BOTTOM_CENTER = "BOTTOM_CENTER"
+    BOTTOM_RIGHT = "BOTTOM_RIGHT"
+
+
+@dataclass(frozen=True)
+class TextNote2D:
+    """2D text annotation for drawings.
+
+    Represents freestanding text in a 2D view, supporting multi-line
+    content, word wrapping, and various alignment options. Exports to
+    DXF MTEXT entities.
+
+    Attributes:
+        position: Insertion point for the text
+        content: Text content (supports newlines with \\n)
+        height: Text height in mm
+        alignment: Text alignment (see TextAlignment constants)
+        rotation: Text rotation in degrees
+        width: Maximum text width for word wrapping (0 = no wrapping)
+        layer: CAD layer name
+    """
+
+    position: Point2D
+    content: str
+    height: float = 150.0
+    alignment: str = "MIDDLE_LEFT"
+    rotation: float = 0.0
+    width: float = 0.0
+    layer: str = "G-ANNO"
+
+    @property
+    def is_multiline(self) -> bool:
+        """Check if text contains multiple lines."""
+        return "\n" in self.content
+
+    @property
+    def line_count(self) -> int:
+        """Get number of lines in text content."""
+        return self.content.count("\n") + 1
+
+    def translate(self, dx: float, dy: float) -> TextNote2D:
+        """Return a translated copy of this text note."""
+        return TextNote2D(
+            position=self.position.translate(dx, dy),
+            content=self.content,
+            height=self.height,
+            alignment=self.alignment,
+            rotation=self.rotation,
+            width=self.width,
+            layer=self.layer,
+        )
+
+
 @dataclass(frozen=True)
 class LinearDimension2D:
     """2D linear dimension between two points.
@@ -388,7 +454,7 @@ class LinearDimension2D:
 
 
 # Type alias for any 2D geometry primitive
-Geometry2D = Union[Line2D, Arc2D, Polyline2D, Hatch2D, LinearDimension2D]
+Geometry2D = Union[Line2D, Arc2D, Polyline2D, Hatch2D, LinearDimension2D, TextNote2D]
 
 
 @dataclass
@@ -415,6 +481,7 @@ class ViewResult:
     polylines: list[Polyline2D] = field(default_factory=list)
     hatches: list[Hatch2D] = field(default_factory=list)
     dimensions: list[LinearDimension2D] = field(default_factory=list)
+    text_notes: list[TextNote2D] = field(default_factory=list)
     view_name: str = ""
     generation_time: float = 0.0
     element_count: int = 0
@@ -429,6 +496,7 @@ class ViewResult:
             + len(self.polylines)
             + len(self.hatches)
             + len(self.dimensions)
+            + len(self.text_notes)
         )
 
     @property
@@ -440,6 +508,7 @@ class ViewResult:
         result.extend(self.polylines)
         result.extend(self.hatches)
         result.extend(self.dimensions)
+        result.extend(self.text_notes)
         return result
 
     def extend(self, other: ViewResult) -> None:
@@ -449,6 +518,7 @@ class ViewResult:
         self.polylines.extend(other.polylines)
         self.hatches.extend(other.hatches)
         self.dimensions.extend(other.dimensions)
+        self.text_notes.extend(other.text_notes)
         self.element_count += other.element_count
         self.cache_hits += other.cache_hits
 
@@ -460,6 +530,7 @@ class ViewResult:
             polylines=[pl.translate(dx, dy) for pl in self.polylines],
             hatches=[h.translate(dx, dy) for h in self.hatches],
             dimensions=[d.translate(dx, dy) for d in self.dimensions],
+            text_notes=[t.translate(dx, dy) for t in self.text_notes],
             view_name=self.view_name,
             generation_time=self.generation_time,
             element_count=self.element_count,
@@ -503,6 +574,10 @@ class ViewResult:
             offset_y = dim.offset * math.sin(perp_angle)
             all_points.append(Point2D(dim.start.x + offset_x, dim.start.y + offset_y))
             all_points.append(Point2D(dim.end.x + offset_x, dim.end.y + offset_y))
+
+        for text in self.text_notes:
+            # Include text position (approximate - actual bounds depend on content)
+            all_points.append(text.position)
 
         if not all_points:
             return None

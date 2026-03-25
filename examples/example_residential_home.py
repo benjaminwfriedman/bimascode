@@ -39,7 +39,7 @@ from bimascode.architecture.window_type import WindowType
 from bimascode.drawing.dxf_exporter import DXFExporter
 from bimascode.drawing.floor_plan_view import FloorPlanView
 from bimascode.drawing.line_styles import LineStyle
-from bimascode.drawing.primitives import LinearDimension2D, Point2D
+from bimascode.drawing.primitives import LinearDimension2D, Point2D, TextAlignment, TextNote2D
 from bimascode.drawing.section_view import SectionView
 from bimascode.drawing.view_base import ViewRange, ViewScale
 from bimascode.performance.representation_cache import RepresentationCache
@@ -678,10 +678,81 @@ def create_roof(building, types):
     return roof_level, [roof]
 
 
-def add_ground_floor_dimensions(result):
-    """Add dimensions to ground floor plan."""
+def add_ground_floor_annotations(result):
+    """Add dimensions and text notes to ground floor plan."""
     dim_offset = 800  # Offset from building edge
 
+    # === ROOM LABELS ===
+    # Room positions (center of each room)
+    garage_center = (3000, 9000)  # 6m x 6m in NW corner
+    kitchen_center = (3000, 4500)  # Kitchen area
+    dining_center = (3000, 1500)  # Dining room
+    living_center = (10500, 6000)  # Living room (large area)
+    entry_center = (13500, 1500)  # Entry
+    powder_center = (10500, 1500)  # Powder room
+
+    # Add room labels
+    result.text_notes.append(
+        TextNote2D(
+            position=Point2D(*garage_center),
+            content="GARAGE",
+            height=200,
+            alignment=TextAlignment.MIDDLE_CENTER,
+        )
+    )
+    result.text_notes.append(
+        TextNote2D(
+            position=Point2D(*kitchen_center),
+            content="KITCHEN",
+            height=200,
+            alignment=TextAlignment.MIDDLE_CENTER,
+        )
+    )
+    result.text_notes.append(
+        TextNote2D(
+            position=Point2D(*dining_center),
+            content="DINING\nROOM",
+            height=200,
+            alignment=TextAlignment.MIDDLE_CENTER,
+        )
+    )
+    result.text_notes.append(
+        TextNote2D(
+            position=Point2D(*living_center),
+            content="LIVING ROOM",
+            height=250,
+            alignment=TextAlignment.MIDDLE_CENTER,
+        )
+    )
+    result.text_notes.append(
+        TextNote2D(
+            position=Point2D(*entry_center),
+            content="ENTRY",
+            height=150,
+            alignment=TextAlignment.MIDDLE_CENTER,
+        )
+    )
+    result.text_notes.append(
+        TextNote2D(
+            position=Point2D(*powder_center),
+            content="POWDER\nROOM",
+            height=150,
+            alignment=TextAlignment.MIDDLE_CENTER,
+        )
+    )
+
+    # === GENERAL NOTE ===
+    result.text_notes.append(
+        TextNote2D(
+            position=Point2D(-500, -2000),
+            content="GROUND FLOOR PLAN\nScale: 1:100\nAll dimensions in millimeters",
+            height=150,
+            alignment=TextAlignment.TOP_LEFT,
+            width=3000,
+        )
+    )
+
+    # === DIMENSIONS ===
     # Overall building dimensions (south edge)
     result.dimensions.append(
         LinearDimension2D(
@@ -760,10 +831,95 @@ def add_ground_floor_dimensions(result):
     )
 
 
-def add_upper_floor_dimensions(result):
-    """Add dimensions to upper floor plan."""
+def add_upper_floor_annotations(result):
+    """Add dimensions and text notes to upper floor plan."""
     dim_offset = 800
 
+    # === ROOM LABELS ===
+    hallway_y = (BUILDING_WIDTH - 1500) / 2  # Hallway position
+
+    # Master bedroom (north-west)
+    result.text_notes.append(
+        TextNote2D(
+            position=Point2D(3000, hallway_y + 1500 + 3000),
+            content="MASTER\nBEDROOM",
+            height=200,
+            alignment=TextAlignment.MIDDLE_CENTER,
+        )
+    )
+
+    # Master ensuite
+    result.text_notes.append(
+        TextNote2D(
+            position=Point2D(7500, hallway_y + 1500 + 1500),
+            content="ENSUITE",
+            height=150,
+            alignment=TextAlignment.MIDDLE_CENTER,
+        )
+    )
+
+    # Shared bathroom (north-east)
+    result.text_notes.append(
+        TextNote2D(
+            position=Point2D(13500, hallway_y + 1500 + 3000),
+            content="BATH",
+            height=150,
+            alignment=TextAlignment.MIDDLE_CENTER,
+        )
+    )
+
+    # Bedroom 2 (south-west)
+    result.text_notes.append(
+        TextNote2D(
+            position=Point2D(3000, hallway_y / 2),
+            content="BEDROOM 2",
+            height=200,
+            alignment=TextAlignment.MIDDLE_CENTER,
+        )
+    )
+
+    # Laundry (center-south)
+    result.text_notes.append(
+        TextNote2D(
+            position=Point2D(7500, hallway_y / 2),
+            content="LAUNDRY",
+            height=150,
+            alignment=TextAlignment.MIDDLE_CENTER,
+        )
+    )
+
+    # Bedroom 3 (south-east)
+    result.text_notes.append(
+        TextNote2D(
+            position=Point2D(12000, hallway_y / 2),
+            content="BEDROOM 3",
+            height=200,
+            alignment=TextAlignment.MIDDLE_CENTER,
+        )
+    )
+
+    # Hallway
+    result.text_notes.append(
+        TextNote2D(
+            position=Point2D(BUILDING_LENGTH / 2, hallway_y + 750),
+            content="HALLWAY",
+            height=120,
+            alignment=TextAlignment.MIDDLE_CENTER,
+        )
+    )
+
+    # === GENERAL NOTE ===
+    result.text_notes.append(
+        TextNote2D(
+            position=Point2D(-500, -2000),
+            content="UPPER FLOOR PLAN\nScale: 1:100\nAll dimensions in millimeters",
+            height=150,
+            alignment=TextAlignment.TOP_LEFT,
+            width=3000,
+        )
+    )
+
+    # === DIMENSIONS ===
     # Overall building dimensions (south edge)
     result.dimensions.append(
         LinearDimension2D(
@@ -830,7 +986,7 @@ def generate_floor_plan(name, level, spatial_index, cache, output_path, add_dime
         add_dimensions_fn(result)
 
     print(f"    Elements: {result.element_count}, Geometry: {result.total_geometry_count}")
-    print(f"    Dimensions: {len(result.dimensions)}")
+    print(f"    Dimensions: {len(result.dimensions)}, Text notes: {len(result.text_notes)}")
 
     exporter = DXFExporter()
     exporter.export(result, str(output_path))
@@ -941,7 +1097,7 @@ def main():
         g_index,
         cache,
         output_dir / "ground_floor_plan.dxf",
-        add_dimensions_fn=add_ground_floor_dimensions,
+        add_dimensions_fn=add_ground_floor_annotations,
     )
     generate_floor_plan(
         "Upper Floor Plan",
@@ -949,7 +1105,7 @@ def main():
         u_index,
         cache,
         output_dir / "upper_floor_plan.dxf",
-        add_dimensions_fn=add_upper_floor_dimensions,
+        add_dimensions_fn=add_upper_floor_annotations,
     )
 
     # Sections (combine both floors)

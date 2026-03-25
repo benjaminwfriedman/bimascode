@@ -14,6 +14,8 @@ from bimascode.drawing.primitives import (
     LinearDimension2D,
     Point2D,
     Polyline2D,
+    TextAlignment,
+    TextNote2D,
     ViewResult,
 )
 
@@ -412,6 +414,108 @@ class TestLinearDimension2D:
         assert dim.precision == 2
 
 
+class TestTextNote2D:
+    """Tests for TextNote2D class."""
+
+    def test_text_note_creation(self):
+        """Test creating a text note."""
+        note = TextNote2D(
+            position=Point2D(1000, 2000),
+            content="General Note",
+        )
+        assert note.position.x == 1000
+        assert note.position.y == 2000
+        assert note.content == "General Note"
+        assert note.layer == "G-ANNO"
+
+    def test_text_note_frozen(self):
+        """Test that TextNote2D is immutable."""
+        note = TextNote2D(
+            position=Point2D(1000, 2000),
+            content="Test",
+        )
+        with pytest.raises(AttributeError):
+            note.content = "Modified"
+
+    def test_text_note_defaults(self):
+        """Test default values."""
+        note = TextNote2D(
+            position=Point2D(0, 0),
+            content="Test",
+        )
+        assert note.height == 150.0
+        assert note.alignment == "MIDDLE_LEFT"
+        assert note.rotation == 0.0
+        assert note.width == 0.0
+        assert note.layer == "G-ANNO"
+
+    def test_text_note_custom_values(self):
+        """Test text note with custom values."""
+        note = TextNote2D(
+            position=Point2D(500, 500),
+            content="Custom Note",
+            height=200.0,
+            alignment=TextAlignment.TOP_CENTER,
+            rotation=45.0,
+            width=1000.0,
+            layer="A-ANNO",
+        )
+        assert note.height == 200.0
+        assert note.alignment == "TOP_CENTER"
+        assert note.rotation == 45.0
+        assert note.width == 1000.0
+        assert note.layer == "A-ANNO"
+
+    def test_text_note_multiline(self):
+        """Test multiline text detection."""
+        single_line = TextNote2D(
+            position=Point2D(0, 0),
+            content="Single line",
+        )
+        assert single_line.is_multiline is False
+        assert single_line.line_count == 1
+
+        multi_line = TextNote2D(
+            position=Point2D(0, 0),
+            content="Line 1\nLine 2\nLine 3",
+        )
+        assert multi_line.is_multiline is True
+        assert multi_line.line_count == 3
+
+    def test_text_note_translate(self):
+        """Test text note translation."""
+        note = TextNote2D(
+            position=Point2D(100, 200),
+            content="Test",
+            height=150.0,
+            alignment=TextAlignment.MIDDLE_CENTER,
+            rotation=30.0,
+        )
+        note2 = note.translate(50, -50)
+        assert note2.position.x == 150
+        assert note2.position.y == 150
+        # Original unchanged
+        assert note.position.x == 100
+        assert note.position.y == 200
+        # Other properties preserved
+        assert note2.content == "Test"
+        assert note2.height == 150.0
+        assert note2.alignment == "MIDDLE_CENTER"
+        assert note2.rotation == 30.0
+
+    def test_text_alignment_constants(self):
+        """Test TextAlignment constants."""
+        assert TextAlignment.TOP_LEFT == "TOP_LEFT"
+        assert TextAlignment.TOP_CENTER == "TOP_CENTER"
+        assert TextAlignment.TOP_RIGHT == "TOP_RIGHT"
+        assert TextAlignment.MIDDLE_LEFT == "MIDDLE_LEFT"
+        assert TextAlignment.MIDDLE_CENTER == "MIDDLE_CENTER"
+        assert TextAlignment.MIDDLE_RIGHT == "MIDDLE_RIGHT"
+        assert TextAlignment.BOTTOM_LEFT == "BOTTOM_LEFT"
+        assert TextAlignment.BOTTOM_CENTER == "BOTTOM_CENTER"
+        assert TextAlignment.BOTTOM_RIGHT == "BOTTOM_RIGHT"
+
+
 class TestViewResult:
     """Tests for ViewResult class."""
 
@@ -570,3 +674,83 @@ class TestViewResult:
         assert bounds[2] == 100  # max_x
         # Y should extend to include offset
         assert bounds[3] == 50  # max_y (offset)
+
+    def test_view_result_with_text_notes(self):
+        """Test ViewResult can hold text notes."""
+        result = ViewResult()
+        note = TextNote2D(
+            position=Point2D(500, 500),
+            content="Test Note",
+        )
+        result.text_notes.append(note)
+        assert len(result.text_notes) == 1
+        assert result.total_geometry_count == 1
+
+    def test_view_result_extend_with_text_notes(self):
+        """Test extending ViewResult with text notes."""
+        result1 = ViewResult()
+        result1.text_notes.append(
+            TextNote2D(
+                position=Point2D(0, 0),
+                content="Note 1",
+            )
+        )
+
+        result2 = ViewResult()
+        result2.text_notes.append(
+            TextNote2D(
+                position=Point2D(1000, 1000),
+                content="Note 2",
+            )
+        )
+
+        result1.extend(result2)
+        assert len(result1.text_notes) == 2
+
+    def test_view_result_translate_with_text_notes(self):
+        """Test translating ViewResult with text notes."""
+        result = ViewResult()
+        result.text_notes.append(
+            TextNote2D(
+                position=Point2D(100, 200),
+                content="Test",
+            )
+        )
+        translated = result.translate(50, 50)
+        assert translated.text_notes[0].position.x == 150
+        assert translated.text_notes[0].position.y == 250
+
+    def test_view_result_bounds_with_text_notes(self):
+        """Test ViewResult bounds include text notes."""
+        result = ViewResult()
+        result.text_notes.append(
+            TextNote2D(
+                position=Point2D(500, 300),
+                content="Test",
+            )
+        )
+        bounds = result.get_bounds()
+        assert bounds is not None
+        assert bounds[0] == 500  # min_x
+        assert bounds[1] == 300  # min_y
+        assert bounds[2] == 500  # max_x
+        assert bounds[3] == 300  # max_y
+
+    def test_view_result_all_geometry_includes_text_notes(self):
+        """Test all_geometry property includes text notes."""
+        result = ViewResult()
+        result.lines.append(
+            Line2D(
+                start=Point2D(0, 0),
+                end=Point2D(100, 0),
+                style=LineStyle.default(),
+            )
+        )
+        result.text_notes.append(
+            TextNote2D(
+                position=Point2D(50, 50),
+                content="Note",
+            )
+        )
+        all_geom = result.all_geometry
+        assert len(all_geom) == 2
