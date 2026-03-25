@@ -37,6 +37,7 @@ from bimascode.drawing.primitives import (
     TextAlignment,
     TextNote2D,
 )
+from bimascode.drawing.tags import DoorTag, TagStyle
 from bimascode.drawing.view_base import ViewRange
 from bimascode.performance.representation_cache import RepresentationCache
 from bimascode.performance.spatial_index import SpatialIndex
@@ -192,12 +193,13 @@ def create_hospital_wing(building, types):
 
         room_partition_points_south.append(room_x + ROOM_WIDTH)
 
-        # Door to room
+        # Door to room (mark matches room number)
         door = Door(
             door_type,
             corridor_wall_south,
             offset=room_x + ROOM_WIDTH / 2 - door_type.width / 2,
             name=f"Door_S{i + 1}",
+            mark=str(101 + i),
         )
         all_doors.append(door)
 
@@ -243,12 +245,13 @@ def create_hospital_wing(building, types):
 
         room_partition_points_south.append(room_x + ROOM_WIDTH)
 
-        # Door to room
+        # Door to room (mark matches room number)
         door = Door(
             door_type,
             corridor_wall_south,
             offset=room_x + ROOM_WIDTH / 2 - door_type.width / 2,
             name=f"Door_SE{i + 1}",
+            mark=str(106 + i),
         )
         all_doors.append(door)
 
@@ -270,11 +273,13 @@ def create_hospital_wing(building, types):
 
         room_partition_points_north.append(room_x + ROOM_WIDTH)
 
+        # Door to room (mark matches room number)
         door = Door(
             door_type,
             corridor_wall_north,
             offset=corridor_length - room_x - ROOM_WIDTH / 2 - door_type.width / 2,
             name=f"Door_N{i + 1}",
+            mark=str(201 + i),
         )
         all_doors.append(door)
 
@@ -314,11 +319,13 @@ def create_hospital_wing(building, types):
 
         room_partition_points_north.append(room_x + ROOM_WIDTH)
 
+        # Door to room (mark matches room number)
         door = Door(
             door_type,
             corridor_wall_north,
             offset=corridor_length - room_x - ROOM_WIDTH / 2 - door_type.width / 2,
             name=f"Door_NE{i + 1}",
+            mark=str(206 + i),
         )
         all_doors.append(door)
 
@@ -344,6 +351,22 @@ def create_hospital_wing(building, types):
         south_room_y,
         north_room_y,
     )
+
+
+def add_door_tags(result, doors, style: TagStyle | None = None):
+    """Add door tags to the floor plan.
+
+    Each door gets a tag displaying its mark (room number).
+
+    Args:
+        result: ViewResult to add tags to
+        doors: List of doors to tag
+        style: Optional custom TagStyle (defaults to TagStyle.door_default())
+    """
+    for door in doors:
+        if door.mark:
+            tag = DoorTag(door=door, style=style) if style else DoorTag(door=door)
+            result.door_tags.append(tag)
 
 
 def add_annotations(
@@ -595,11 +618,19 @@ def main():
         north_room_y,
     )
 
+    # Add door tags with custom style (larger hexagons with more padding)
+    door_tag_style = TagStyle(
+        size=700.0,  # Larger hexagon for more padding
+        text_height=180.0,  # Same text size
+    )
+    add_door_tags(result, doors, style=door_tag_style)
+
     print(f"  Elements: {result.element_count}")
     print(f"  Total geometry: {result.total_geometry_count}")
     print(f"  Chain dimensions: {len(result.chain_dimensions)}")
     print(f"  Linear dimensions: {len(result.dimensions)}")
     print(f"  Text notes: {len(result.text_notes)}")
+    print(f"  Door tags: {len(result.door_tags)}")
 
     # Export DXF
     dxf_path = output_dir / "hospital_wing_plan.dxf"
