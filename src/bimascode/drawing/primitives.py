@@ -55,6 +55,19 @@ class Point2D:
         """
         return Point2D(self.x + dx, self.y + dy)
 
+    def scale_and_translate(self, scale: float, dx: float, dy: float) -> Point2D:
+        """Return a new point scaled and translated.
+
+        Args:
+            scale: Scale factor (applied first)
+            dx: X translation (applied after scaling)
+            dy: Y translation (applied after scaling)
+
+        Returns:
+            Scaled and translated Point2D
+        """
+        return Point2D(self.x * scale + dx, self.y * scale + dy)
+
     def rotate(self, angle: float, origin: Point2D | None = None) -> Point2D:
         """Return a new point rotated around an origin.
 
@@ -134,6 +147,15 @@ class Line2D:
             layer=self.layer,
         )
 
+    def scale_and_translate(self, scale: float, dx: float, dy: float) -> Line2D:
+        """Return a scaled and translated copy of this line."""
+        return Line2D(
+            start=self.start.scale_and_translate(scale, dx, dy),
+            end=self.end.scale_and_translate(scale, dx, dy),
+            style=self.style,
+            layer=self.layer,
+        )
+
     def reverse(self) -> Line2D:
         """Return a copy with start and end swapped."""
         return Line2D(
@@ -200,6 +222,17 @@ class Arc2D:
         return Arc2D(
             center=self.center.translate(dx, dy),
             radius=self.radius,
+            start_angle=self.start_angle,
+            end_angle=self.end_angle,
+            style=self.style,
+            layer=self.layer,
+        )
+
+    def scale_and_translate(self, scale: float, dx: float, dy: float) -> Arc2D:
+        """Return a scaled and translated copy of this arc."""
+        return Arc2D(
+            center=self.center.scale_and_translate(scale, dx, dy),
+            radius=self.radius * scale,
             start_angle=self.start_angle,
             end_angle=self.end_angle,
             style=self.style,
@@ -292,6 +325,15 @@ class Polyline2D:
             layer=self.layer,
         )
 
+    def scale_and_translate(self, scale: float, dx: float, dy: float) -> Polyline2D:
+        """Return a scaled and translated copy of this polyline."""
+        return Polyline2D(
+            points=[p.scale_and_translate(scale, dx, dy) for p in self.points],
+            closed=self.closed,
+            style=self.style,
+            layer=self.layer,
+        )
+
 
 @dataclass
 class Hatch2D:
@@ -326,6 +368,17 @@ class Hatch2D:
             boundary=[p.translate(dx, dy) for p in self.boundary],
             pattern=self.pattern,
             scale=self.scale,
+            rotation=self.rotation,
+            color=self.color,
+            layer=self.layer,
+        )
+
+    def scale_and_translate(self, scale: float, dx: float, dy: float) -> Hatch2D:
+        """Return a scaled and translated copy of this hatch."""
+        return Hatch2D(
+            boundary=[p.scale_and_translate(scale, dx, dy) for p in self.boundary],
+            pattern=self.pattern,
+            scale=self.scale * scale,
             rotation=self.rotation,
             color=self.color,
             layer=self.layer,
@@ -397,6 +450,18 @@ class TextNote2D:
             layer=self.layer,
         )
 
+    def scale_and_translate(self, scale: float, dx: float, dy: float) -> TextNote2D:
+        """Return a scaled and translated copy of this text note."""
+        return TextNote2D(
+            position=self.position.scale_and_translate(scale, dx, dy),
+            content=self.content,
+            height=self.height * scale,
+            alignment=self.alignment,
+            rotation=self.rotation,
+            width=self.width * scale,
+            layer=self.layer,
+        )
+
 
 @dataclass(frozen=True)
 class LinearDimension2D:
@@ -422,6 +487,7 @@ class LinearDimension2D:
     precision: int = 0
     style: LineStyle = field(default_factory=LineStyle.default)
     layer: str = "G-ANNO-DIMS"
+    dimlfac: float = 1.0  # Linear scale factor for dimension text display
 
     @property
     def distance(self) -> float:
@@ -455,6 +521,28 @@ class LinearDimension2D:
             layer=self.layer,
         )
 
+    def scale_and_translate(
+        self, scale: float, dx: float, dy: float
+    ) -> LinearDimension2D:
+        """Return a scaled and translated copy.
+
+        The dimlfac is set to maintain correct dimension text display.
+        When geometry is scaled down (e.g., 0.01 for 1:100), dimlfac is
+        set to the inverse (100) so dimension text shows model values.
+        """
+        # Accumulate dimlfac - if already scaled, multiply
+        new_dimlfac = self.dimlfac / scale if scale != 0 else self.dimlfac
+        return LinearDimension2D(
+            start=self.start.scale_and_translate(scale, dx, dy),
+            end=self.end.scale_and_translate(scale, dx, dy),
+            offset=self.offset * scale,
+            text=self.text,
+            precision=self.precision,
+            style=self.style,
+            layer=self.layer,
+            dimlfac=new_dimlfac,
+        )
+
 
 @dataclass(frozen=True)
 class ChainDimension2D:
@@ -485,6 +573,7 @@ class ChainDimension2D:
     precision: int = 0
     style: LineStyle = field(default_factory=LineStyle.default)
     layer: str = "G-ANNO-DIMS"
+    dimlfac: float = 1.0  # Linear scale factor for dimension text display
 
     def __post_init__(self):
         """Validate that at least 2 points are provided."""
@@ -515,6 +604,7 @@ class ChainDimension2D:
                     precision=self.precision,
                     style=self.style,
                     layer=self.layer,
+                    dimlfac=self.dimlfac,
                 )
             )
         return result
@@ -536,6 +626,26 @@ class ChainDimension2D:
             precision=self.precision,
             style=self.style,
             layer=self.layer,
+        )
+
+    def scale_and_translate(
+        self, scale: float, dx: float, dy: float
+    ) -> ChainDimension2D:
+        """Return a scaled and translated copy.
+
+        The dimlfac is set to maintain correct dimension text display.
+        When geometry is scaled down (e.g., 0.01 for 1:100), dimlfac is
+        set to the inverse (100) so dimension text shows model values.
+        """
+        new_dimlfac = self.dimlfac / scale if scale != 0 else self.dimlfac
+        return ChainDimension2D(
+            points=tuple(p.scale_and_translate(scale, dx, dy) for p in self.points),
+            offset=self.offset * scale,
+            text=self.text,
+            precision=self.precision,
+            style=self.style,
+            layer=self.layer,
+            dimlfac=new_dimlfac,
         )
 
 
@@ -645,6 +755,52 @@ class ViewResult:
             door_tags=[t.translate(dx, dy) for t in self.door_tags],
             window_tags=[t.translate(dx, dy) for t in self.window_tags],
             room_tags=[t.translate(dx, dy) for t in self.room_tags],
+            view_name=self.view_name,
+            generation_time=self.generation_time,
+            element_count=self.element_count,
+            cache_hits=self.cache_hits,
+        )
+
+    def scale_and_translate(
+        self, scale: float, dx: float, dy: float
+    ) -> ViewResult:
+        """Return a scaled and translated copy of all geometry.
+
+        Applies scaling first (from origin), then translation.
+
+        Args:
+            scale: Scale factor
+            dx: X translation (applied after scaling)
+            dy: Y translation (applied after scaling)
+
+        Returns:
+            New ViewResult with transformed geometry
+        """
+        return ViewResult(
+            lines=[line.scale_and_translate(scale, dx, dy) for line in self.lines],
+            arcs=[arc.scale_and_translate(scale, dx, dy) for arc in self.arcs],
+            polylines=[
+                pl.scale_and_translate(scale, dx, dy) for pl in self.polylines
+            ],
+            hatches=[h.scale_and_translate(scale, dx, dy) for h in self.hatches],
+            dimensions=[
+                d.scale_and_translate(scale, dx, dy) for d in self.dimensions
+            ],
+            chain_dimensions=[
+                c.scale_and_translate(scale, dx, dy) for c in self.chain_dimensions
+            ],
+            text_notes=[
+                t.scale_and_translate(scale, dx, dy) for t in self.text_notes
+            ],
+            door_tags=[
+                t.scale_and_translate(scale, dx, dy) for t in self.door_tags
+            ],
+            window_tags=[
+                t.scale_and_translate(scale, dx, dy) for t in self.window_tags
+            ],
+            room_tags=[
+                t.scale_and_translate(scale, dx, dy) for t in self.room_tags
+            ],
             view_name=self.view_name,
             generation_time=self.generation_time,
             element_count=self.element_count,

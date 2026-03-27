@@ -1,7 +1,8 @@
 """DXF export for 2D views.
 
 Provides DXFExporter class for exporting ViewResult geometry
-to DXF format using ezdxf library.
+to DXF format using ezdxf library, and DXFSheetExporter for
+exporting Sheet objects with paperspace layouts.
 """
 
 from __future__ import annotations
@@ -23,7 +24,7 @@ from bimascode.drawing.primitives import (
 from bimascode.drawing.tags import DoorTag, RoomTag, TagShape, WindowTag
 
 if TYPE_CHECKING:
-    pass
+    from bimascode.drawing.sheet import Sheet
 
 
 # DXF line type patterns (dash length, gap length, ...)
@@ -321,8 +322,23 @@ class DXFExporter:
         dimensions: list[LinearDimension2D],
         scale: float,
     ) -> None:
-        """Export LinearDimension2D objects to DXF DIMENSION entities."""
+        """Export LinearDimension2D objects to DXF DIMENSION entities.
+
+        Dimension style values (text height, arrow size, etc.) are computed
+        based on the dimension offset, which scales proportionally with the
+        drawing. This ensures dimensions look correct at any scale.
+        """
         for dim in dimensions:
+            # Use offset as a reference for sizing - typical offset is 300-1000mm
+            # in model space. Scale style elements based on that.
+            # For a 500mm offset in model: text=150mm (0.3x), arrows=100mm (0.2x)
+            # After 1:100 scaling: offset=5mm, text=1.5mm, arrows=1mm
+            scaled_offset = abs(dim.offset) * scale
+            # Ensure minimum values for readability
+            text_height = max(scaled_offset * 0.3, 1.5) if scaled_offset < 50 else 150 * scale
+            arrow_size = max(scaled_offset * 0.2, 1.0) if scaled_offset < 50 else 100 * scale
+            ext_extension = max(scaled_offset * 0.1, 0.5) if scaled_offset < 50 else 50 * scale
+
             dim_override = msp.add_aligned_dim(
                 p1=(dim.start.x * scale, dim.start.y * scale),
                 p2=(dim.end.x * scale, dim.end.y * scale),
@@ -330,11 +346,12 @@ class DXFExporter:
                 text=dim.text,
                 dimstyle="Standard",
                 override={
-                    "dimtxt": 150,  # Text height in drawing units (mm)
+                    "dimtxt": text_height,  # Text height
                     "dimdec": dim.precision,  # Decimal places
-                    "dimasz": 100,  # Arrow size
-                    "dimexe": 50,  # Extension line extension
-                    "dimexo": 50,  # Extension line offset from origin
+                    "dimasz": arrow_size,  # Arrow size
+                    "dimexe": ext_extension,  # Extension line extension
+                    "dimexo": ext_extension,  # Extension line offset from origin
+                    "dimlfac": dim.dimlfac,  # Linear scale factor for text display
                 },
                 dxfattribs={"layer": dim.layer},
             )
@@ -679,10 +696,12 @@ class DXFExporter:
             )
 
             # Add attributes with the name and number values
-            block_ref.add_auto_attribs({
-                "NAME": tag.name_text,
-                "NUMBER": tag.number_text,
-            })
+            block_ref.add_auto_attribs(
+                {
+                    "NAME": tag.name_text,
+                    "NUMBER": tag.number_text,
+                }
+            )
 
     def export_multiple(
         self,
@@ -754,6 +773,370 @@ class DXFExporter:
             self._export_door_tags(doc, msp, translated.door_tags, scale)
             self._export_window_tags(doc, msp, translated.window_tags, scale)
             self._export_room_tags(doc, msp, translated.room_tags, scale)
+
+        # Save file
+        doc.saveas(filepath)
+        return True
+
+
+class DXFSheetExporter:
+    """Exports Sheet objects to DXF with paperspace layouts.
+
+    Creates a proper DXF file with:
+    - Modelspace containing all view geometry
+    - Paperspace layout with viewports looking into modelspace
+    - Title block and annotations in paperspace
+
+    Example:
+        >>> from bimascode.drawing import Sheet, SheetSize
+        >>> sheet = Sheet(size=SheetSize.ANSI_D, number="A-101")
+        >>> sheet.add_viewport(floor_plan_result, position=(300, 200), scale="1:100")
+        >>> exporter = DXFSheetExporter()
+        >>> exporter.export_sheet(sheet, "A-101.dxf")
+    """
+
+    def __init__(self, dxf_version: str = "R2013"):
+        """Initialize the sheet exporter.
+
+        Args:
+            dxf_version: DXF version (R2000 or newer required for paperspace)
+        """
+        self.dxf_version = dxf_version
+        self._check_ezdxf_available()
+        self._model_exporter = DXFExporter(dxf_version)
+
+    def _check_ezdxf_available(self) -> bool:
+        """Check if ezdxf is available."""
+        try:
+            import ezdxf
+
+            self._ezdxf = ezdxf
+            return True
+        except ImportError:
+            self._ezdxf = None
+            return False
+
+    @property
+    def is_available(self) -> bool:
+        """Check if DXF export is available."""
+        return self._ezdxf is not None
+
+    def export_sheet(
+        self,
+        sheet: Sheet,
+        filepath: str,
+    ) -> bool:
+        """Export a Sheet to DXF file with paperspace layout.
+
+        Creates a DXF file with:
+        1. All viewport contents in modelspace (offset to prevent overlap)
+        2. A paperspace layout with the sheet size
+        3. DXF VIEWPORT entities linking paperspace to modelspace content
+        4. Title block geometry in paperspace
+        5. Sheet annotations in paperspace
+
+        Args:
+            sheet: Sheet to export
+            filepath: Output file path
+
+        Returns:
+            True if export succeeded
+        """
+        if not self.is_available:
+            raise ImportError("ezdxf is required for DXF export")
+
+        # Create new DXF document
+        doc = self._ezdxf.new(self.dxf_version, setup=True)
+        msp = doc.modelspace()
+
+        # Setup layers and line types
+        self._setup_layers_from_sheet(doc, sheet)
+        self._model_exporter._setup_linetypes(doc)
+
+        # Export all viewport contents to modelspace
+        # Track bounds for each viewport's content in modelspace
+        viewport_modelspace_data: list[dict] = []
+        current_offset_x = 0.0
+
+        for viewport in sheet.viewports:
+            # Get view result bounds
+            bounds = viewport.view_result.get_bounds()
+            if bounds is None:
+                viewport_modelspace_data.append(None)
+                continue
+
+            # Calculate center in model coordinates
+            model_center_x = (bounds[0] + bounds[2]) / 2 + current_offset_x
+            model_center_y = (bounds[1] + bounds[3]) / 2
+            model_width = bounds[2] - bounds[0]
+            model_height = bounds[3] - bounds[1]
+
+            # Translate view content and export to modelspace
+            translated = viewport.view_result.translate(current_offset_x, 0)
+            self._export_view_result_to_layout(doc, msp, translated, scale=1.0)
+
+            viewport_modelspace_data.append(
+                {
+                    "center_x": model_center_x,
+                    "center_y": model_center_y,
+                    "width": model_width,
+                    "height": model_height,
+                }
+            )
+
+            # Offset next viewport to prevent overlap (add margin)
+            current_offset_x += model_width + 5000  # 5m gap between views
+
+        # Create paperspace layout
+        layout_name = self._get_layout_name(sheet)
+
+        # Get or create the paperspace layout
+        # ezdxf creates "Layout1" by default, we'll rename or create new
+        if "Layout1" in doc.layouts:
+            psp = doc.layouts.get("Layout1")
+            psp.rename(layout_name)
+        else:
+            psp = doc.layouts.new(layout_name)
+
+        # Setup page size
+        # Note: ezdxf page_setup uses (width, height) in mm
+        psp.page_setup(
+            size=(sheet.size.width, sheet.size.height),
+            margins=sheet.margins,  # (left, bottom, right, top)
+        )
+
+        # Create VIEWPORTS layer (will be turned off to hide viewport frames)
+        if "DEFPOINTS" not in doc.layers:
+            doc.layers.add("DEFPOINTS")
+
+        # Add viewports to paperspace
+        for i, viewport in enumerate(sheet.viewports):
+            ms_data = viewport_modelspace_data[i]
+            if ms_data is None:
+                continue
+
+            # Calculate viewport dimensions on paper
+            vp_width = viewport.effective_width
+            vp_height = viewport.effective_height
+
+            # View height in modelspace units (for zoom level)
+            view_height = vp_height / viewport.scale.ratio
+
+            # Create the viewport entity
+            psp.add_viewport(
+                center=(viewport.position.x, viewport.position.y),
+                size=(vp_width, vp_height),
+                view_center_point=(ms_data["center_x"], ms_data["center_y"]),
+                view_height=view_height,
+                status=2,  # Enable viewport (1=off, 2=on)
+                dxfattribs={"layer": "DEFPOINTS"},
+            )
+
+        # Export title block to paperspace (if present)
+        if sheet.title_block and sheet.title_block.has_geometry():
+            self._export_view_result_to_layout(doc, psp, sheet.title_block.geometry, scale=1.0)
+
+        # Export sheet annotations to paperspace
+        if sheet.annotations.total_geometry_count > 0:
+            self._export_view_result_to_layout(doc, psp, sheet.annotations, scale=1.0)
+
+        # Save file
+        doc.saveas(filepath)
+        return True
+
+    def _get_layout_name(self, sheet: Sheet) -> str:
+        """Generate a layout name from sheet properties.
+
+        Args:
+            sheet: Sheet to get name from
+
+        Returns:
+            Layout name string
+        """
+        if sheet.number and sheet.name:
+            return f"{sheet.number} - {sheet.name}"
+        elif sheet.number:
+            return sheet.number
+        elif sheet.name:
+            return sheet.name
+        else:
+            return "Sheet"
+
+    def _setup_layers_from_sheet(self, doc, sheet: Sheet) -> None:
+        """Create required layers from all sheet content.
+
+        Args:
+            doc: DXF document
+            sheet: Sheet containing viewports and annotations
+        """
+        # Collect all layers from all viewports
+        all_layers = set()
+
+        for viewport in sheet.viewports:
+            self._collect_layers_from_view_result(viewport.view_result, all_layers)
+
+        # Collect from title block
+        if sheet.title_block and sheet.title_block.geometry:
+            self._collect_layers_from_view_result(sheet.title_block.geometry, all_layers)
+
+        # Collect from annotations
+        self._collect_layers_from_view_result(sheet.annotations, all_layers)
+
+        # Create layers with standard AIA colors
+        layer_colors = {
+            Layer.WALL: 7,
+            Layer.WALL_FIRE: 1,
+            Layer.DOOR: 6,
+            Layer.WINDOW: 4,
+            Layer.FLOOR: 8,
+            Layer.CEILING: 9,
+            Layer.COLUMN: 3,
+            Layer.BEAM: 3,
+            Layer.ANNOTATION: 7,
+            Layer.DIMENSION: 7,
+            Layer.SYMBOL: 7,
+            "0": 7,
+        }
+
+        for layer_name in all_layers:
+            if layer_name not in doc.layers:
+                color = layer_colors.get(layer_name, 7)
+                doc.layers.add(name=layer_name, color=color)
+
+    def _collect_layers_from_view_result(self, view_result: ViewResult, layers: set) -> None:
+        """Collect all layer names from a ViewResult.
+
+        Args:
+            view_result: ViewResult to scan
+            layers: Set to add layer names to
+        """
+        for line in view_result.lines:
+            layers.add(line.layer)
+        for arc in view_result.arcs:
+            layers.add(arc.layer)
+        for polyline in view_result.polylines:
+            layers.add(polyline.layer)
+        for hatch in view_result.hatches:
+            layers.add(hatch.layer)
+        for dim in view_result.dimensions:
+            layers.add(dim.layer)
+        for chain in view_result.chain_dimensions:
+            layers.add(chain.layer)
+        for text in view_result.text_notes:
+            layers.add(text.layer)
+        for tag in view_result.door_tags:
+            layers.add(tag.layer)
+        for tag in view_result.window_tags:
+            layers.add(tag.layer)
+        for tag in view_result.room_tags:
+            layers.add(tag.layer)
+
+    def _export_view_result_to_layout(
+        self, doc, layout, view_result: ViewResult, scale: float
+    ) -> None:
+        """Export ViewResult geometry to a layout (modelspace or paperspace).
+
+        Args:
+            doc: DXF document
+            layout: Layout to export to (modelspace or paperspace)
+            view_result: ViewResult to export
+            scale: Scale factor to apply
+        """
+        self._model_exporter._export_lines(layout, view_result.lines, scale)
+        self._model_exporter._export_arcs(layout, view_result.arcs, scale)
+        self._model_exporter._export_polylines(layout, view_result.polylines, scale)
+        self._model_exporter._export_hatches(layout, view_result.hatches, scale)
+        self._model_exporter._export_dimensions(layout, view_result.dimensions, scale)
+        self._model_exporter._export_chain_dimensions(layout, view_result.chain_dimensions, scale)
+        self._model_exporter._export_text_notes(layout, view_result.text_notes, scale)
+        self._model_exporter._export_door_tags(doc, layout, view_result.door_tags, scale)
+        self._model_exporter._export_window_tags(doc, layout, view_result.window_tags, scale)
+        self._model_exporter._export_room_tags(doc, layout, view_result.room_tags, scale)
+
+    def export_sheet_flat(
+        self,
+        sheet: Sheet,
+        filepath: str,
+    ) -> bool:
+        """Export a Sheet to DXF as a flat modelspace layout.
+
+        This exports the sheet layout directly to modelspace without using
+        DXF viewports/paperspace. Each viewport's content is scaled and
+        positioned at its sheet location. This works with any DXF viewer.
+
+        Args:
+            sheet: Sheet to export
+            filepath: Output file path
+
+        Returns:
+            True if export succeeded
+        """
+        if not self.is_available:
+            raise ImportError("ezdxf is required for DXF export")
+
+        # Create new DXF document
+        doc = self._ezdxf.new(self.dxf_version, setup=True)
+        msp = doc.modelspace()
+
+        # Setup layers and line types
+        self._setup_layers_from_sheet(doc, sheet)
+        self._model_exporter._setup_linetypes(doc)
+
+        # Export each viewport's content, scaled and positioned on sheet
+        for viewport in sheet.viewports:
+            bounds = viewport.view_result.get_bounds()
+            if bounds is None:
+                continue
+
+            # Calculate view center in model coordinates
+            model_center_x = (bounds[0] + bounds[2]) / 2
+            model_center_y = (bounds[1] + bounds[3]) / 2
+
+            # Calculate translation to position view at viewport location on sheet
+            # The viewport position is the center of where the view should appear
+            # Scale factor converts model units to sheet units
+            scale = viewport.scale.ratio
+
+            # Translate: shift so model center aligns with viewport position
+            # First scale, then translate
+            offset_x = viewport.position.x - model_center_x * scale
+            offset_y = viewport.position.y - model_center_y * scale
+
+            # Scale and translate the view content
+            scaled_view = viewport.view_result.scale_and_translate(
+                scale, offset_x, offset_y
+            )
+
+            # Export to modelspace
+            self._export_view_result_to_layout(doc, msp, scaled_view, scale=1.0)
+
+        # Export title block to modelspace (if present)
+        if sheet.title_block and sheet.title_block.has_geometry():
+            self._export_view_result_to_layout(
+                doc, msp, sheet.title_block.geometry, scale=1.0
+            )
+
+        # Export sheet annotations to modelspace
+        if sheet.annotations.total_geometry_count > 0:
+            self._export_view_result_to_layout(doc, msp, sheet.annotations, scale=1.0)
+
+        # Draw sheet border (optional - helps visualize sheet bounds)
+        msp.add_line(
+            (0, 0), (sheet.size.width, 0), dxfattribs={"layer": "0", "color": 8}
+        )
+        msp.add_line(
+            (sheet.size.width, 0),
+            (sheet.size.width, sheet.size.height),
+            dxfattribs={"layer": "0", "color": 8},
+        )
+        msp.add_line(
+            (sheet.size.width, sheet.size.height),
+            (0, sheet.size.height),
+            dxfattribs={"layer": "0", "color": 8},
+        )
+        msp.add_line(
+            (0, sheet.size.height), (0, 0), dxfattribs={"layer": "0", "color": 8}
+        )
 
         # Save file
         doc.saveas(filepath)

@@ -6,8 +6,9 @@ through building models.
 
 from __future__ import annotations
 
+import math
 import time
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
 from bimascode.drawing.hlr_processor import get_hlr_processor
 from bimascode.drawing.line_styles import Layer, LineStyle
@@ -34,8 +35,25 @@ class SectionView(ViewBase):
     - Visible: Behind the cut plane, visible (medium lines)
     - Hidden: Behind visible elements (dashed lines)
 
-    Example:
-        >>> # Section along X axis at Y=5000
+    There are two ways to create a section view:
+
+    1. **BIM-style (recommended)**: Use `from_section_line()` to define
+       the section like in Revit - draw a line on plan and specify
+       which direction you're looking from:
+
+        >>> # Section through building, looking east
+        >>> view = SectionView.from_section_line(
+        ...     "Section A-A",
+        ...     start_point=(2000, -5000),   # Section line start on plan
+        ...     end_point=(2000, 8000),      # Section line end on plan
+        ...     look_direction="right",      # Looking right of line direction
+        ...     depth=50000,
+        ... )
+
+    2. **Geometry-style**: Use the constructor directly with plane
+       point and normal for precise control:
+
+        >>> # Section along X axis at Y=5000, looking north
         >>> view = SectionView(
         ...     "Section A-A",
         ...     plane_point=(0, 5000, 0),
@@ -79,10 +97,101 @@ class SectionView(ViewBase):
         self._template = template
         self.show_hidden_lines = show_hidden_lines
 
+    @classmethod
+    def from_section_line(
+        cls,
+        name: str,
+        start_point: tuple[float, float],
+        end_point: tuple[float, float],
+        look_direction: Literal["left", "right"] = "right",
+        depth: float = 50000.0,
+        height_range: tuple[float, float] | None = None,
+        scale: ViewScale = ViewScale.SCALE_1_50,
+        crop_region: ViewCropRegion | None = None,
+        template=None,
+        show_hidden_lines: bool = True,
+    ) -> "SectionView":
+        """Create a section view from a section line on plan.
+
+        This is the BIM-like way to define sections: draw a line on plan
+        showing where the cut happens, then specify which direction you're
+        looking from.
+
+        Args:
+            name: View name (e.g., "Section A-A")
+            start_point: Section line start point (x, y) on plan
+            end_point: Section line end point (x, y) on plan
+            look_direction: Which side of the line to look from:
+                - "right": Standing at start, looking right of the line direction
+                - "left": Standing at start, looking left of the line direction
+            depth: How far behind the cut to show elements (mm)
+            height_range: Optional (min_z, max_z) to limit vertical extent
+            scale: View scale
+            crop_region: Optional crop region
+            template: Optional view template for visibility control
+            show_hidden_lines: Whether to show hidden lines
+
+        Returns:
+            SectionView configured for the section line
+
+        Example:
+            >>> # Section through patient rooms, looking east
+            >>> section = SectionView.from_section_line(
+            ...     name="Section A-A",
+            ...     start_point=(2000, -5000),  # South end of section line
+            ...     end_point=(2000, 8000),     # North end of section line
+            ...     look_direction="right",     # Looking east (right of N direction)
+            ...     depth=50000,
+            ... )
+        """
+        # Calculate line direction vector (in 2D)
+        dx = end_point[0] - start_point[0]
+        dy = end_point[1] - start_point[1]
+        length = math.sqrt(dx * dx + dy * dy)
+
+        if length < 1e-10:
+            raise ValueError("Section line start and end points cannot be the same")
+
+        # Normalize line direction
+        line_dir_x = dx / length
+        line_dir_y = dy / length
+
+        # Calculate perpendicular (normal) direction
+        # "right" means rotate line direction 90 degrees clockwise
+        # "left" means rotate line direction 90 degrees counter-clockwise
+        if look_direction == "right":
+            # Clockwise rotation: (x, y) -> (y, -x)
+            normal_x = line_dir_y
+            normal_y = -line_dir_x
+        else:  # "left"
+            # Counter-clockwise rotation: (x, y) -> (-y, x)
+            normal_x = -line_dir_y
+            normal_y = line_dir_x
+
+        # Plane point is on the section line (use midpoint for stability)
+        plane_point = (
+            (start_point[0] + end_point[0]) / 2,
+            (start_point[1] + end_point[1]) / 2,
+            0.0,  # Z=0, height range handles vertical extent
+        )
+
+        # Plane normal is the look direction (horizontal, Z=0)
+        plane_normal = (normal_x, normal_y, 0.0)
+
+        return cls(
+            name=name,
+            plane_point=plane_point,
+            plane_normal=plane_normal,
+            depth=depth,
+            height_range=height_range,
+            scale=scale,
+            crop_region=crop_region,
+            template=template,
+            show_hidden_lines=show_hidden_lines,
+        )
+
     def _normalize(self, v: tuple[float, float, float]) -> tuple[float, float, float]:
         """Normalize a vector."""
-        import math
-
         length = math.sqrt(v[0] ** 2 + v[1] ** 2 + v[2] ** 2)
         if length < 1e-10:
             return (0, 1, 0)  # Default to Y direction

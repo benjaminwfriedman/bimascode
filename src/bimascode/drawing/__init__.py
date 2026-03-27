@@ -7,7 +7,7 @@ Sprint 6: Drawing Generation
 """
 
 # Primitives
-from bimascode.drawing.dxf_exporter import DXFExporter, get_dxf_exporter
+from bimascode.drawing.dxf_exporter import DXFExporter, DXFSheetExporter, get_dxf_exporter
 from bimascode.drawing.elevation_view import (
     ElevationDirection,
     ElevationView,
@@ -42,6 +42,12 @@ from bimascode.drawing.primitives import (
     Polyline2D,
     ViewResult,
 )
+
+# Sheets
+from bimascode.drawing.sheet import Sheet, SheetMetadata
+from bimascode.drawing.sheet_sizes import SheetSize
+from bimascode.drawing.title_block import TitleBlock
+from bimascode.drawing.viewport import SheetViewport
 
 # Protocols
 from bimascode.drawing.protocols import (
@@ -127,12 +133,19 @@ __all__ = [
     "GraphicOverride",
     "ViewTemplate",
     "ViewVisibilitySettings",
+    # Sheets
+    "Sheet",
+    "SheetMetadata",
+    "SheetSize",
+    "SheetViewport",
+    "TitleBlock",
     # Utilities
     "SectionCutter",
     "get_section_cutter",
     "HLRProcessor",
     "get_hlr_processor",
     "DXFExporter",
+    "DXFSheetExporter",
     "get_dxf_exporter",
     # Tags
     "DoorTag",
