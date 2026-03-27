@@ -53,6 +53,26 @@ class TagStyle:
         """Get the effective width (uses width if set, otherwise size)."""
         return self.width if self.width is not None else self.size
 
+    def scale(self, factor: float) -> TagStyle:
+        """Return a scaled copy of this style.
+
+        Scales size, text_height, and width by the given factor.
+
+        Args:
+            factor: Scale factor to apply
+
+        Returns:
+            New TagStyle with scaled dimensions
+        """
+        return TagStyle(
+            shape=self.shape,
+            size=self.size * factor,
+            text_height=self.text_height * factor,
+            show_border=self.show_border,
+            layer=self.layer,
+            width=self.width * factor if self.width is not None else None,
+        )
+
     @classmethod
     def door_default(cls) -> TagStyle:
         """Default style for door tags (hexagon)."""
@@ -159,6 +179,16 @@ class DoorTag:
             rotation=self.rotation,
         )
 
+    def scale_and_translate(self, scale: float, dx: float, dy: float) -> DoorTag:
+        """Return a scaled and translated copy of this tag."""
+        new_position = self.insertion_point.scale_and_translate(scale, dx, dy)
+        return DoorTag(
+            door=self.door,
+            position=new_position,
+            style=self.style.scale(scale),
+            rotation=self.rotation,
+        )
+
 
 @dataclass(frozen=True)
 class WindowTag:
@@ -224,6 +254,16 @@ class WindowTag:
             window=self.window,
             position=new_position,
             style=self.style,
+            rotation=self.rotation,
+        )
+
+    def scale_and_translate(self, scale: float, dx: float, dy: float) -> WindowTag:
+        """Return a scaled and translated copy of this tag."""
+        new_position = self.insertion_point.scale_and_translate(scale, dx, dy)
+        return WindowTag(
+            window=self.window,
+            position=new_position,
+            style=self.style.scale(scale),
             rotation=self.rotation,
         )
 
@@ -344,6 +384,16 @@ class RoomTag:
             room=self.room,
             position=new_position,
             style=self.style,
+            rotation=self.rotation,
+        )
+
+    def scale_and_translate(self, scale: float, dx: float, dy: float) -> RoomTag:
+        """Return a scaled and translated copy of this tag."""
+        new_position = self.insertion_point.scale_and_translate(scale, dx, dy)
+        return RoomTag(
+            room=self.room,
+            position=new_position,
+            style=self.style.scale(scale),
             rotation=self.rotation,
         )
 

@@ -37,8 +37,11 @@ from bimascode.drawing.primitives import (
     TextAlignment,
     TextNote2D,
 )
+from bimascode.drawing.section_view import SectionView
+from bimascode.drawing.sheet import Sheet, SheetMetadata
+from bimascode.drawing.sheet_sizes import SheetSize
 from bimascode.drawing.tags import DoorTag, RoomTag, TagStyle
-from bimascode.drawing.view_base import ViewRange
+from bimascode.drawing.view_base import ViewRange, ViewScale
 from bimascode.performance.representation_cache import RepresentationCache
 from bimascode.performance.spatial_index import SpatialIndex
 from bimascode.spatial.building import Building
@@ -663,11 +666,77 @@ def main():
     print(f"  Door tags: {len(result.door_tags)}")
     print(f"  Room tags: {len(result.room_tags)}")
 
-    # Export DXF
+    # Export DXF (standalone floor plan)
     dxf_path = output_dir / "hospital_wing_plan.dxf"
     exporter = DXFExporter()
     exporter.export(result, str(dxf_path))
     print(f"\n  Saved: {dxf_path.name}")
+
+    # Generate section view through patient rooms
+    # Section cuts perpendicular to corridor, through the middle of a patient room
+    # Using BIM-style section line: draw line on plan, specify look direction
+    print("\nGenerating section view...")
+    section_x = ROOM_WIDTH / 2  # Cut through center of first room
+    section_view = SectionView.from_section_line(
+        name="Section A-A",
+        start_point=(section_x, south_room_y - 1000),  # Section line start (south)
+        end_point=(section_x, north_room_y + 1000),  # Section line end (north)
+        look_direction="right",  # Looking east (right when walking south to north)
+        depth=corridor_length,  # View depth to see beyond section
+        height_range=(0, FLOOR_HEIGHT),  # Floor to ceiling
+        scale=ViewScale.SCALE_1_50,
+    )
+    section_result = section_view.generate(spatial_index, cache)
+    print(f"  Section elements: {section_result.element_count}")
+    print(f"  Section geometry: {section_result.total_geometry_count}")
+
+    # Export section DXF (standalone)
+    section_dxf_path = output_dir / "hospital_wing_section.dxf"
+    exporter.export(section_result, str(section_dxf_path))
+    print(f"  Saved: {section_dxf_path.name}")
+
+    # Create sheet with floor plan and section viewports
+    print("\nCreating construction document sheet...")
+    sheet = Sheet(
+        size=SheetSize.ARCH_D,  # 24" x 36" architectural sheet
+        number="A-101",
+        name="Level 1 Floor Plan & Section",
+        metadata=SheetMetadata(
+            project="Hospital Wing",
+            drawn_by="BIMasCode",
+            date=datetime.now().strftime("%Y-%m-%d"),
+            revision="A",
+        ),
+    )
+
+    # Add floor plan viewport (upper portion of sheet)
+    # ARCH_D is 609.6mm x 914.4mm (portrait)
+    # Floor plan is wide (~460mm at 1:100), so center it horizontally
+    # and place it in the upper 2/3 of the sheet
+    sheet.add_viewport(
+        result,
+        position=(305, 457),  # Centered on sheet
+        scale=ViewScale.SCALE_1_100,
+        name="Floor Plan",
+    )
+
+    # Add section viewport (lower portion of sheet)
+    # Section is narrower but taller - place below the floor plan
+    sheet.add_viewport(
+        section_result,
+        position=(305, 180),  # Centered horizontally, lower portion
+        scale=ViewScale.SCALE_1_50,  # Larger scale for detail
+        name="Section A-A",
+    )
+
+    print(f"  Sheet: {sheet.number} - {sheet.name}")
+    print(f"  Size: {sheet.size.name} ({sheet.size.width}mm x {sheet.size.height}mm)")
+    print(f"  Viewports: {len(sheet.viewports)}")
+
+    # Export sheet to DXF
+    sheet_dxf_path = output_dir / "hospital_wing_sheet_A101.dxf"
+    sheet.export_dxf(str(sheet_dxf_path))
+    print(f"  Saved: {sheet_dxf_path.name}")
 
     # Export IFC
     print("\nExporting IFC...")

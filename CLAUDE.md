@@ -76,6 +76,25 @@ python examples/office_world_geometry_demo.py
   - Used by: Door, Window
   - Subclasses implement `_get_host_transform()` and `_get_local_transform()`
 
+**Expose Parameters to Driver**: All classes should provide sensible defaults for common settings, but every parameter must be configurable from driver files (example scripts, application code). Library internals should never hardcode values that users might need to customize.
+
+```python
+# GOOD - defaults with override capability
+class Sheet:
+    def __init__(
+        self,
+        size: SheetSize,
+        number: str = "",
+        margins: tuple[float, float, float, float] = (10.0, 10.0, 10.0, 10.0),  # default
+    ):
+        self._margins = margins
+
+# BAD - hardcoded internal value
+class Sheet:
+    def __init__(self, size: SheetSize, number: str = ""):
+        self._margins = (10.0, 10.0, 10.0, 10.0)  # no way to override
+```
+
 ### Critical build123d Behaviors
 
 **IMPORTANT**: build123d has non-intuitive transformation behavior that causes subtle bugs:
@@ -105,6 +124,7 @@ python examples/office_world_geometry_demo.py
 3. **`Polygon()` auto-centers at centroid** - Created polygons shift vertices to center at origin
 
 See `docs/build123d_behavior.md` for detailed explanations and examples.
+
 
 ### Module Organization
 
