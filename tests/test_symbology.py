@@ -4,7 +4,6 @@ import pytest
 
 from bimascode.architecture.door import Door
 from bimascode.architecture.wall import Wall
-from bimascode.architecture.window import Window
 from bimascode.drawing.line_styles import LineStyle, LineWeight
 from bimascode.drawing.symbology import (
     ElementSymbology,

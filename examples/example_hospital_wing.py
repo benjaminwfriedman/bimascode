@@ -40,7 +40,7 @@ from bimascode.drawing.primitives import (
 from bimascode.drawing.section_view import SectionView
 from bimascode.drawing.sheet import Sheet, SheetMetadata
 from bimascode.drawing.sheet_sizes import SheetSize
-from bimascode.drawing.tags import DoorTag, RoomTag, TagStyle
+from bimascode.drawing.tags import DoorTag, RoomTag, SectionSymbol, SectionSymbolStyle, TagStyle
 from bimascode.drawing.view_base import ViewRange, ViewScale
 from bimascode.performance.representation_cache import RepresentationCache
 from bimascode.performance.spatial_index import SpatialIndex
@@ -536,7 +536,7 @@ def add_annotations(
     depth_dim_west = LinearDimension2D(
         start=Point2D(0, south_room_y),
         end=Point2D(0, 0),  # corridor south edge
-        offset=-1500,
+        offset=1500,
         precision=0,
         style=dim_style,
     )
@@ -546,7 +546,7 @@ def add_annotations(
     corridor_dim = LinearDimension2D(
         start=Point2D(0, 0),
         end=Point2D(0, CORRIDOR_WIDTH),
-        offset=-1500,
+        offset=1500,
         precision=0,
         style=dim_style,
     )
@@ -556,7 +556,7 @@ def add_annotations(
     depth_dim_north = LinearDimension2D(
         start=Point2D(0, CORRIDOR_WIDTH),
         end=Point2D(0, north_room_y),
-        offset=-1500,
+        offset=1500,
         precision=0,
         style=dim_style,
     )
@@ -666,23 +666,20 @@ def main():
     print(f"  Door tags: {len(result.door_tags)}")
     print(f"  Room tags: {len(result.room_tags)}")
 
-    # Export DXF (standalone floor plan)
-    dxf_path = output_dir / "hospital_wing_plan.dxf"
-    exporter = DXFExporter()
-    exporter.export(result, str(dxf_path))
-    print(f"\n  Saved: {dxf_path.name}")
-
-    # Generate section view through patient rooms
-    # Section cuts perpendicular to corridor, through the middle of a patient room
+    # Generate section view through center of building
+    # Section cuts parallel to corridor (north-south line through center)
     # Using BIM-style section line: draw line on plan, specify look direction
     print("\nGenerating section view...")
-    section_x = ROOM_WIDTH / 2  # Cut through center of first room
+    section_x = corridor_length / 2  # Cut through center of building
+    section_start = (section_x, north_room_y + 1000)  # Section line start (north)
+    section_end = (section_x, south_room_y - 1000)  # Section line end (south)
+
     section_view = SectionView.from_section_line(
         name="Section A-A",
-        start_point=(section_x, south_room_y - 1000),  # Section line start (south)
-        end_point=(section_x, north_room_y + 1000),  # Section line end (north)
-        look_direction="right",  # Looking east (right when walking south to north)
-        depth=corridor_length,  # View depth to see beyond section
+        start_point=section_start,
+        end_point=section_end,
+        look_direction="right",  # Looking west (right when walking north to south)
+        depth=corridor_length / 2,  # View depth to see half the building
         height_range=(0, FLOOR_HEIGHT),  # Floor to ceiling
         scale=ViewScale.SCALE_1_50,
     )
@@ -690,10 +687,77 @@ def main():
     print(f"  Section elements: {section_result.element_count}")
     print(f"  Section geometry: {section_result.total_geometry_count}")
 
+    # Add section symbol to floor plan
+    # This marks where the section cut is located with arrows showing view direction
+    print("\nAdding section symbol to floor plan...")
+    section_symbol = SectionSymbol.from_section_view(
+        section_view=section_view,
+        start_point=Point2D(section_start[0], section_start[1]),
+        end_point=Point2D(section_end[0], section_end[1]),
+        section_id="A",
+        sheet_number="A-101",
+        style=SectionSymbolStyle(
+            bubble_radius=400.0,  # Larger bubbles for visibility
+            text_height=200.0,
+            arrow_size=300.0,
+        ),
+    )
+    result.section_symbols.append(section_symbol)
+    print(f"  Section symbol added: {section_symbol.section_id} on sheet {section_symbol.sheet_number}")
+
+    # Generate second section view through patient rooms (cuts through doors)
+    # This section runs north-south through the center of the first patient room
+    print("\nGenerating section B-B through patient rooms...")
+    section_b_x = ROOM_WIDTH / 2  # Center of first room (cuts through door)
+    section_b_start = (section_b_x, north_room_y + 1000)  # Section line start (north)
+    section_b_end = (section_b_x, south_room_y - 1000)  # Section line end (south)
+
+    section_view_b = SectionView.from_section_line(
+        name="Section B-B",
+        start_point=section_b_start,
+        end_point=section_b_end,
+        look_direction="left",  # Looking east (left when walking north to south)
+        depth=corridor_length,  # Full depth to see all doors to the east
+        height_range=(0, FLOOR_HEIGHT),  # Floor to ceiling
+        scale=ViewScale.SCALE_1_50,
+    )
+    section_b_result = section_view_b.generate(spatial_index, cache)
+    print(f"  Section B elements: {section_b_result.element_count}")
+    print(f"  Section B geometry: {section_b_result.total_geometry_count}")
+
+    # Add section B symbol to floor plan
+    section_symbol_b = SectionSymbol.from_section_view(
+        section_view=section_view_b,
+        start_point=Point2D(section_b_start[0], section_b_start[1]),
+        end_point=Point2D(section_b_end[0], section_b_end[1]),
+        section_id="B",
+        sheet_number="A-102",
+        style=SectionSymbolStyle(
+            bubble_radius=400.0,
+            text_height=200.0,
+            arrow_size=300.0,
+        ),
+    )
+    result.section_symbols.append(section_symbol_b)
+    print(f"  Section symbol added: {section_symbol_b.section_id} on sheet {section_symbol_b.sheet_number}")
+    print(f"  Floor plan now has {len(result.section_symbols)} section symbol(s)")
+
+    # Export floor plan DXF (includes section symbol)
+    print("\nExporting DXF files...")
+    exporter = DXFExporter()
+    dxf_path = output_dir / "hospital_wing_plan.dxf"
+    exporter.export(result, str(dxf_path))
+    print(f"  Saved: {dxf_path.name}")
+
     # Export section DXF (standalone)
-    section_dxf_path = output_dir / "hospital_wing_section.dxf"
+    section_dxf_path = output_dir / "hospital_wing_section_A.dxf"
     exporter.export(section_result, str(section_dxf_path))
     print(f"  Saved: {section_dxf_path.name}")
+
+    # Export section B DXF (through patient rooms with doors)
+    section_b_dxf_path = output_dir / "hospital_wing_section_B.dxf"
+    exporter.export(section_b_result, str(section_b_dxf_path))
+    print(f"  Saved: {section_b_dxf_path.name}")
 
     # Create sheet with floor plan and section viewports
     print("\nCreating construction document sheet...")
@@ -720,13 +784,21 @@ def main():
         name="Floor Plan",
     )
 
-    # Add section viewport (lower portion of sheet)
+    # Add section A viewport (lower left of sheet)
     # Section is narrower but taller - place below the floor plan
     sheet.add_viewport(
         section_result,
-        position=(305, 180),  # Centered horizontally, lower portion
+        position=(200, 180),  # Left side, lower portion
         scale=ViewScale.SCALE_1_50,  # Larger scale for detail
         name="Section A-A",
+    )
+
+    # Add section B viewport (lower right of sheet)
+    sheet.add_viewport(
+        section_b_result,
+        position=(450, 180),  # Right side, lower portion
+        scale=ViewScale.SCALE_1_50,
+        name="Section B-B",
     )
 
     print(f"  Sheet: {sheet.number} - {sheet.name}")

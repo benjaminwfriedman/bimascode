@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING, Union
 from bimascode.drawing.line_styles import LineStyle
 
 if TYPE_CHECKING:
-    from bimascode.drawing.tags import DoorTag, RoomTag, WindowTag
+    from bimascode.drawing.tags import DoorTag, RoomTag, SectionSymbol, WindowTag
 
 
 @dataclass(frozen=True)
@@ -521,9 +521,7 @@ class LinearDimension2D:
             layer=self.layer,
         )
 
-    def scale_and_translate(
-        self, scale: float, dx: float, dy: float
-    ) -> LinearDimension2D:
+    def scale_and_translate(self, scale: float, dx: float, dy: float) -> LinearDimension2D:
         """Return a scaled and translated copy.
 
         The dimlfac is set to maintain correct dimension text display.
@@ -628,9 +626,7 @@ class ChainDimension2D:
             layer=self.layer,
         )
 
-    def scale_and_translate(
-        self, scale: float, dx: float, dy: float
-    ) -> ChainDimension2D:
+    def scale_and_translate(self, scale: float, dx: float, dy: float) -> ChainDimension2D:
         """Return a scaled and translated copy.
 
         The dimlfac is set to maintain correct dimension text display.
@@ -690,9 +686,10 @@ class ViewResult:
     dimensions: list[LinearDimension2D] = field(default_factory=list)
     chain_dimensions: list[ChainDimension2D] = field(default_factory=list)
     text_notes: list[TextNote2D] = field(default_factory=list)
-    door_tags: list["DoorTag"] = field(default_factory=list)
-    window_tags: list["WindowTag"] = field(default_factory=list)
-    room_tags: list["RoomTag"] = field(default_factory=list)
+    door_tags: list[DoorTag] = field(default_factory=list)
+    window_tags: list[WindowTag] = field(default_factory=list)
+    room_tags: list[RoomTag] = field(default_factory=list)
+    section_symbols: list[SectionSymbol] = field(default_factory=list)
     view_name: str = ""
     generation_time: float = 0.0
     element_count: int = 0
@@ -712,6 +709,7 @@ class ViewResult:
             + len(self.door_tags)
             + len(self.window_tags)
             + len(self.room_tags)
+            + len(self.section_symbols)
         )
 
     @property
@@ -739,6 +737,7 @@ class ViewResult:
         self.door_tags.extend(other.door_tags)
         self.window_tags.extend(other.window_tags)
         self.room_tags.extend(other.room_tags)
+        self.section_symbols.extend(other.section_symbols)
         self.element_count += other.element_count
         self.cache_hits += other.cache_hits
 
@@ -755,15 +754,14 @@ class ViewResult:
             door_tags=[t.translate(dx, dy) for t in self.door_tags],
             window_tags=[t.translate(dx, dy) for t in self.window_tags],
             room_tags=[t.translate(dx, dy) for t in self.room_tags],
+            section_symbols=[s.translate(dx, dy) for s in self.section_symbols],
             view_name=self.view_name,
             generation_time=self.generation_time,
             element_count=self.element_count,
             cache_hits=self.cache_hits,
         )
 
-    def scale_and_translate(
-        self, scale: float, dx: float, dy: float
-    ) -> ViewResult:
+    def scale_and_translate(self, scale: float, dx: float, dy: float) -> ViewResult:
         """Return a scaled and translated copy of all geometry.
 
         Applies scaling first (from origin), then translation.
@@ -779,28 +777,15 @@ class ViewResult:
         return ViewResult(
             lines=[line.scale_and_translate(scale, dx, dy) for line in self.lines],
             arcs=[arc.scale_and_translate(scale, dx, dy) for arc in self.arcs],
-            polylines=[
-                pl.scale_and_translate(scale, dx, dy) for pl in self.polylines
-            ],
+            polylines=[pl.scale_and_translate(scale, dx, dy) for pl in self.polylines],
             hatches=[h.scale_and_translate(scale, dx, dy) for h in self.hatches],
-            dimensions=[
-                d.scale_and_translate(scale, dx, dy) for d in self.dimensions
-            ],
-            chain_dimensions=[
-                c.scale_and_translate(scale, dx, dy) for c in self.chain_dimensions
-            ],
-            text_notes=[
-                t.scale_and_translate(scale, dx, dy) for t in self.text_notes
-            ],
-            door_tags=[
-                t.scale_and_translate(scale, dx, dy) for t in self.door_tags
-            ],
-            window_tags=[
-                t.scale_and_translate(scale, dx, dy) for t in self.window_tags
-            ],
-            room_tags=[
-                t.scale_and_translate(scale, dx, dy) for t in self.room_tags
-            ],
+            dimensions=[d.scale_and_translate(scale, dx, dy) for d in self.dimensions],
+            chain_dimensions=[c.scale_and_translate(scale, dx, dy) for c in self.chain_dimensions],
+            text_notes=[t.scale_and_translate(scale, dx, dy) for t in self.text_notes],
+            door_tags=[t.scale_and_translate(scale, dx, dy) for t in self.door_tags],
+            window_tags=[t.scale_and_translate(scale, dx, dy) for t in self.window_tags],
+            room_tags=[t.scale_and_translate(scale, dx, dy) for t in self.room_tags],
+            section_symbols=[s.scale_and_translate(scale, dx, dy) for s in self.section_symbols],
             view_name=self.view_name,
             generation_time=self.generation_time,
             element_count=self.element_count,
@@ -871,6 +856,13 @@ class ViewResult:
         for tag in self.room_tags:
             # Include tag position
             all_points.append(tag.insertion_point)
+
+        for symbol in self.section_symbols:
+            # Include section symbol endpoints and bubble centers
+            all_points.append(symbol.start_point)
+            all_points.append(symbol.end_point)
+            all_points.append(symbol.get_start_bubble_center())
+            all_points.append(symbol.get_end_bubble_center())
 
         if not all_points:
             return None

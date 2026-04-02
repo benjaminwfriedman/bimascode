@@ -110,7 +110,7 @@ class SectionView(ViewBase):
         crop_region: ViewCropRegion | None = None,
         template=None,
         show_hidden_lines: bool = True,
-    ) -> "SectionView":
+    ) -> SectionView:
         """Create a section view from a section line on plan.
 
         This is the BIM-like way to define sections: draw a line on plan
