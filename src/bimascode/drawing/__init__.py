@@ -43,12 +43,6 @@ from bimascode.drawing.primitives import (
     ViewResult,
 )
 
-# Sheets
-from bimascode.drawing.sheet import Sheet, SheetMetadata
-from bimascode.drawing.sheet_sizes import SheetSize
-from bimascode.drawing.title_block import TitleBlock
-from bimascode.drawing.viewport import SheetViewport
-
 # Protocols
 from bimascode.drawing.protocols import (
     Drawable2D,
@@ -56,6 +50,14 @@ from bimascode.drawing.protocols import (
     HasGeometry,
     Linework2D,
 )
+
+# Utilities
+from bimascode.drawing.section_cutter import SectionCutter, get_section_cutter
+from bimascode.drawing.section_view import SectionView
+
+# Sheets
+from bimascode.drawing.sheet import Sheet, SheetMetadata
+from bimascode.drawing.sheet_sizes import SheetSize
 
 # Symbology
 from bimascode.drawing.symbology import (
@@ -65,12 +67,18 @@ from bimascode.drawing.symbology import (
     get_default_symbology,
 )
 
-# Utilities
-from bimascode.drawing.section_cutter import SectionCutter, get_section_cutter
-from bimascode.drawing.section_view import SectionView
-
-# Tags
-from bimascode.drawing.tags import DoorTag, RoomTag, Tag2D, TagShape, TagStyle, WindowTag
+# Tags and Section Symbols
+from bimascode.drawing.tags import (
+    DoorTag,
+    RoomTag,
+    SectionSymbol,
+    SectionSymbolStyle,
+    Tag2D,
+    TagShape,
+    TagStyle,
+    WindowTag,
+)
+from bimascode.drawing.title_block import TitleBlock
 
 # View base classes
 from bimascode.drawing.view_base import (
@@ -87,6 +95,7 @@ from bimascode.drawing.view_templates import (
     ViewTemplate,
     ViewVisibilitySettings,
 )
+from bimascode.drawing.viewport import SheetViewport
 
 __all__ = [
     # Primitives
@@ -147,11 +156,13 @@ __all__ = [
     "DXFExporter",
     "DXFSheetExporter",
     "get_dxf_exporter",
-    # Tags
+    # Tags and Section Symbols
     "DoorTag",
     "WindowTag",
     "RoomTag",
     "TagStyle",
     "TagShape",
     "Tag2D",
+    "SectionSymbol",
+    "SectionSymbolStyle",
 ]

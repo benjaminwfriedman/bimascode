@@ -283,8 +283,31 @@ class SectionCutter:
         result: list[Line2D | Arc2D] = []
 
         # For vertical sections, we need to project to 2D
-        # The section result is in 3D; we project to the section plane
-        # For simplicity, we use X and Z as the 2D coordinates
+        # The section result is in 3D; we project based on plane orientation
+        # Z is always vertical in the section
+        # Horizontal axis depends on which way the plane faces:
+        # - If normal is primarily in X direction: use Y for horizontal
+        # - If normal is primarily in Y direction: use X for horizontal
+        #
+        # The horizontal axis sign must match HLR convention:
+        # HLR x_axis = view_direction × up = normal × (0,0,1)
+        # For east view (1,0,0): x_axis = (0,-1,0), so HLR X = -world_Y
+        # For west view (-1,0,0): x_axis = (0,1,0), so HLR X = +world_Y
+        # For north view (0,1,0): x_axis = (1,0,0), so HLR X = +world_X
+        # For south view (0,-1,0): x_axis = (-1,0,0), so HLR X = -world_X
+        nx, ny, nz = plane_normal
+        use_y_for_horizontal = abs(nx) > abs(ny)
+
+        # Determine sign for horizontal axis to match HLR convention
+        # HLR x_axis = view × up, where view = plane_normal, up = (0,0,1)
+        # Cross product (nx,ny,0) × (0,0,1) = (ny, -nx, 0)
+        # So HLR X-axis direction is (ny, -nx, 0)
+        # If use_y_for_horizontal: HLR X ~ -nx * world_Y (sign is -nx)
+        # If use_x_for_horizontal: HLR X ~ ny * world_X (sign is ny)
+        if use_y_for_horizontal:
+            h_sign = -1 if nx > 0 else 1  # -nx sign
+        else:
+            h_sign = 1 if ny > 0 else -1  # ny sign
 
         explorer = TopExp_Explorer(result_shape, TopAbs_EDGE)
 
@@ -302,19 +325,31 @@ class SectionCutter:
                     p1 = curve.Value(curve.FirstParameter())
                     p2 = curve.Value(curve.LastParameter())
 
-                    # Project to section plane (use distance along plane)
-                    # For now, use simple X, Z projection
-                    result.append(
-                        Line2D(
-                            start=Point2D(p1.X(), p1.Z()),
-                            end=Point2D(p2.X(), p2.Z()),
-                            style=style,
-                            layer=layer,
+                    # Project to section plane based on orientation
+                    # Apply sign to match HLR coordinate system
+                    if use_y_for_horizontal:
+                        result.append(
+                            Line2D(
+                                start=Point2D(h_sign * p1.Y(), p1.Z()),
+                                end=Point2D(h_sign * p2.Y(), p2.Z()),
+                                style=style,
+                                layer=layer,
+                            )
                         )
-                    )
+                    else:
+                        result.append(
+                            Line2D(
+                                start=Point2D(h_sign * p1.X(), p1.Z()),
+                                end=Point2D(h_sign * p2.X(), p2.Z()),
+                                style=style,
+                                layer=layer,
+                            )
+                        )
                 else:
                     # Tessellate and project
-                    lines = self._tessellate_curve_vertical(curve, style, layer)
+                    lines = self._tessellate_curve_vertical(
+                        curve, style, layer, use_y_for_horizontal, h_sign
+                    )
                     result.extend(lines)
 
             except Exception:
@@ -327,9 +362,20 @@ class SectionCutter:
         curve,
         style: LineStyle,
         layer: str,
+        use_y_for_horizontal: bool = False,
+        h_sign: float = 1.0,
         num_segments: int = 32,
     ) -> list[Line2D]:
-        """Tessellate a curve for vertical sections (X, Z projection)."""
+        """Tessellate a curve for vertical sections.
+
+        Args:
+            curve: BRepAdaptor_Curve to tessellate
+            style: Line style
+            layer: Layer name
+            use_y_for_horizontal: If True, use Y for horizontal axis; else use X
+            h_sign: Sign multiplier for horizontal axis to match HLR convention
+            num_segments: Number of segments for tessellation
+        """
         result = []
 
         first = curve.FirstParameter()
@@ -340,7 +386,10 @@ class SectionCutter:
         for i in range(num_segments + 1):
             param = first + i * step
             pnt = curve.Value(param)
-            current = Point2D(pnt.X(), pnt.Z())
+            if use_y_for_horizontal:
+                current = Point2D(h_sign * pnt.Y(), pnt.Z())
+            else:
+                current = Point2D(h_sign * pnt.X(), pnt.Z())
 
             if prev_point is not None:
                 result.append(Line2D(start=prev_point, end=current, style=style, layer=layer))

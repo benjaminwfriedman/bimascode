@@ -1,4 +1,4 @@
-"""Tag annotations for doors and windows in 2D drawings.
+"""Tag annotations for doors, windows, rooms, and section symbols in 2D drawings.
 
 This module provides tag classes that display element marks at their locations,
 with support for DXF BLOCK + ATTRIB export.
@@ -6,6 +6,7 @@ with support for DXF BLOCK + ATTRIB export.
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import TYPE_CHECKING
@@ -16,6 +17,7 @@ from bimascode.drawing.primitives import Point2D
 if TYPE_CHECKING:
     from bimascode.architecture.door import Door
     from bimascode.architecture.window import Window
+    from bimascode.drawing.section_view import SectionView
     from bimascode.spatial.room import Room
 
 
@@ -398,5 +400,287 @@ class RoomTag:
         )
 
 
+@dataclass(frozen=True)
+class SectionSymbolStyle:
+    """Style configuration for section symbols.
+
+    A section symbol marks the location of a section cut on a plan view,
+    consisting of a cut line with arrow heads and reference bubbles at each end.
+
+    Attributes:
+        bubble_radius: Radius of reference bubbles at line ends (mm)
+        text_height: Height of the text in bubbles (mm)
+        arrow_size: Size of arrow heads (mm)
+        line_extension: Extension of cut line beyond bubbles (mm)
+        show_arrows: Whether to show arrow heads
+        show_bubbles: Whether to show reference bubbles
+        layer: CAD layer name for the symbol
+    """
+
+    bubble_radius: float = 200.0
+    text_height: float = 120.0
+    arrow_size: float = 150.0
+    line_extension: float = 100.0
+    show_arrows: bool = True
+    show_bubbles: bool = True
+    layer: str = Layer.SYMBOL
+
+    def scale(self, factor: float) -> SectionSymbolStyle:
+        """Return a scaled copy of this style.
+
+        Args:
+            factor: Scale factor to apply
+
+        Returns:
+            New SectionSymbolStyle with scaled dimensions
+        """
+        return SectionSymbolStyle(
+            bubble_radius=self.bubble_radius * factor,
+            text_height=self.text_height * factor,
+            arrow_size=self.arrow_size * factor,
+            line_extension=self.line_extension * factor,
+            show_arrows=self.show_arrows,
+            show_bubbles=self.show_bubbles,
+            layer=self.layer,
+        )
+
+    @classmethod
+    def default(cls) -> SectionSymbolStyle:
+        """Default style for section symbols."""
+        return cls()
+
+
+@dataclass(frozen=True)
+class SectionSymbol:
+    """Symbol marking a section cut on a plan view.
+
+    Displays a section cut line with arrow heads indicating view direction
+    and circular reference bubbles at each end containing section/sheet numbers.
+    Exports to DXF as BLOCK references with ATTRIB.
+
+    The symbol consists of:
+    - A cut line between start_point and end_point
+    - Arrow heads pointing in the view direction
+    - Reference bubbles (circles) at each end with identifiers
+
+    Attributes:
+        start_point: Start point of cut line on plan (mm)
+        end_point: End point of cut line on plan (mm)
+        section_id: Section identifier (e.g., "A", "1")
+        sheet_number: Destination sheet number (e.g., "A2", "S-101")
+        look_direction: Direction the view looks ("left" or "right" of line)
+        section_view: Optional reference to the SectionView being marked
+        style: Symbol style configuration
+        rotation: Symbol rotation in degrees (0 = auto from line direction)
+
+    Example:
+        >>> symbol = SectionSymbol(
+        ...     start_point=Point2D(5000, 0),
+        ...     end_point=Point2D(5000, 10000),
+        ...     section_id="A",
+        ...     sheet_number="A2",
+        ...     look_direction="right",
+        ... )
+    """
+
+    start_point: Point2D
+    end_point: Point2D
+    section_id: str = "A"
+    sheet_number: str = ""
+    look_direction: str = "right"  # "left" or "right" of line direction
+    section_view: SectionView | None = None
+    style: SectionSymbolStyle = field(default_factory=SectionSymbolStyle.default)
+    rotation: float = 0.0
+
+    @property
+    def line_angle(self) -> float:
+        """Get the angle of the section line in radians."""
+        dx = self.end_point.x - self.start_point.x
+        dy = self.end_point.y - self.start_point.y
+        return math.atan2(dy, dx)
+
+    @property
+    def line_length(self) -> float:
+        """Get the length of the section line."""
+        return self.start_point.distance_to(self.end_point)
+
+    @property
+    def arrow_angle(self) -> float:
+        """Get the arrow direction angle in radians.
+
+        Arrow points perpendicular to the line in the look direction.
+        """
+        line_angle = self.line_angle
+        if self.look_direction == "right":
+            # Clockwise perpendicular
+            return line_angle - math.pi / 2
+        else:
+            # Counter-clockwise perpendicular
+            return line_angle + math.pi / 2
+
+    @property
+    def midpoint(self) -> Point2D:
+        """Get the midpoint of the section line."""
+        return Point2D(
+            (self.start_point.x + self.end_point.x) / 2,
+            (self.start_point.y + self.end_point.y) / 2,
+        )
+
+    @property
+    def start_label(self) -> str:
+        """Get the label text for the start bubble."""
+        return self.section_id
+
+    @property
+    def end_label(self) -> str:
+        """Get the label text for the end bubble."""
+        return self.section_id
+
+    @property
+    def start_sheet(self) -> str:
+        """Get the sheet number text for the start bubble."""
+        return self.sheet_number
+
+    @property
+    def end_sheet(self) -> str:
+        """Get the sheet number text for the end bubble."""
+        return self.sheet_number
+
+    @property
+    def layer(self) -> str:
+        """Get the layer for this symbol."""
+        return self.style.layer
+
+    @property
+    def block_name(self) -> str:
+        """Get the DXF block name for this symbol type.
+
+        Includes style parameters in the name to ensure unique
+        block definitions for different configurations.
+        """
+        return (
+            f"SECTION_SYMBOL_{int(self.style.bubble_radius)}_"
+            f"{int(self.style.text_height)}_{int(self.style.arrow_size)}"
+        )
+
+    def get_start_bubble_center(self) -> Point2D:
+        """Get the center point of the start reference bubble.
+
+        The bubble is offset from the line endpoint by the bubble radius.
+        """
+        angle = self.line_angle + math.pi  # Opposite direction from line
+        offset = self.style.bubble_radius + self.style.line_extension
+        return Point2D(
+            self.start_point.x + offset * math.cos(angle),
+            self.start_point.y + offset * math.sin(angle),
+        )
+
+    def get_end_bubble_center(self) -> Point2D:
+        """Get the center point of the end reference bubble.
+
+        The bubble is offset from the line endpoint by the bubble radius.
+        """
+        angle = self.line_angle  # Same direction as line
+        offset = self.style.bubble_radius + self.style.line_extension
+        return Point2D(
+            self.end_point.x + offset * math.cos(angle),
+            self.end_point.y + offset * math.sin(angle),
+        )
+
+    def translate(self, dx: float, dy: float) -> SectionSymbol:
+        """Return a translated copy of this symbol."""
+        return SectionSymbol(
+            start_point=self.start_point.translate(dx, dy),
+            end_point=self.end_point.translate(dx, dy),
+            section_id=self.section_id,
+            sheet_number=self.sheet_number,
+            look_direction=self.look_direction,
+            section_view=self.section_view,
+            style=self.style,
+            rotation=self.rotation,
+        )
+
+    def scale_and_translate(self, scale: float, dx: float, dy: float) -> SectionSymbol:
+        """Return a scaled and translated copy of this symbol."""
+        return SectionSymbol(
+            start_point=self.start_point.scale_and_translate(scale, dx, dy),
+            end_point=self.end_point.scale_and_translate(scale, dx, dy),
+            section_id=self.section_id,
+            sheet_number=self.sheet_number,
+            look_direction=self.look_direction,
+            section_view=self.section_view,
+            style=self.style.scale(scale),
+            rotation=self.rotation,
+        )
+
+    @classmethod
+    def from_section_view(
+        cls,
+        section_view: SectionView,
+        start_point: Point2D,
+        end_point: Point2D,
+        section_id: str = "A",
+        sheet_number: str = "",
+        style: SectionSymbolStyle | None = None,
+    ) -> SectionSymbol:
+        """Create a section symbol from a SectionView.
+
+        Automatically determines the look direction from the section view's
+        plane normal.
+
+        Args:
+            section_view: The SectionView being marked
+            start_point: Start point of cut line on plan
+            end_point: End point of cut line on plan
+            section_id: Section identifier (e.g., "A", "1")
+            sheet_number: Destination sheet number
+            style: Optional style override
+
+        Returns:
+            SectionSymbol configured for the section view
+
+        Example:
+            >>> section = SectionView.from_section_line(
+            ...     "Section A-A",
+            ...     start_point=(5000, 0),
+            ...     end_point=(5000, 10000),
+            ...     look_direction="right",
+            ... )
+            >>> symbol = SectionSymbol.from_section_view(
+            ...     section,
+            ...     Point2D(5000, 0),
+            ...     Point2D(5000, 10000),
+            ...     section_id="A",
+            ...     sheet_number="A2",
+            ... )
+        """
+        # Determine look direction from section view's plane normal
+        # The plane normal points in the view direction
+        nx, ny, nz = section_view.plane_normal
+
+        # Calculate line direction vector
+        line_dx = end_point.x - start_point.x
+        line_dy = end_point.y - start_point.y
+        line_length = math.sqrt(line_dx * line_dx + line_dy * line_dy)
+        if line_length > 0:
+            line_dx /= line_length
+            line_dy /= line_length
+
+        # Cross product of line direction and normal determines side
+        # If cross product Z component is positive, looking left; negative, looking right
+        cross_z = line_dx * ny - line_dy * nx
+        look_direction = "left" if cross_z > 0 else "right"
+
+        return cls(
+            start_point=start_point,
+            end_point=end_point,
+            section_id=section_id,
+            sheet_number=sheet_number,
+            look_direction=look_direction,
+            section_view=section_view,
+            style=style or SectionSymbolStyle.default(),
+        )
+
+
 # Type alias for any tag type
-Tag2D = DoorTag | WindowTag | RoomTag
+Tag2D = DoorTag | WindowTag | RoomTag | SectionSymbol

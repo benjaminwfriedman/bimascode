@@ -21,7 +21,7 @@ from bimascode.drawing.primitives import (
     TextNote2D,
     ViewResult,
 )
-from bimascode.drawing.tags import DoorTag, RoomTag, TagShape, WindowTag
+from bimascode.drawing.tags import DoorTag, RoomTag, SectionSymbol, TagShape, WindowTag
 
 if TYPE_CHECKING:
     from bimascode.drawing.sheet import Sheet
@@ -124,6 +124,7 @@ class DXFExporter:
         self._export_door_tags(doc, msp, view_result.door_tags, scale)
         self._export_window_tags(doc, msp, view_result.window_tags, scale)
         self._export_room_tags(doc, msp, view_result.room_tags, scale)
+        self._export_section_symbols(doc, msp, view_result.section_symbols, scale)
 
         # Save file
         doc.saveas(filepath)
@@ -154,6 +155,8 @@ class DXFExporter:
             layers.add(tag.layer)
         for tag in view_result.room_tags:
             layers.add(tag.layer)
+        for symbol in view_result.section_symbols:
+            layers.add(symbol.layer)
 
         # Create layers with standard AIA colors
         layer_colors = {
@@ -703,6 +706,202 @@ class DXFExporter:
                 }
             )
 
+    def _create_section_symbol_block(
+        self,
+        doc,
+        block_name: str,
+        bubble_radius: float,
+        text_height: float,
+        arrow_size: float,
+    ) -> None:
+        """Create a section symbol bubble block definition if it doesn't exist.
+
+        Creates a circular reference bubble with two attribute definitions:
+        - SECTION_ID: The section identifier (e.g., "A")
+        - SHEET_NUMBER: The destination sheet number (e.g., "A2")
+
+        The bubble is drawn at the origin with the specified radius.
+
+        Args:
+            doc: DXF document
+            block_name: Name for the block
+            bubble_radius: Radius of the bubble circle
+            text_height: Height of the text
+            arrow_size: Size of arrow (used for spacing calculations)
+        """
+        if block_name in doc.blocks:
+            return
+
+        block = doc.blocks.new(name=block_name)
+
+        # Draw the bubble circle
+        block.add_circle(center=(0, 0), radius=bubble_radius)
+
+        # Add attribute definition for section ID (upper half)
+        line_spacing = text_height * 0.8
+        block.add_attdef(
+            tag="SECTION_ID",
+            insert=(0, line_spacing / 2),
+            dxfattribs={
+                "height": text_height,
+                "halign": 4,  # Middle center
+                "valign": 2,  # Middle
+            },
+        )
+
+        # Add attribute definition for sheet number (lower half)
+        block.add_attdef(
+            tag="SHEET_NUMBER",
+            insert=(0, -line_spacing / 2),
+            dxfattribs={
+                "height": text_height * 0.8,  # Slightly smaller
+                "halign": 4,  # Middle center
+                "valign": 2,  # Middle
+            },
+        )
+
+        # Add horizontal divider line in the bubble
+        block.add_line(
+            start=(-bubble_radius * 0.7, 0),
+            end=(bubble_radius * 0.7, 0),
+        )
+
+    def _export_section_symbols(
+        self,
+        doc,
+        msp,
+        symbols: list[SectionSymbol],
+        scale: float,
+    ) -> None:
+        """Export SectionSymbol objects to DXF.
+
+        Each section symbol consists of:
+        1. A cut line between start and end points
+        2. Arrow heads pointing in the view direction
+        3. Reference bubbles (BLOCK references) at each end
+
+        Args:
+            doc: DXF document
+            msp: Modelspace or layout to export to
+            symbols: List of SectionSymbol objects
+            scale: Scale factor
+        """
+        for symbol in symbols:
+            # Create block definition for bubbles if needed
+            self._create_section_symbol_block(
+                doc,
+                symbol.block_name,
+                symbol.style.bubble_radius * scale,
+                symbol.style.text_height * scale,
+                symbol.style.arrow_size * scale,
+            )
+
+            # Draw the section cut line
+            start = (symbol.start_point.x * scale, symbol.start_point.y * scale)
+            end = (symbol.end_point.x * scale, symbol.end_point.y * scale)
+
+            msp.add_line(
+                start=start,
+                end=end,
+                dxfattribs={
+                    "layer": symbol.layer,
+                    "lineweight": DXF_LINEWEIGHT_MAP.get(LineWeight.MEDIUM, 35),
+                },
+            )
+
+            # Draw arrow heads if enabled
+            if symbol.style.show_arrows:
+                arrow_angle = symbol.arrow_angle
+                arrow_size = symbol.style.arrow_size * scale
+
+                # Arrow at start point
+                self._draw_section_arrow(
+                    msp,
+                    (symbol.start_point.x * scale, symbol.start_point.y * scale),
+                    arrow_angle,
+                    arrow_size,
+                    symbol.layer,
+                )
+
+                # Arrow at end point
+                self._draw_section_arrow(
+                    msp,
+                    (symbol.end_point.x * scale, symbol.end_point.y * scale),
+                    arrow_angle,
+                    arrow_size,
+                    symbol.layer,
+                )
+
+            # Draw reference bubbles if enabled
+            if symbol.style.show_bubbles:
+                # Start bubble
+                start_bubble = symbol.get_start_bubble_center()
+                block_ref = msp.add_blockref(
+                    symbol.block_name,
+                    insert=(start_bubble.x * scale, start_bubble.y * scale),
+                    dxfattribs={"layer": symbol.layer},
+                )
+                block_ref.add_auto_attribs(
+                    {
+                        "SECTION_ID": symbol.start_label,
+                        "SHEET_NUMBER": symbol.start_sheet,
+                    }
+                )
+
+                # End bubble
+                end_bubble = symbol.get_end_bubble_center()
+                block_ref = msp.add_blockref(
+                    symbol.block_name,
+                    insert=(end_bubble.x * scale, end_bubble.y * scale),
+                    dxfattribs={"layer": symbol.layer},
+                )
+                block_ref.add_auto_attribs(
+                    {
+                        "SECTION_ID": symbol.end_label,
+                        "SHEET_NUMBER": symbol.end_sheet,
+                    }
+                )
+
+    def _draw_section_arrow(
+        self,
+        msp,
+        point: tuple[float, float],
+        angle: float,
+        size: float,
+        layer: str,
+    ) -> None:
+        """Draw a section arrow head at the specified point.
+
+        The arrow is a filled triangle pointing in the specified direction.
+
+        Args:
+            msp: Modelspace or layout to draw on
+            point: Arrow tip location (x, y)
+            angle: Arrow direction in radians
+            size: Arrow size (length)
+            layer: CAD layer name
+        """
+        # Arrow head as a solid triangle
+        # Calculate the three points of the triangle
+        tip_x, tip_y = point
+
+        # Back corners of the arrow
+        back_angle1 = angle + math.pi + math.pi / 6  # 150 degrees from tip direction
+        back_angle2 = angle + math.pi - math.pi / 6  # 210 degrees from tip direction
+
+        back1_x = tip_x + size * math.cos(back_angle1)
+        back1_y = tip_y + size * math.sin(back_angle1)
+        back2_x = tip_x + size * math.cos(back_angle2)
+        back2_y = tip_y + size * math.sin(back_angle2)
+
+        # Draw as solid hatch (filled triangle)
+        hatch = msp.add_hatch(color=7, dxfattribs={"layer": layer})
+        hatch.set_solid_fill()
+        hatch.paths.add_polyline_path(
+            [(tip_x, tip_y), (back1_x, back1_y), (back2_x, back2_y)],
+            is_closed=True,
+        )
+
     def export_multiple(
         self,
         views: list[tuple[ViewResult, tuple[float, float]]],
@@ -751,6 +950,8 @@ class DXFExporter:
                 all_layers.add(tag.layer)
             for tag in view_result.room_tags:
                 all_layers.add(tag.layer)
+            for symbol in view_result.section_symbols:
+                all_layers.add(symbol.layer)
 
         # Setup layers and line types
         for layer_name in all_layers:
@@ -773,6 +974,7 @@ class DXFExporter:
             self._export_door_tags(doc, msp, translated.door_tags, scale)
             self._export_window_tags(doc, msp, translated.window_tags, scale)
             self._export_room_tags(doc, msp, translated.room_tags, scale)
+            self._export_section_symbols(doc, msp, translated.section_symbols, scale)
 
         # Save file
         doc.saveas(filepath)
@@ -1030,6 +1232,8 @@ class DXFSheetExporter:
             layers.add(tag.layer)
         for tag in view_result.room_tags:
             layers.add(tag.layer)
+        for symbol in view_result.section_symbols:
+            layers.add(symbol.layer)
 
     def _export_view_result_to_layout(
         self, doc, layout, view_result: ViewResult, scale: float
@@ -1052,6 +1256,82 @@ class DXFSheetExporter:
         self._model_exporter._export_door_tags(doc, layout, view_result.door_tags, scale)
         self._model_exporter._export_window_tags(doc, layout, view_result.window_tags, scale)
         self._model_exporter._export_room_tags(doc, layout, view_result.room_tags, scale)
+        self._model_exporter._export_section_symbols(
+            doc, layout, view_result.section_symbols, scale
+        )
+
+    def _add_viewport_label(
+        self,
+        msp,
+        viewport,
+        scaled_view: ViewResult,
+    ) -> None:
+        """Add a label below a viewport with view name and scale.
+
+        The label consists of:
+        - View name (e.g., "Section A-A" or "Floor Plan")
+        - Underline
+        - Scale notation (e.g., "Scale: 1:50")
+
+        Args:
+            msp: Modelspace to add label to
+            viewport: SheetViewport being labeled
+            scaled_view: The scaled/translated view result (for bounds)
+        """
+        # Get the view name - prefer viewport name, fall back to view_result name
+        view_name = viewport.name or viewport.view_result.view_name
+        if not view_name:
+            return  # No name to display
+
+        # Get bounds of the scaled view content
+        bounds = scaled_view.get_bounds()
+        if bounds is None:
+            return
+
+        # Position label centered below the view
+        center_x = (bounds[0] + bounds[2]) / 2
+        view_bottom = bounds[1]
+
+        # Label sizing - proportional to sheet (typical sheet text is 2.5-3.5mm)
+        text_height = 3.0  # mm on sheet
+        line_spacing = text_height * 1.5
+        label_offset = 5.0  # Gap between view and label
+
+        # View name position (centered, below view)
+        name_y = view_bottom - label_offset - text_height
+
+        # Add view name text
+        msp.add_mtext(
+            view_name,
+            dxfattribs={
+                "layer": Layer.ANNOTATION,
+                "char_height": text_height,
+                "attachment_point": 8,  # BOTTOM_CENTER
+            },
+        ).set_location(insert=(center_x, name_y))
+
+        # Add underline below the name
+        # Estimate text width (approximate: 0.6 * height * num_chars)
+        text_width = len(view_name) * text_height * 0.6
+        underline_y = name_y - text_height * 0.3
+        msp.add_line(
+            start=(center_x - text_width / 2, underline_y),
+            end=(center_x + text_width / 2, underline_y),
+            dxfattribs={"layer": Layer.ANNOTATION},
+        )
+
+        # Add scale notation below the underline
+        scale_text = f"Scale: {viewport.scale.name}"
+        scale_y = underline_y - line_spacing
+
+        msp.add_mtext(
+            scale_text,
+            dxfattribs={
+                "layer": Layer.ANNOTATION,
+                "char_height": text_height * 0.8,  # Slightly smaller
+                "attachment_point": 8,  # BOTTOM_CENTER
+            },
+        ).set_location(insert=(center_x, scale_y))
 
     def export_sheet_flat(
         self,
@@ -1103,27 +1383,24 @@ class DXFSheetExporter:
             offset_y = viewport.position.y - model_center_y * scale
 
             # Scale and translate the view content
-            scaled_view = viewport.view_result.scale_and_translate(
-                scale, offset_x, offset_y
-            )
+            scaled_view = viewport.view_result.scale_and_translate(scale, offset_x, offset_y)
 
             # Export to modelspace
             self._export_view_result_to_layout(doc, msp, scaled_view, scale=1.0)
 
+            # Add viewport label below the view
+            self._add_viewport_label(msp, viewport, scaled_view)
+
         # Export title block to modelspace (if present)
         if sheet.title_block and sheet.title_block.has_geometry():
-            self._export_view_result_to_layout(
-                doc, msp, sheet.title_block.geometry, scale=1.0
-            )
+            self._export_view_result_to_layout(doc, msp, sheet.title_block.geometry, scale=1.0)
 
         # Export sheet annotations to modelspace
         if sheet.annotations.total_geometry_count > 0:
             self._export_view_result_to_layout(doc, msp, sheet.annotations, scale=1.0)
 
         # Draw sheet border (optional - helps visualize sheet bounds)
-        msp.add_line(
-            (0, 0), (sheet.size.width, 0), dxfattribs={"layer": "0", "color": 8}
-        )
+        msp.add_line((0, 0), (sheet.size.width, 0), dxfattribs={"layer": "0", "color": 8})
         msp.add_line(
             (sheet.size.width, 0),
             (sheet.size.width, sheet.size.height),
@@ -1134,9 +1411,7 @@ class DXFSheetExporter:
             (0, sheet.size.height),
             dxfattribs={"layer": "0", "color": 8},
         )
-        msp.add_line(
-            (0, sheet.size.height), (0, 0), dxfattribs={"layer": "0", "color": 8}
-        )
+        msp.add_line((0, sheet.size.height), (0, 0), dxfattribs={"layer": "0", "color": 8})
 
         # Save file
         doc.saveas(filepath)
