@@ -1260,6 +1260,79 @@ class DXFSheetExporter:
             doc, layout, view_result.section_symbols, scale
         )
 
+    def _add_viewport_label(
+        self,
+        msp,
+        viewport,
+        scaled_view: ViewResult,
+    ) -> None:
+        """Add a label below a viewport with view name and scale.
+
+        The label consists of:
+        - View name (e.g., "Section A-A" or "Floor Plan")
+        - Underline
+        - Scale notation (e.g., "Scale: 1:50")
+
+        Args:
+            msp: Modelspace to add label to
+            viewport: SheetViewport being labeled
+            scaled_view: The scaled/translated view result (for bounds)
+        """
+        # Get the view name - prefer viewport name, fall back to view_result name
+        view_name = viewport.name or viewport.view_result.view_name
+        if not view_name:
+            return  # No name to display
+
+        # Get bounds of the scaled view content
+        bounds = scaled_view.get_bounds()
+        if bounds is None:
+            return
+
+        # Position label centered below the view
+        center_x = (bounds[0] + bounds[2]) / 2
+        view_bottom = bounds[1]
+
+        # Label sizing - proportional to sheet (typical sheet text is 2.5-3.5mm)
+        text_height = 3.0  # mm on sheet
+        line_spacing = text_height * 1.5
+        label_offset = 5.0  # Gap between view and label
+
+        # View name position (centered, below view)
+        name_y = view_bottom - label_offset - text_height
+
+        # Add view name text
+        msp.add_mtext(
+            view_name,
+            dxfattribs={
+                "layer": Layer.ANNOTATION,
+                "char_height": text_height,
+                "attachment_point": 8,  # BOTTOM_CENTER
+            },
+        ).set_location(insert=(center_x, name_y))
+
+        # Add underline below the name
+        # Estimate text width (approximate: 0.6 * height * num_chars)
+        text_width = len(view_name) * text_height * 0.6
+        underline_y = name_y - text_height * 0.3
+        msp.add_line(
+            start=(center_x - text_width / 2, underline_y),
+            end=(center_x + text_width / 2, underline_y),
+            dxfattribs={"layer": Layer.ANNOTATION},
+        )
+
+        # Add scale notation below the underline
+        scale_text = f"Scale: {viewport.scale.name}"
+        scale_y = underline_y - line_spacing
+
+        msp.add_mtext(
+            scale_text,
+            dxfattribs={
+                "layer": Layer.ANNOTATION,
+                "char_height": text_height * 0.8,  # Slightly smaller
+                "attachment_point": 8,  # BOTTOM_CENTER
+            },
+        ).set_location(insert=(center_x, scale_y))
+
     def export_sheet_flat(
         self,
         sheet: Sheet,
@@ -1314,6 +1387,9 @@ class DXFSheetExporter:
 
             # Export to modelspace
             self._export_view_result_to_layout(doc, msp, scaled_view, scale=1.0)
+
+            # Add viewport label below the view
+            self._add_viewport_label(msp, viewport, scaled_view)
 
         # Export title block to modelspace (if present)
         if sheet.title_block and sheet.title_block.has_geometry():
