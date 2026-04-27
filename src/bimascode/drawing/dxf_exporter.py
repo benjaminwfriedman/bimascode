@@ -22,6 +22,7 @@ from bimascode.drawing.primitives import (
     ViewResult,
 )
 from bimascode.drawing.tags import DoorTag, RoomTag, SectionSymbol, TagShape, WindowTag
+from bimascode.drawing.title_block import TitleBlock
 
 if TYPE_CHECKING:
     from bimascode.drawing.sheet import Sheet
@@ -902,6 +903,143 @@ class DXFExporter:
             is_closed=True,
         )
 
+    def _create_title_block_block(
+        self,
+        doc,
+        title_block: TitleBlock,
+    ) -> str:
+        """Create a title block BLOCK definition with ATTDEF fields.
+
+        Creates a DXF BLOCK containing the title block border geometry
+        and ATTDEF entries for each field defined in the template.
+
+        Args:
+            doc: DXF document
+            title_block: TitleBlock to create block for
+
+        Returns:
+            Block name for referencing
+        """
+        block_name = title_block.block_name
+
+        if block_name in doc.blocks:
+            return block_name
+
+        block = doc.blocks.new(name=block_name)
+
+        # Add border geometry
+        if title_block.geometry:
+            for line in title_block.geometry.lines:
+                block.add_line(
+                    start=(line.start.x, line.start.y),
+                    end=(line.end.x, line.end.y),
+                    dxfattribs={"layer": line.layer},
+                )
+
+        # Add ATTDEF for each template field
+        if title_block.template:
+            for field_def in title_block.template.fields:
+                # Map alignment to DXF values
+                halign = 0  # Left
+                valign = 0  # Baseline
+                if "CENTER" in field_def.alignment:
+                    halign = 4  # Middle center
+                    valign = 2
+                elif "RIGHT" in field_def.alignment:
+                    halign = 2  # Right
+                if "MIDDLE" in field_def.alignment:
+                    valign = 2  # Middle
+
+                block.add_attdef(
+                    tag=field_def.tag,
+                    insert=(field_def.position.x, field_def.position.y),
+                    dxfattribs={
+                        "height": field_def.height,
+                        "halign": halign,
+                        "valign": valign,
+                        "layer": title_block.template.layer,
+                        "prompt": field_def.prompt,
+                    },
+                )
+
+        return block_name
+
+    def _export_title_block(
+        self,
+        doc,
+        msp,
+        title_block: TitleBlock,
+        scale: float = 1.0,
+    ) -> None:
+        """Export a TitleBlock to DXF as a BLOCK reference with ATTRIB.
+
+        Creates the block definition if needed, then inserts a reference
+        at the title block's position with filled attribute values.
+
+        Args:
+            doc: DXF document
+            msp: Modelspace or layout to export to
+            title_block: TitleBlock to export
+            scale: Scale factor (typically 1.0 for sheet space)
+        """
+        # Create block definition
+        block_name = self._create_title_block_block(doc, title_block)
+
+        # Insert block reference at title block position
+        insert_point = (
+            title_block.position.x * scale,
+            title_block.position.y * scale,
+        )
+
+        block_ref = msp.add_blockref(
+            block_name,
+            insert=insert_point,
+            dxfattribs={
+                "layer": title_block.template.layer if title_block.template else Layer.ANNOTATION,
+            },
+        )
+
+        # Add attributes with field values
+        attrib_values = {}
+        if title_block.template:
+            for field_def in title_block.template.fields:
+                value = title_block.fields.get(field_def.tag, "")
+                if value:
+                    attrib_values[field_def.tag] = value
+
+        if attrib_values:
+            block_ref.add_auto_attribs(attrib_values)
+
+    def _export_title_block_flat(
+        self,
+        msp,
+        title_block: TitleBlock,
+        scale: float = 1.0,
+    ) -> None:
+        """Export a TitleBlock to DXF as flat geometry (no blocks).
+
+        Exports border lines and text notes directly without using
+        DXF BLOCK/ATTRIB structures. Useful for maximum compatibility.
+
+        Args:
+            msp: Modelspace or layout to export to
+            title_block: TitleBlock to export
+            scale: Scale factor
+        """
+        # Export border geometry
+        if title_block.geometry:
+            positioned = title_block.get_positioned_geometry()
+            for line in positioned.lines:
+                msp.add_line(
+                    start=(line.start.x * scale, line.start.y * scale),
+                    end=(line.end.x * scale, line.end.y * scale),
+                    dxfattribs={"layer": line.layer},
+                )
+
+        # Export field text as MTEXT
+        text_notes = title_block.get_text_notes()
+        self._export_text_notes(msp, text_notes, scale)
+
     def export_multiple(
         self,
         views: list[tuple[ViewResult, tuple[float, float]]],
@@ -1135,8 +1273,8 @@ class DXFSheetExporter:
             )
 
         # Export title block to paperspace (if present)
-        if sheet.title_block and sheet.title_block.has_geometry():
-            self._export_view_result_to_layout(doc, psp, sheet.title_block.geometry, scale=1.0)
+        if sheet.title_block:
+            self._export_title_block(doc, psp, sheet.title_block, scale=1.0)
 
         # Export sheet annotations to paperspace
         if sheet.annotations.total_geometry_count > 0:
@@ -1333,6 +1471,48 @@ class DXFSheetExporter:
             },
         ).set_location(insert=(center_x, scale_y))
 
+    def _export_title_block(
+        self,
+        doc,
+        layout,
+        title_block: TitleBlock,
+        scale: float = 1.0,
+    ) -> None:
+        """Export a TitleBlock to DXF as a BLOCK reference with ATTRIB.
+
+        Creates the block definition if needed, then inserts a reference
+        at the title block's position with filled attribute values.
+
+        Args:
+            doc: DXF document
+            layout: Layout to export to (modelspace or paperspace)
+            title_block: TitleBlock to export
+            scale: Scale factor (typically 1.0 for sheet space)
+        """
+        self._model_exporter._export_title_block(doc, layout, title_block, scale)
+
+    def _export_title_block_flat(
+        self,
+        doc,
+        layout,
+        title_block: TitleBlock,
+        scale: float = 1.0,
+    ) -> None:
+        """Export a TitleBlock to DXF as flat geometry (no blocks).
+
+        Exports border lines and text notes directly without using
+        DXF BLOCK/ATTRIB structures. Useful for maximum compatibility.
+
+        Args:
+            doc: DXF document
+            layout: Layout to export to
+            title_block: TitleBlock to export
+            scale: Scale factor
+        """
+        # Get full geometry including positioned border and text notes
+        full_geometry = title_block.get_full_geometry()
+        self._export_view_result_to_layout(doc, layout, full_geometry, scale)
+
     def export_sheet_flat(
         self,
         sheet: Sheet,
@@ -1392,8 +1572,8 @@ class DXFSheetExporter:
             self._add_viewport_label(msp, viewport, scaled_view)
 
         # Export title block to modelspace (if present)
-        if sheet.title_block and sheet.title_block.has_geometry():
-            self._export_view_result_to_layout(doc, msp, sheet.title_block.geometry, scale=1.0)
+        if sheet.title_block:
+            self._export_title_block_flat(doc, msp, sheet.title_block, scale=1.0)
 
         # Export sheet annotations to modelspace
         if sheet.annotations.total_geometry_count > 0:

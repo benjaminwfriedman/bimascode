@@ -39,6 +39,7 @@ from bimascode.drawing.primitives import (
 )
 from bimascode.drawing.section_view import SectionView
 from bimascode.drawing.sheet import Sheet, SheetMetadata
+from bimascode.drawing.title_block import TitleBlock, TitleBlockField
 from bimascode.drawing.sheet_sizes import SheetSize
 from bimascode.drawing.tags import DoorTag, RoomTag, SectionSymbol, SectionSymbolStyle, TagStyle
 from bimascode.drawing.view_base import ViewRange, ViewScale
@@ -856,9 +857,32 @@ def main():
         name="Section B-B",
     )
 
+    # Add title block from template with project info
+    title_block = TitleBlock.from_template(
+        "standard_arch_d",
+        fields={
+            TitleBlockField.PROJECT_NAME.value: "Hospital Wing - Patient Care Unit",
+            TitleBlockField.PROJECT_ADDRESS.value: "123 Medical Center Drive",
+            TitleBlockField.CLIENT_NAME.value: "Regional Health System",
+            TitleBlockField.SHEET_NAME.value: sheet.name,
+            TitleBlockField.SHEET_NUMBER.value: sheet.number,
+            TitleBlockField.DRAWN_BY.value: "BIMasCode",
+            TitleBlockField.CHECKED_BY.value: "QA",
+            TitleBlockField.DATE.value: datetime.now().strftime("%Y-%m-%d"),
+            TitleBlockField.SCALE.value: "As Noted",
+            TitleBlockField.REVISION.value: "A",
+        },
+        position=(
+            sheet.size.width - 200 - 10,  # Right edge minus title block width minus margin
+            10,  # Bottom margin
+        ),
+    )
+    sheet.set_title_block(title_block)
+
     print(f"  Sheet: {sheet.number} - {sheet.name}")
     print(f"  Size: {sheet.size.name} ({sheet.size.width}mm x {sheet.size.height}mm)")
     print(f"  Viewports: {len(sheet.viewports)}")
+    print(f"  Title block: {title_block.name}")
 
     # Export sheet to DXF
     sheet_dxf_path = output_dir / "hospital_wing_sheet_A101.dxf"
