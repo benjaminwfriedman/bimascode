@@ -8,6 +8,7 @@ Sprint 6: Drawing Generation
 
 # Primitives
 from bimascode.drawing.dxf_exporter import DXFExporter, DXFSheetExporter, get_dxf_exporter
+from bimascode.drawing.pdf_exporter import PDFExporter, get_pdf_exporter
 from bimascode.drawing.elevation_view import (
     ElevationDirection,
     ElevationView,
@@ -170,6 +171,8 @@ __all__ = [
     "DXFExporter",
     "DXFSheetExporter",
     "get_dxf_exporter",
+    "PDFExporter",
+    "get_pdf_exporter",
     # Tags and Section Symbols
     "DoorTag",
     "WindowTag",

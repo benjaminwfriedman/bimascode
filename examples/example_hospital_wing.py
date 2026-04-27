@@ -889,6 +889,11 @@ def main():
     sheet.export_dxf(str(sheet_dxf_path))
     print(f"  Saved: {sheet_dxf_path.name}")
 
+    # Export sheet to PDF
+    sheet_pdf_path = output_dir / "hospital_wing_sheet_A101.pdf"
+    sheet.export_pdf(str(sheet_pdf_path))
+    print(f"  Saved: {sheet_pdf_path.name}")
+
     # Export IFC
     print("\nExporting IFC...")
     ifc_path = output_dir / "hospital_wing.ifc"
