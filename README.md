@@ -71,6 +71,7 @@ building.export_ifc("my_building.ifc")
 - **View Templates** - Visibility and graphic overrides per element category
 - **Line Weights** - AIA/NCS standard line weights (0.13mm to 0.70mm)
 - **DXF Export** - Professional CAD output with proper layers
+- **PDF Export** - High-quality vector PDF output for printing and review
 
 ### Performance
 - **Spatial Indexing** - R-tree for fast element queries
@@ -79,6 +80,7 @@ building.export_ifc("my_building.ifc")
 ### Export Formats
 - **IFC4/IFC2x3** - Full project hierarchy, properties, and materials
 - **DXF** - AIA-compliant layers and line weights
+- **PDF** - Vector graphics for printing and client distribution
 
 ## Installation
 
@@ -100,10 +102,11 @@ pip install -e ".[dev,viz]"
 - [build123d](https://github.com/gumyr/build123d) - Geometry engine
 - [IfcOpenShell](https://ifcopenshell.org/) - IFC support
 - [ezdxf](https://ezdxf.mozman.at/) - DXF export
+- [matplotlib](https://matplotlib.org/) - PDF export
 
 ## Examples
 
-The library includes complete example scripts demonstrating real-world building scenarios. Each generates IFC models for 3D viewing and DXF floor plans for 2D documentation.
+The library includes complete example scripts demonstrating real-world building scenarios. Each generates IFC models for 3D viewing, DXF floor plans for CAD, and PDF sheets for printing.
 
 ### Office Building
 
@@ -160,6 +163,7 @@ python examples/example_school_building.py
 
 | Example | Description | Output |
 |---------|-------------|--------|
+| `example_hospital_wing.py` | Hospital wing with patient rooms | IFC + DXF sheet + PDF sheet |
 | `example_office_building.py` | Commercial office with structural grid | IFC + 4 DXF plans + 2 sections |
 | `example_residential_home.py` | 2-story family home | IFC + 2 DXF plans + 2 sections |
 | `example_school_building.py` | H-shaped elementary school | IFC + DXF floor plan |
@@ -180,7 +184,7 @@ bimascode/
 │   ├── spatial/        # Building, Level, Grid, Room
 │   ├── architecture/   # Wall, Floor, Roof, Door, Window, Ceiling
 │   ├── structure/      # Column, Beam, Profile
-│   ├── drawing/        # Floor plans, elevations, sections, DXF export
+│   ├── drawing/        # Floor plans, elevations, sections, DXF/PDF export
 │   ├── performance/    # Spatial index, representation cache
 │   ├── export/         # IFC exporter/importer
 │   └── utils/          # Units, Materials
