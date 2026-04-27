@@ -78,7 +78,15 @@ from bimascode.drawing.tags import (
     TagStyle,
     WindowTag,
 )
-from bimascode.drawing.title_block import TitleBlock
+from bimascode.drawing.title_block import (
+    TitleBlock,
+    TitleBlockField,
+    TitleBlockFieldDefinition,
+    TitleBlockTemplate,
+    get_title_block_template,
+    list_title_block_templates,
+    register_title_block_template,
+)
 
 # View base classes
 from bimascode.drawing.view_base import (
@@ -148,6 +156,12 @@ __all__ = [
     "SheetSize",
     "SheetViewport",
     "TitleBlock",
+    "TitleBlockField",
+    "TitleBlockFieldDefinition",
+    "TitleBlockTemplate",
+    "get_title_block_template",
+    "list_title_block_templates",
+    "register_title_block_template",
     # Utilities
     "SectionCutter",
     "get_section_cutter",

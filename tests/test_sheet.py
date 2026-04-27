@@ -11,8 +11,14 @@ from bimascode.drawing import (
     SheetSize,
     SheetViewport,
     TitleBlock,
+    TitleBlockField,
+    TitleBlockFieldDefinition,
+    TitleBlockTemplate,
     ViewResult,
     ViewScale,
+    get_title_block_template,
+    list_title_block_templates,
+    register_title_block_template,
 )
 
 
@@ -325,6 +331,73 @@ class TestSheetViewport:
         assert bounds == (200, 150, 400, 250)  # center - half, center + half
 
 
+class TestTitleBlockTemplate:
+    """Tests for TitleBlockTemplate class."""
+
+    def test_list_templates(self):
+        """Test listing available templates."""
+        templates = list_title_block_templates()
+        assert "standard_ansi_d" in templates
+        assert "standard_arch_d" in templates
+        assert "standard_iso_a1" in templates
+        assert "minimal" in templates
+
+    def test_get_template(self):
+        """Test getting a template by name."""
+        template = get_title_block_template("standard_ansi_d")
+        assert template is not None
+        assert template.name == "standard_ansi_d"
+        assert template.width == 180.0
+        assert template.height == 50.0
+
+    def test_get_nonexistent_template(self):
+        """Test getting a template that doesn't exist."""
+        template = get_title_block_template("nonexistent")
+        assert template is None
+
+    def test_template_has_fields(self):
+        """Test that templates define fields."""
+        template = get_title_block_template("standard_ansi_d")
+        assert len(template.fields) > 0
+
+        # Check for expected fields
+        tags = [f.tag for f in template.fields]
+        assert TitleBlockField.PROJECT_NAME.value in tags
+        assert TitleBlockField.SHEET_NUMBER.value in tags
+        assert TitleBlockField.SHEET_NAME.value in tags
+        assert TitleBlockField.DATE.value in tags
+
+    def test_template_generate_geometry(self):
+        """Test template geometry generation."""
+        template = get_title_block_template("standard_ansi_d")
+        geometry = template.generate_geometry()
+
+        assert geometry is not None
+        assert len(geometry.lines) == 4  # Border rectangle
+
+    def test_register_custom_template(self):
+        """Test registering a custom template."""
+        custom = TitleBlockTemplate(
+            name="custom_test",
+            width=100.0,
+            height=30.0,
+            fields=[
+                TitleBlockFieldDefinition(
+                    tag="CUSTOM_FIELD",
+                    prompt="Custom Field",
+                    position=Point2D(10, 20),
+                    height=3.0,
+                )
+            ],
+        )
+        register_title_block_template(custom)
+
+        retrieved = get_title_block_template("custom_test")
+        assert retrieved is not None
+        assert retrieved.name == "custom_test"
+        assert len(retrieved.fields) == 1
+
+
 class TestTitleBlock:
     """Tests for TitleBlock class."""
 
@@ -333,14 +406,74 @@ class TestTitleBlock:
         tb = TitleBlock(
             name="standard",
             fields={
-                "project_name": "Test Project",
-                "sheet_number": "A-101",
+                TitleBlockField.PROJECT_NAME.value: "Test Project",
+                TitleBlockField.SHEET_NUMBER.value: "A-101",
             },
         )
 
         assert tb.name == "standard"
         assert tb.project_name == "Test Project"
         assert tb.sheet_number == "A-101"
+
+    def test_title_block_from_template(self):
+        """Test creating title block from template."""
+        tb = TitleBlock.from_template(
+            "standard_ansi_d",
+            fields={
+                TitleBlockField.PROJECT_NAME.value: "One Harbor Place",
+                TitleBlockField.SHEET_NUMBER.value: "A-101",
+                TitleBlockField.SHEET_NAME.value: "Ground Floor Plan",
+            },
+        )
+
+        assert tb.name == "standard_ansi_d"
+        assert tb.project_name == "One Harbor Place"
+        assert tb.sheet_number == "A-101"
+        assert tb.sheet_name == "Ground Floor Plan"
+        assert tb.template is not None
+        assert tb.has_geometry() is True
+
+    def test_title_block_from_template_with_position(self):
+        """Test creating title block with position."""
+        tb = TitleBlock.from_template(
+            "standard_ansi_d",
+            position=(100.0, 50.0),
+        )
+
+        assert tb.position == Point2D(100.0, 50.0)
+
+    def test_title_block_from_invalid_template(self):
+        """Test that invalid template raises error."""
+        with pytest.raises(ValueError, match="Unknown title block template"):
+            TitleBlock.from_template("nonexistent")
+
+    def test_title_block_from_sheet(self):
+        """Test creating title block from sheet metadata."""
+        metadata = SheetMetadata(
+            project="Test Project",
+            drawn_by="BF",
+            checked_by="JS",
+            date="2026-04-26",
+            scale="1:100",
+        )
+        sheet = Sheet(
+            size=SheetSize.ANSI_D,
+            number="A-101",
+            name="Ground Floor",
+            metadata=metadata,
+        )
+
+        tb = TitleBlock.from_sheet(sheet, template_name="standard_ansi_d")
+
+        assert tb.project_name == "Test Project"
+        assert tb.sheet_number == "A-101"
+        assert tb.sheet_name == "Ground Floor"
+        assert tb.drawn_by == "BF"
+        assert tb.checked_by == "JS"
+        assert tb.date == "2026-04-26"
+        # Position should be at lower-right
+        assert tb.position.x > 0
+        assert tb.position.y > 0
 
     def test_title_block_field_setters(self):
         """Test title block field setters."""
@@ -372,6 +505,62 @@ class TestTitleBlock:
             lines=[Line2D(Point2D(0, 0), Point2D(100, 0), LineStyle.default())]
         )
         assert tb.has_geometry() is True
+
+    def test_get_text_notes(self):
+        """Test generating text notes from fields."""
+        tb = TitleBlock.from_template(
+            "standard_ansi_d",
+            fields={
+                TitleBlockField.PROJECT_NAME.value: "Test Project",
+                TitleBlockField.SHEET_NUMBER.value: "A-101",
+            },
+            position=(100.0, 50.0),
+        )
+
+        notes = tb.get_text_notes()
+
+        assert len(notes) == 2
+        # Check that positions are offset by title block position
+        for note in notes:
+            assert note.position.x >= 100.0
+            assert note.position.y >= 50.0
+
+    def test_get_full_geometry(self):
+        """Test getting complete geometry with text."""
+        tb = TitleBlock.from_template(
+            "standard_ansi_d",
+            fields={
+                TitleBlockField.PROJECT_NAME.value: "Test Project",
+            },
+            position=(100.0, 50.0),
+        )
+
+        geometry = tb.get_full_geometry()
+
+        assert len(geometry.lines) == 4  # Border
+        assert len(geometry.text_notes) == 1  # Project name
+
+    def test_width_height_from_template(self):
+        """Test width/height properties from template."""
+        tb = TitleBlock.from_template("standard_ansi_d")
+
+        assert tb.width == 180.0
+        assert tb.height == 50.0
+
+    def test_width_height_defaults(self):
+        """Test width/height defaults without template."""
+        tb = TitleBlock(name="custom")
+
+        assert tb.width == 180.0  # Default
+        assert tb.height == 50.0  # Default
+
+    def test_block_name(self):
+        """Test DXF block name generation."""
+        tb = TitleBlock.from_template("standard_ansi_d")
+
+        block_name = tb.block_name
+        assert "TITLE_BLOCK" in block_name
+        assert "standard_ansi_d" in block_name
 
 
 class TestSheetTitleBlock:
@@ -470,3 +659,120 @@ class TestSheetExport:
 
         assert result is True
         assert filepath.exists()
+
+    def test_export_sheet_with_title_block_flat(self, tmp_path):
+        """Test exporting sheet with title block in flat mode."""
+        import ezdxf
+
+        sheet = Sheet(
+            size=SheetSize.ANSI_D,
+            number="A-101",
+            name="Ground Floor",
+            metadata=SheetMetadata(project="Test Project", drawn_by="BF"),
+        )
+        view_result = ViewResult(
+            lines=[Line2D(Point2D(0, 0), Point2D(5000, 0), LineStyle.default())]
+        )
+        sheet.add_viewport(view_result, position=(300, 400), scale="1:100")
+
+        # Add title block from sheet metadata
+        tb = TitleBlock.from_sheet(sheet, template_name="standard_ansi_d")
+        sheet.set_title_block(tb)
+
+        filepath = tmp_path / "sheet_with_tb_flat.dxf"
+        result = sheet.export_dxf(str(filepath), flat=True)
+
+        assert result is True
+        assert filepath.exists()
+
+        # Verify the DXF contains title block geometry
+        doc = ezdxf.readfile(str(filepath))
+        msp = doc.modelspace()
+
+        # Should have lines from title block border
+        lines = list(msp.query("LINE"))
+        assert len(lines) > 4  # View content + title block border + sheet border
+
+        # Should have MTEXT from title block fields
+        texts = list(msp.query("MTEXT"))
+        assert len(texts) > 0
+
+    def test_export_sheet_with_title_block_paperspace(self, tmp_path):
+        """Test exporting sheet with title block in paperspace mode."""
+        import ezdxf
+
+        sheet = Sheet(
+            size=SheetSize.ANSI_D,
+            number="A-102",
+            name="Section View",
+            metadata=SheetMetadata(project="Test Project", drawn_by="BF"),
+        )
+        view_result = ViewResult(
+            lines=[Line2D(Point2D(0, 0), Point2D(5000, 0), LineStyle.default())]
+        )
+        sheet.add_viewport(view_result, position=(300, 400), scale="1:100")
+
+        # Add title block
+        tb = TitleBlock.from_sheet(sheet, template_name="standard_ansi_d")
+        sheet.set_title_block(tb)
+
+        filepath = tmp_path / "sheet_with_tb_ps.dxf"
+        result = sheet.export_dxf(str(filepath), flat=False)
+
+        assert result is True
+        assert filepath.exists()
+
+        # Verify the DXF has block definitions
+        doc = ezdxf.readfile(str(filepath))
+
+        # Should have a title block BLOCK definition
+        block_names = [b.name for b in doc.blocks]
+        title_blocks = [n for n in block_names if "TITLE_BLOCK" in n]
+        assert len(title_blocks) > 0
+
+    def test_export_title_block_with_all_fields(self, tmp_path):
+        """Test that all title block fields are exported."""
+        import ezdxf
+
+        sheet = Sheet(
+            size=SheetSize.ANSI_D,
+            number="A-105",
+            name="Full Fields Test",
+        )
+        view_result = ViewResult(
+            lines=[Line2D(Point2D(0, 0), Point2D(5000, 0), LineStyle.default())]
+        )
+        sheet.add_viewport(view_result, position=(300, 400), scale="1:100")
+
+        # Create title block with all fields
+        tb = TitleBlock.from_template(
+            "standard_ansi_d",
+            fields={
+                TitleBlockField.PROJECT_NAME.value: "Complete Project",
+                TitleBlockField.PROJECT_ADDRESS.value: "123 Main St",
+                TitleBlockField.CLIENT_NAME.value: "ACME Corp",
+                TitleBlockField.SHEET_NAME.value: "Ground Floor Plan",
+                TitleBlockField.SHEET_NUMBER.value: "A-105",
+                TitleBlockField.DRAWN_BY.value: "JD",
+                TitleBlockField.CHECKED_BY.value: "SM",
+                TitleBlockField.DATE.value: "2026-04-26",
+                TitleBlockField.SCALE.value: "1:100",
+                TitleBlockField.REVISION.value: "A",
+            },
+        )
+        sheet.set_title_block(tb)
+
+        filepath = tmp_path / "full_fields.dxf"
+        result = sheet.export_dxf(str(filepath), flat=True)
+
+        assert result is True
+
+        # Verify all text notes are present
+        doc = ezdxf.readfile(str(filepath))
+        msp = doc.modelspace()
+        texts = list(msp.query("MTEXT"))
+
+        # Should have text for all the fields we set
+        text_contents = [t.text for t in texts]
+        assert any("Complete Project" in t for t in text_contents)
+        assert any("A-105" in t for t in text_contents)
