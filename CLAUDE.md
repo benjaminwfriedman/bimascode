@@ -43,11 +43,16 @@ mypy src/
 
 ### Running Examples
 ```bash
+# Activate virtual environment first
+source venv/bin/activate
+
 # Run example scripts from project root
 python examples/sprint6_demo.py
 python examples/school_floor_plan.py
 python examples/office_world_geometry_demo.py
 ```
+
+**Note:** Always activate the virtual environment (`source venv/bin/activate`) before running tests, examples, or any Python commands.
 
 ## Architecture Overview
 

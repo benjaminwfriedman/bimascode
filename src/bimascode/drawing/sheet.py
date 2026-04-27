@@ -339,6 +339,40 @@ class Sheet:
         else:
             return exporter.export_sheet(self, filepath)
 
+    def export_pdf(
+        self,
+        filepath: str,
+        color_mode: str = "color",
+        background: str = "white",
+        dpi: int = 300,
+    ) -> bool:
+        """Export sheet to PDF file.
+
+        Creates a high-quality vector PDF at the exact sheet size,
+        suitable for printing and client review.
+
+        Args:
+            filepath: Output file path
+            color_mode: "color" for full color, "grayscale" for black/white
+            background: Background color ("white" or "transparent")
+            dpi: Resolution for rasterized elements (default 300)
+
+        Returns:
+            True if export succeeded
+
+        Example:
+            >>> sheet.export_pdf("A-101.pdf")
+            >>> sheet.export_pdf("A-101-bw.pdf", color_mode="grayscale")
+        """
+        from bimascode.drawing.pdf_exporter import PDFExporter
+
+        exporter = PDFExporter(
+            color_mode=color_mode,
+            background=background,
+            dpi=dpi,
+        )
+        return exporter.export_sheet(self, filepath)
+
     # --- String Representation ---
 
     def __repr__(self) -> str:
