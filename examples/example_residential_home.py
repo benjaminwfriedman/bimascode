@@ -17,7 +17,6 @@ Building: 15m x 12m, 2 floors
 - Upper Floor: Master suite with ensuite, 2 bedrooms, shared bathroom, laundry
 """
 
-from datetime import datetime
 from pathlib import Path
 
 from bimascode.architecture import (
@@ -1019,9 +1018,8 @@ def main():
     print("Residential Home Example - Two-Story Family Home")
     print("=" * 70)
 
-    # Create timestamped output directory
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    output_dir = Path(__file__).parent / "outputs" / "home" / timestamp
+    # Create output directory
+    output_dir = Path(__file__).parent / "outputs" / "home"
     output_dir.mkdir(parents=True, exist_ok=True)
     print(f"\nOutput directory: {output_dir}")
 
@@ -1149,6 +1147,33 @@ def main():
     print("  - Features: Picture window, sliding door to backyard, double garage")
 
     print(f"\nOutput directory: {output_dir}")
+
+
+def get_building():
+    """Create and return the building for preview server compatibility.
+
+    This function creates the building with all elements but skips
+    file exports. Used by `bimascode serve` for live preview.
+    """
+    building = Building("Family Home")
+    types = create_materials_and_types()
+
+    # Create floors
+    ground, g_walls, g_doors, g_windows, g_floors, g_ceilings = create_ground_floor(building, types)
+    upper, u_walls, u_doors, u_windows, u_floors, u_ceilings = create_upper_floor(building, types)
+    roof_level, roofs = create_roof(building, types)
+
+    # Process wall joins
+    for walls in [g_walls, u_walls]:
+        adjustments = detect_and_process_wall_joins(walls, end_cap_type=EndCapType.EXTERIOR)
+        for wall, adj in adjustments.items():
+            wall._trim_adjustments = adj
+
+    return building
+
+
+# Create building at module level for preview server
+building = get_building()
 
 
 if __name__ == "__main__":

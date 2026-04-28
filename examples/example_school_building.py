@@ -17,7 +17,6 @@ Building: H-shaped plan, ~90m x 45m
 - North wing: Gymnasium and Cafeteria
 """
 
-from datetime import datetime
 from pathlib import Path
 
 from bimascode.architecture import (
@@ -627,9 +626,8 @@ def main():
     print("School Building Example - Elementary School")
     print("=" * 70)
 
-    # Create timestamped output directory
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    output_dir = Path(__file__).parent / "outputs" / "school" / timestamp
+    # Create output directory
+    output_dir = Path(__file__).parent / "outputs" / "school"
     output_dir.mkdir(parents=True, exist_ok=True)
     print(f"\nOutput directory: {output_dir}")
 
@@ -887,6 +885,100 @@ def main():
     print("  - Approximate building footprint: ~90m x 45m")
 
     print(f"\nOutput directory: {output_dir}")
+
+
+def get_building():
+    """Create and return the building for preview server compatibility.
+
+    This function creates the building with all elements but skips
+    file exports. Used by `bimascode serve` for live preview.
+    """
+    building = Building("Elementary School")
+    ground = Level(building, "Ground Floor", elevation=0)
+    types = create_materials_and_types()
+
+    all_walls = []
+    all_doors = []
+    all_windows = []
+
+    # Calculate overall layout
+    classroom_wing_length = CLASSROOMS_PER_SIDE * CLASSROOM_WIDTH + BATHROOM_WIDTH
+    classroom_wing_width = CLASSROOM_DEPTH * 2 + CORRIDOR_WIDTH
+    center_x = classroom_wing_length + 9000
+
+    # Create wings
+    e_walls, e_doors, e_windows, e_bounds = create_classroom_wing(
+        center_x + 9000, 0, 1, ground, types, "East"
+    )
+    all_walls.extend(e_walls)
+    all_doors.extend(e_doors)
+    all_windows.extend(e_windows)
+
+    w_walls, w_doors, w_windows, w_bounds = create_classroom_wing(
+        center_x - 9000, 0, -1, ground, types, "West"
+    )
+    all_walls.extend(w_walls)
+    all_doors.extend(w_doors)
+    all_windows.extend(w_windows)
+
+    c_walls, c_doors, c_windows, c_bounds = create_central_wing(
+        center_x, -6000, classroom_wing_width, ground, types
+    )
+    all_walls.extend(c_walls)
+    all_doors.extend(c_doors)
+    all_windows.extend(c_windows)
+
+    gym_start_y = classroom_wing_width + 3000
+    g_walls, g_doors, g_windows = create_gym_cafeteria(center_x, gym_start_y, ground, types)
+    all_walls.extend(g_walls)
+    all_doors.extend(g_doors)
+    all_windows.extend(g_windows)
+
+    # Connecting walls
+    ext_wall = types["exterior_wall"]
+    admin_width = 18000
+    central_start_y = -6000
+    central_wing_depth = classroom_wing_width
+    diagonal_upper_y = central_start_y + central_wing_depth
+
+    wing_start_x = center_x - admin_width / 2
+    west_wing_inner_x = w_bounds[0] + w_bounds[2]
+    east_wing_inner_x = e_bounds[0]
+
+    west_south_connect = Wall(
+        ext_wall, (west_wing_inner_x, 0), (west_wing_inner_x, diagonal_upper_y),
+        ground, name="West_South_Connect",
+    )
+    all_walls.append(west_south_connect)
+
+    east_south_connect = Wall(
+        ext_wall, (east_wing_inner_x, diagonal_upper_y), (east_wing_inner_x, 0),
+        ground, name="East_South_Connect",
+    )
+    all_walls.append(east_south_connect)
+
+    west_north_connect = Wall(
+        ext_wall, (west_wing_inner_x, classroom_wing_width), (west_wing_inner_x, gym_start_y),
+        ground, name="West_North_Connect",
+    )
+    all_walls.append(west_north_connect)
+
+    east_north_connect = Wall(
+        ext_wall, (east_wing_inner_x, gym_start_y), (east_wing_inner_x, classroom_wing_width),
+        ground, name="East_North_Connect",
+    )
+    all_walls.append(east_north_connect)
+
+    # Process wall joins
+    adjustments = detect_and_process_wall_joins(all_walls, end_cap_type=EndCapType.EXTERIOR)
+    for wall, adj in adjustments.items():
+        wall._trim_adjustments = adj
+
+    return building
+
+
+# Create building at module level for preview server
+building = get_building()
 
 
 if __name__ == "__main__":

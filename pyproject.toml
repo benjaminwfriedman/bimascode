@@ -53,6 +53,9 @@ server = [
     "websockets>=12.0",  # WebSocket server for live updates
 ]
 
+[project.scripts]
+bimascode = "bimascode.server.cli:main"
+
 [project.urls]
 Homepage = "https://github.com/benjaminwfriedman/bimascode"
 Documentation = "https://github.com/benjaminwfriedman/bimascode/docs"
@@ -118,6 +121,8 @@ ignore = [
 "*/export/gltf_exporter.py" = ["B904"]  # Re-raising ImportError without from clause
 "*/spatial/building.py" = ["B904"]  # Re-raising ImportError without from clause
 "*/spatial/grid.py" = ["B905"]  # zip without strict parameter (Python 3.10 compat)
+"*/server/file_watcher.py" = ["B904"]  # Re-raising ImportError without from clause
+"*/server/preview_server.py" = ["B904"]  # Re-raising ImportError without from clause
 
 [tool.mypy]
 python_version = "3.10"

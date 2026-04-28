@@ -14,7 +14,6 @@ Building: Single corridor wing with patient rooms
 - Nurses station: Central location
 """
 
-from datetime import datetime
 from pathlib import Path
 
 from bimascode.architecture import (
@@ -587,8 +586,7 @@ def main():
     print("=" * 70)
 
     # Output directory
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    output_dir = Path(__file__).parent / "outputs" / "hospital" / timestamp
+    output_dir = Path(__file__).parent / "outputs" / "hospital"
     output_dir.mkdir(parents=True, exist_ok=True)
     print(f"\nOutput directory: {output_dir}")
 
@@ -920,6 +918,42 @@ For radial/scattered measurements, use individual LinearDimension2D instead.
 """)
 
     print(f"\nOutput directory: {output_dir}")
+
+
+def get_building():
+    """Create and return the building for preview server compatibility.
+
+    This function creates the building with all elements but skips
+    file exports. Used by `bimascode serve` for live preview.
+    """
+    building = Building("Hospital Wing")
+    types = create_types()
+
+    (
+        level,
+        walls,
+        doors,
+        floors,
+        rooms,
+        room_points_south,
+        room_points_north,
+        nurses_x_start,
+        nurses_x_end,
+        corridor_length,
+        south_room_y,
+        north_room_y,
+    ) = create_hospital_wing(building, types)
+
+    # Process wall joins
+    adjustments = detect_and_process_wall_joins(walls, end_cap_type=EndCapType.EXTERIOR)
+    for wall, adj in adjustments.items():
+        wall._trim_adjustments = adj
+
+    return building
+
+
+# Create building at module level for preview server
+building = get_building()
 
 
 if __name__ == "__main__":

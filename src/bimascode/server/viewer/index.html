@@ -1,0 +1,581 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BIM as Code - Preview</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background: #0a0a1a;
+            color: #e0e0e0;
+            min-height: 100vh;
+        }
+
+        .header {
+            background: #1a1a2e;
+            padding: 16px 24px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-bottom: 1px solid #2a2a4a;
+        }
+
+        .header h1 {
+            font-size: 18px;
+            font-weight: 600;
+            color: #ffffff;
+        }
+
+        .header h1 span {
+            color: #6c63ff;
+        }
+
+        .status {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 13px;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #ff6b6b;
+        }
+
+        .status-dot.connected {
+            background: #4ecdc4;
+        }
+
+        .container {
+            display: flex;
+            height: calc(100vh - 60px);
+        }
+
+        .sidebar {
+            width: 280px;
+            background: #16162a;
+            border-right: 1px solid #2a2a4a;
+            overflow-y: auto;
+        }
+
+        .sidebar-section {
+            border-bottom: 1px solid #2a2a4a;
+        }
+
+        .sidebar-header {
+            padding: 12px 16px;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: #8888aa;
+            background: #1a1a30;
+        }
+
+        .view-list {
+            list-style: none;
+        }
+
+        .view-item {
+            padding: 10px 16px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            transition: background 0.2s;
+        }
+
+        .view-item:hover {
+            background: #1f1f3a;
+        }
+
+        .view-item.active {
+            background: #2a2a50;
+            border-left: 3px solid #6c63ff;
+        }
+
+        .view-icon {
+            width: 16px;
+            height: 16px;
+            opacity: 0.6;
+        }
+
+        .view-name {
+            font-size: 13px;
+        }
+
+        .view-count {
+            margin-left: auto;
+            font-size: 11px;
+            color: #6c63ff;
+            background: #2a2a50;
+            padding: 2px 6px;
+            border-radius: 4px;
+        }
+
+        .main {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .canvas-container {
+            flex: 1;
+            position: relative;
+            overflow: hidden;
+            background: #0f0f20;
+        }
+
+        #canvas {
+            width: 100%;
+            height: 100%;
+        }
+
+        .info-panel {
+            background: #16162a;
+            padding: 12px 20px;
+            border-top: 1px solid #2a2a4a;
+            display: flex;
+            justify-content: space-between;
+            font-size: 12px;
+            color: #8888aa;
+        }
+
+        .error-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(10, 10, 26, 0.95);
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 40px;
+        }
+
+        .error-overlay.visible {
+            display: flex;
+        }
+
+        .error-icon {
+            font-size: 48px;
+            margin-bottom: 20px;
+        }
+
+        .error-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: #ff6b6b;
+            margin-bottom: 12px;
+        }
+
+        .error-message {
+            font-size: 14px;
+            color: #e0e0e0;
+            margin-bottom: 20px;
+            text-align: center;
+            max-width: 500px;
+        }
+
+        .error-traceback {
+            background: #1a1a2e;
+            padding: 16px;
+            border-radius: 8px;
+            font-family: 'SF Mono', Monaco, Consolas, monospace;
+            font-size: 12px;
+            max-width: 800px;
+            max-height: 300px;
+            overflow: auto;
+            white-space: pre-wrap;
+            color: #aaa;
+        }
+
+        .connecting-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: #0f0f20;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .connecting-overlay.hidden {
+            display: none;
+        }
+
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid #2a2a4a;
+            border-top-color: #6c63ff;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-bottom: 16px;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1><span>BIM</span> as Code - Preview</h1>
+        <div class="status">
+            <div class="status-dot" id="statusDot"></div>
+            <span id="statusText">Connecting...</span>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="sidebar">
+            <div class="sidebar-section">
+                <div class="sidebar-header">Floor Plans</div>
+                <ul class="view-list" id="viewList">
+                    <!-- View items will be added dynamically -->
+                </ul>
+            </div>
+        </div>
+
+        <div class="main">
+            <div class="canvas-container">
+                <canvas id="canvas"></canvas>
+
+                <div class="connecting-overlay" id="connectingOverlay">
+                    <div class="spinner"></div>
+                    <span>Connecting to server...</span>
+                </div>
+
+                <div class="error-overlay" id="errorOverlay">
+                    <div class="error-icon">⚠️</div>
+                    <div class="error-title" id="errorTitle">Error</div>
+                    <div class="error-message" id="errorMessage"></div>
+                    <pre class="error-traceback" id="errorTraceback"></pre>
+                </div>
+            </div>
+
+            <div class="info-panel">
+                <span id="viewInfo">No view loaded</span>
+                <span id="geometryInfo"></span>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // State
+        let currentView = null;
+        let viewData = {};
+        let canvas = document.getElementById('canvas');
+        let ctx = canvas.getContext('2d');
+
+        // UI Elements
+        const statusDot = document.getElementById('statusDot');
+        const statusText = document.getElementById('statusText');
+        const viewList = document.getElementById('viewList');
+        const viewInfo = document.getElementById('viewInfo');
+        const geometryInfo = document.getElementById('geometryInfo');
+        const connectingOverlay = document.getElementById('connectingOverlay');
+        const errorOverlay = document.getElementById('errorOverlay');
+        const errorTitle = document.getElementById('errorTitle');
+        const errorMessage = document.getElementById('errorMessage');
+        const errorTraceback = document.getElementById('errorTraceback');
+
+        // Canvas setup
+        function resizeCanvas() {
+            const container = canvas.parentElement;
+            canvas.width = container.clientWidth;
+            canvas.height = container.clientHeight;
+            if (currentView && viewData[currentView]) {
+                renderView(viewData[currentView]);
+            }
+        }
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+
+        // WebSocket connection
+        const wsUrl = 'ws://' + location.hostname + ':' + (parseInt(location.port) - 1) + '/ws';
+        let ws;
+        let reconnectTimer;
+
+        function connect() {
+            ws = new WebSocket(wsUrl);
+
+            ws.onopen = () => {
+                statusDot.classList.add('connected');
+                statusText.textContent = 'Connected';
+                connectingOverlay.classList.add('hidden');
+                clearTimeout(reconnectTimer);
+            };
+
+            ws.onclose = () => {
+                statusDot.classList.remove('connected');
+                statusText.textContent = 'Disconnected';
+                // Try to reconnect after 2 seconds
+                reconnectTimer = setTimeout(connect, 2000);
+            };
+
+            ws.onerror = () => {
+                statusText.textContent = 'Connection error';
+            };
+
+            ws.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+                handleMessage(data);
+            };
+        }
+
+        function handleMessage(data) {
+            if (data.type === 'error') {
+                showError(data.message, data.traceback);
+                return;
+            }
+
+            if (data.type === 'update') {
+                hideError();
+                updateViews(data.views);
+
+                // Auto-select first view if none selected
+                const viewNames = Object.keys(data.views);
+                if (viewNames.length > 0 && !currentView) {
+                    selectView(viewNames[0]);
+                } else if (currentView && viewData[currentView]) {
+                    renderView(viewData[currentView]);
+                }
+            }
+        }
+
+        function showError(message, traceback) {
+            errorOverlay.classList.add('visible');
+            errorMessage.textContent = message;
+            errorTraceback.textContent = traceback || '';
+        }
+
+        function hideError() {
+            errorOverlay.classList.remove('visible');
+        }
+
+        function updateViews(views) {
+            viewData = views;
+            viewList.innerHTML = '';
+
+            for (const [name, data] of Object.entries(views)) {
+                const li = document.createElement('li');
+                li.className = 'view-item' + (name === currentView ? ' active' : '');
+                li.innerHTML = `
+                    <svg class="view-icon" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M3 3h18v18H3V3zm2 2v14h14V5H5z"/>
+                    </svg>
+                    <span class="view-name">${name}</span>
+                    <span class="view-count">${data.total_geometry_count || 0}</span>
+                `;
+                li.onclick = () => selectView(name);
+                viewList.appendChild(li);
+            }
+        }
+
+        function selectView(name) {
+            currentView = name;
+
+            // Update active state
+            document.querySelectorAll('.view-item').forEach(item => {
+                item.classList.toggle('active', item.querySelector('.view-name').textContent === name);
+            });
+
+            // Render view
+            if (viewData[name]) {
+                renderView(viewData[name]);
+            }
+        }
+
+        function renderView(data) {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Update info
+            viewInfo.textContent = data.view_name || currentView;
+            geometryInfo.textContent = `${data.total_geometry_count || 0} geometry items`;
+
+            // Calculate bounds
+            const bounds = calculateBounds(data);
+            if (!bounds) return;
+
+            // Calculate transform to fit view in canvas with padding
+            const padding = 40;
+            const viewWidth = bounds.maxX - bounds.minX;
+            const viewHeight = bounds.maxY - bounds.minY;
+            const scaleX = (canvas.width - padding * 2) / viewWidth;
+            const scaleY = (canvas.height - padding * 2) / viewHeight;
+            const scale = Math.min(scaleX, scaleY);
+
+            const offsetX = padding + (canvas.width - padding * 2 - viewWidth * scale) / 2 - bounds.minX * scale;
+            const offsetY = canvas.height - padding - (canvas.height - padding * 2 - viewHeight * scale) / 2 + bounds.minY * scale;
+
+            // Draw background
+            ctx.fillStyle = '#0f0f20';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Set up transform (flip Y for CAD coordinates)
+            ctx.save();
+            ctx.translate(offsetX, offsetY);
+            ctx.scale(scale, -scale);
+
+            // Draw hatches first (fill areas)
+            ctx.globalAlpha = 0.3;
+            for (const hatch of data.hatches || []) {
+                drawHatch(hatch);
+            }
+            ctx.globalAlpha = 1;
+
+            // Draw lines
+            for (const line of data.lines || []) {
+                drawLine(line);
+            }
+
+            // Draw polylines
+            for (const polyline of data.polylines || []) {
+                drawPolyline(polyline);
+            }
+
+            // Draw arcs
+            for (const arc of data.arcs || []) {
+                drawArc(arc);
+            }
+
+            ctx.restore();
+        }
+
+        function calculateBounds(data) {
+            let minX = Infinity, minY = Infinity;
+            let maxX = -Infinity, maxY = -Infinity;
+
+            function updateBounds(x, y) {
+                minX = Math.min(minX, x);
+                minY = Math.min(minY, y);
+                maxX = Math.max(maxX, x);
+                maxY = Math.max(maxY, y);
+            }
+
+            for (const line of data.lines || []) {
+                updateBounds(line.start.x, line.start.y);
+                updateBounds(line.end.x, line.end.y);
+            }
+
+            for (const polyline of data.polylines || []) {
+                for (const pt of polyline.points) {
+                    updateBounds(pt.x, pt.y);
+                }
+            }
+
+            for (const arc of data.arcs || []) {
+                const r = arc.radius;
+                updateBounds(arc.center.x - r, arc.center.y - r);
+                updateBounds(arc.center.x + r, arc.center.y + r);
+            }
+
+            for (const hatch of data.hatches || []) {
+                for (const pt of hatch.boundary) {
+                    updateBounds(pt.x, pt.y);
+                }
+            }
+
+            if (minX === Infinity) return null;
+
+            // Add some margin
+            const margin = Math.max(maxX - minX, maxY - minY) * 0.05;
+            return {
+                minX: minX - margin,
+                minY: minY - margin,
+                maxX: maxX + margin,
+                maxY: maxY + margin
+            };
+        }
+
+        function getLineWidth(style) {
+            if (!style || !style.weight) return 1;
+            // Map line weights to pixel widths
+            const widthMm = style.weight.width_mm || 0.25;
+            return Math.max(1, widthMm * 2);
+        }
+
+        function getLineColor(style) {
+            if (style && style.color) {
+                return `rgb(${style.color[0]}, ${style.color[1]}, ${style.color[2]})`;
+            }
+            // Default colors based on line weight
+            if (style && style.is_cut) {
+                return '#e0e0e0';
+            }
+            return '#808090';
+        }
+
+        function drawLine(line) {
+            ctx.beginPath();
+            ctx.moveTo(line.start.x, line.start.y);
+            ctx.lineTo(line.end.x, line.end.y);
+            ctx.strokeStyle = getLineColor(line.style);
+            ctx.lineWidth = getLineWidth(line.style) / ctx.getTransform().a;
+            ctx.stroke();
+        }
+
+        function drawPolyline(polyline) {
+            if (polyline.points.length < 2) return;
+
+            ctx.beginPath();
+            ctx.moveTo(polyline.points[0].x, polyline.points[0].y);
+            for (let i = 1; i < polyline.points.length; i++) {
+                ctx.lineTo(polyline.points[i].x, polyline.points[i].y);
+            }
+            if (polyline.closed) {
+                ctx.closePath();
+            }
+            ctx.strokeStyle = getLineColor(polyline.style);
+            ctx.lineWidth = getLineWidth(polyline.style) / ctx.getTransform().a;
+            ctx.stroke();
+        }
+
+        function drawArc(arc) {
+            ctx.beginPath();
+            ctx.arc(arc.center.x, arc.center.y, arc.radius, arc.start_angle, arc.end_angle);
+            ctx.strokeStyle = getLineColor(arc.style);
+            ctx.lineWidth = getLineWidth(arc.style) / ctx.getTransform().a;
+            ctx.stroke();
+        }
+
+        function drawHatch(hatch) {
+            if (hatch.boundary.length < 3) return;
+
+            ctx.beginPath();
+            ctx.moveTo(hatch.boundary[0].x, hatch.boundary[0].y);
+            for (let i = 1; i < hatch.boundary.length; i++) {
+                ctx.lineTo(hatch.boundary[i].x, hatch.boundary[i].y);
+            }
+            ctx.closePath();
+
+            if (hatch.color) {
+                ctx.fillStyle = `rgb(${hatch.color[0]}, ${hatch.color[1]}, ${hatch.color[2]})`;
+            } else {
+                ctx.fillStyle = '#3a3a5a';
+            }
+            ctx.fill();
+        }
+
+        // Start connection
+        connect();
+    </script>
+</body>
+</html>
