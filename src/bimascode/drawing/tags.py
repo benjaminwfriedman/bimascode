@@ -75,6 +75,17 @@ class TagStyle:
             width=self.width * factor if self.width is not None else None,
         )
 
+    def to_dict(self) -> dict:
+        """Convert to JSON-serializable dictionary."""
+        return {
+            "shape": self.shape.value,
+            "size": self.size,
+            "text_height": self.text_height,
+            "show_border": self.show_border,
+            "layer": self.layer,
+            "width": self.width,
+        }
+
     @classmethod
     def door_default(cls) -> TagStyle:
         """Default style for door tags (hexagon)."""
@@ -191,6 +202,18 @@ class DoorTag:
             rotation=self.rotation,
         )
 
+    def to_dict(self) -> dict:
+        """Convert to JSON-serializable dictionary."""
+        return {
+            "type": "door_tag",
+            "insertion_point": self.insertion_point.to_dict(),
+            "text": self.text,
+            "style": self.style.to_dict(),
+            "rotation": self.rotation,
+            "layer": self.layer,
+            "block_name": self.block_name,
+        }
+
 
 @dataclass(frozen=True)
 class WindowTag:
@@ -268,6 +291,18 @@ class WindowTag:
             style=self.style.scale(scale),
             rotation=self.rotation,
         )
+
+    def to_dict(self) -> dict:
+        """Convert to JSON-serializable dictionary."""
+        return {
+            "type": "window_tag",
+            "insertion_point": self.insertion_point.to_dict(),
+            "text": self.text,
+            "style": self.style.to_dict(),
+            "rotation": self.rotation,
+            "layer": self.layer,
+            "block_name": self.block_name,
+        }
 
 
 @dataclass(frozen=True)
@@ -399,6 +434,21 @@ class RoomTag:
             rotation=self.rotation,
         )
 
+    def to_dict(self) -> dict:
+        """Convert to JSON-serializable dictionary."""
+        return {
+            "type": "room_tag",
+            "insertion_point": self.insertion_point.to_dict(),
+            "name_text": self.name_text,
+            "number_text": self.number_text,
+            "text": self.text,
+            "style": self.style.to_dict(),
+            "rotation": self.rotation,
+            "layer": self.layer,
+            "block_name": self.block_name,
+            "calculated_width": self.calculated_width,
+        }
+
 
 @dataclass(frozen=True)
 class SectionSymbolStyle:
@@ -448,6 +498,18 @@ class SectionSymbolStyle:
     def default(cls) -> SectionSymbolStyle:
         """Default style for section symbols."""
         return cls()
+
+    def to_dict(self) -> dict:
+        """Convert to JSON-serializable dictionary."""
+        return {
+            "bubble_radius": self.bubble_radius,
+            "text_height": self.text_height,
+            "arrow_size": self.arrow_size,
+            "line_extension": self.line_extension,
+            "show_arrows": self.show_arrows,
+            "show_bubbles": self.show_bubbles,
+            "layer": self.layer,
+        }
 
 
 @dataclass(frozen=True)
@@ -612,6 +674,27 @@ class SectionSymbol:
             style=self.style.scale(scale),
             rotation=self.rotation,
         )
+
+    def to_dict(self) -> dict:
+        """Convert to JSON-serializable dictionary."""
+        return {
+            "type": "section_symbol",
+            "start_point": self.start_point.to_dict(),
+            "end_point": self.end_point.to_dict(),
+            "section_id": self.section_id,
+            "sheet_number": self.sheet_number,
+            "look_direction": self.look_direction,
+            "style": self.style.to_dict(),
+            "rotation": self.rotation,
+            "layer": self.layer,
+            "block_name": self.block_name,
+            "line_angle": self.line_angle,
+            "line_length": self.line_length,
+            "arrow_angle": self.arrow_angle,
+            "midpoint": self.midpoint.to_dict(),
+            "start_bubble_center": self.get_start_bubble_center().to_dict(),
+            "end_bubble_center": self.get_end_bubble_center().to_dict(),
+        }
 
     @classmethod
     def from_section_view(

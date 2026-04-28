@@ -98,6 +98,10 @@ class Point2D:
         """Return point as (x, y) tuple."""
         return (self.x, self.y)
 
+    def to_dict(self) -> dict:
+        """Convert to JSON-serializable dictionary."""
+        return {"x": self.x, "y": self.y}
+
 
 @dataclass
 class Line2D:
@@ -164,6 +168,15 @@ class Line2D:
             style=self.style,
             layer=self.layer,
         )
+
+    def to_dict(self) -> dict:
+        """Convert to JSON-serializable dictionary."""
+        return {
+            "start": self.start.to_dict(),
+            "end": self.end.to_dict(),
+            "style": self.style.to_dict(),
+            "layer": self.layer,
+        }
 
 
 @dataclass
@@ -238,6 +251,17 @@ class Arc2D:
             style=self.style,
             layer=self.layer,
         )
+
+    def to_dict(self) -> dict:
+        """Convert to JSON-serializable dictionary."""
+        return {
+            "center": self.center.to_dict(),
+            "radius": self.radius,
+            "start_angle": self.start_angle,
+            "end_angle": self.end_angle,
+            "style": self.style.to_dict(),
+            "layer": self.layer,
+        }
 
 
 @dataclass
@@ -334,6 +358,15 @@ class Polyline2D:
             layer=self.layer,
         )
 
+    def to_dict(self) -> dict:
+        """Convert to JSON-serializable dictionary."""
+        return {
+            "points": [p.to_dict() for p in self.points],
+            "closed": self.closed,
+            "style": self.style.to_dict(),
+            "layer": self.layer,
+        }
+
 
 @dataclass
 class Hatch2D:
@@ -383,6 +416,17 @@ class Hatch2D:
             color=self.color,
             layer=self.layer,
         )
+
+    def to_dict(self) -> dict:
+        """Convert to JSON-serializable dictionary."""
+        return {
+            "boundary": [p.to_dict() for p in self.boundary],
+            "pattern": self.pattern,
+            "scale": self.scale,
+            "rotation": self.rotation,
+            "color": list(self.color) if self.color else None,
+            "layer": self.layer,
+        }
 
 
 class TextAlignment:
@@ -462,6 +506,18 @@ class TextNote2D:
             layer=self.layer,
         )
 
+    def to_dict(self) -> dict:
+        """Convert to JSON-serializable dictionary."""
+        return {
+            "position": self.position.to_dict(),
+            "content": self.content,
+            "height": self.height,
+            "alignment": self.alignment,
+            "rotation": self.rotation,
+            "width": self.width,
+            "layer": self.layer,
+        }
+
 
 @dataclass(frozen=True)
 class LinearDimension2D:
@@ -540,6 +596,19 @@ class LinearDimension2D:
             layer=self.layer,
             dimlfac=new_dimlfac,
         )
+
+    def to_dict(self) -> dict:
+        """Convert to JSON-serializable dictionary."""
+        return {
+            "start": self.start.to_dict(),
+            "end": self.end.to_dict(),
+            "offset": self.offset,
+            "text": self.text,
+            "precision": self.precision,
+            "style": self.style.to_dict(),
+            "layer": self.layer,
+            "dimlfac": self.dimlfac,
+        }
 
 
 @dataclass(frozen=True)
@@ -643,6 +712,18 @@ class ChainDimension2D:
             layer=self.layer,
             dimlfac=new_dimlfac,
         )
+
+    def to_dict(self) -> dict:
+        """Convert to JSON-serializable dictionary."""
+        return {
+            "points": [p.to_dict() for p in self.points],
+            "offset": self.offset,
+            "text": self.text,
+            "precision": self.precision,
+            "style": self.style.to_dict(),
+            "layer": self.layer,
+            "dimlfac": self.dimlfac,
+        }
 
 
 # Import tag types for Geometry2D union
@@ -873,3 +954,28 @@ class ViewResult:
         max_y = max(p.y for p in all_points)
 
         return (min_x, min_y, max_x, max_y)
+
+    def to_dict(self) -> dict:
+        """Convert to JSON-serializable dictionary.
+
+        Returns a complete representation of the view result that can be
+        serialized to JSON for web viewers or other consumers.
+        """
+        return {
+            "lines": [line.to_dict() for line in self.lines],
+            "arcs": [arc.to_dict() for arc in self.arcs],
+            "polylines": [pl.to_dict() for pl in self.polylines],
+            "hatches": [h.to_dict() for h in self.hatches],
+            "dimensions": [d.to_dict() for d in self.dimensions],
+            "chain_dimensions": [c.to_dict() for c in self.chain_dimensions],
+            "text_notes": [t.to_dict() for t in self.text_notes],
+            "door_tags": [t.to_dict() for t in self.door_tags],
+            "window_tags": [t.to_dict() for t in self.window_tags],
+            "room_tags": [t.to_dict() for t in self.room_tags],
+            "section_symbols": [s.to_dict() for s in self.section_symbols],
+            "view_name": self.view_name,
+            "generation_time": self.generation_time,
+            "element_count": self.element_count,
+            "cache_hits": self.cache_hits,
+            "total_geometry_count": self.total_geometry_count,
+        }

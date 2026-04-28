@@ -23,6 +23,13 @@ class LineWeight(Enum):
     FINE = 0.18  # Patterns, secondary projection
     EXTRA_FINE = 0.13  # Annotations, dimension lines
 
+    def to_dict(self) -> dict:
+        """Convert to JSON-serializable dictionary."""
+        return {
+            "name": self.name,
+            "width_mm": self.value,
+        }
+
     @classmethod
     def for_cut_element(cls, is_structural: bool = False) -> LineWeight:
         """Get line weight for a cut element.
@@ -75,6 +82,13 @@ class LineType(Enum):
             LineType.ABOVE_CUT: (4.0, 2.0),
         }
         return patterns.get(self, ())
+
+    def to_dict(self) -> dict:
+        """Convert to JSON-serializable dictionary."""
+        return {
+            "name": self.name,
+            "pattern": list(self.pattern),
+        }
 
 
 @dataclass(frozen=True)
@@ -192,6 +206,15 @@ class LineStyle:
             is_cut=self.is_cut,
         )
 
+    def to_dict(self) -> dict:
+        """Convert to JSON-serializable dictionary."""
+        return {
+            "weight": self.weight.to_dict(),
+            "type": self.type.to_dict(),
+            "color": list(self.color) if self.color else None,
+            "is_cut": self.is_cut,
+        }
+
 
 # Standard AIA layer naming conventions
 class Layer:
@@ -221,6 +244,9 @@ class Layer:
     SYMBOL = "G-ANNO-SYMB"
     GRID = "G-GRID"
 
+    # Spatial
+    AREA_BOUNDARY = "A-AREA-BNDY"
+
     @classmethod
     def for_element_type(cls, element_type: str) -> str:
         """Get the appropriate layer for an element type.
@@ -241,5 +267,6 @@ class Layer:
             "Column": cls.COLUMN,
             "Beam": cls.BEAM,
             "Room": cls.ANNOTATION,
+            "RoomSeparator": cls.AREA_BOUNDARY,
         }
         return mapping.get(element_type, "0")
