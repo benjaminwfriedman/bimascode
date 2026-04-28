@@ -47,6 +47,11 @@ dev = [
 viz = [
     "ocp-vscode>=2.0.0",  # OCP CAD Viewer for VS Code
 ]
+server = [
+    "trimesh>=4.0.0",  # glTF export and mesh processing
+    "watchdog>=3.0.0",  # File system watching for live preview
+    "websockets>=12.0",  # WebSocket server for live updates
+]
 
 [project.urls]
 Homepage = "https://github.com/benjaminwfriedman/bimascode"
@@ -110,6 +115,7 @@ ignore = [
 "*/drawing/protocols.py" = ["UP007"]  # Union type alias for backward compatibility
 "*/export/ifc_exporter.py" = ["B904"]  # Re-raising ImportError without from clause
 "*/export/ifc_importer.py" = ["B904"]  # Re-raising ImportError without from clause
+"*/export/gltf_exporter.py" = ["B904"]  # Re-raising ImportError without from clause
 "*/spatial/building.py" = ["B904"]  # Re-raising ImportError without from clause
 "*/spatial/grid.py" = ["B905"]  # zip without strict parameter (Python 3.10 compat)
 
