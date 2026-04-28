@@ -16,7 +16,6 @@ Building: 30m x 20m, 2 floors
 - First Floor: 6 private offices, open workspace, 2 large conference rooms
 """
 
-from datetime import datetime
 from pathlib import Path
 
 from bimascode.architecture import (
@@ -38,8 +37,8 @@ from bimascode.drawing.dxf_exporter import DXFExporter
 from bimascode.drawing.floor_plan_view import FloorPlanView
 from bimascode.drawing.line_styles import LineWeight
 from bimascode.drawing.primitives import Point2D, TextAlignment, TextNote2D
-from bimascode.drawing.tags import DoorTag, RoomTag, TagStyle, WindowTag
 from bimascode.drawing.section_view import SectionView
+from bimascode.drawing.tags import DoorTag, RoomTag, TagStyle, WindowTag
 from bimascode.drawing.view_base import ViewRange, ViewScale
 from bimascode.drawing.view_templates import CategoryVisibility, GraphicOverride, ViewTemplate
 from bimascode.performance.representation_cache import RepresentationCache
@@ -47,6 +46,7 @@ from bimascode.performance.spatial_index import SpatialIndex
 from bimascode.spatial.building import Building
 from bimascode.spatial.level import Level
 from bimascode.spatial.room import Room
+from bimascode.spatial.room_separator import RoomSeparator
 from bimascode.structure import (
     Beam,
     StructuralColumn,
@@ -262,6 +262,7 @@ def create_ground_floor(building, types):
     all_floors = []
     all_ceilings = []
     all_rooms = []
+    all_room_separators = []
 
     ext_wall = types["exterior_wall"]
     int_wall = types["interior_wall"]
@@ -294,13 +295,21 @@ def create_ground_floor(building, types):
         # South windows (skip center for door)
         if i != 1 and i != 2:
             win = Window(
-                window_type, wall_south, offset=3000 + i * 6000, name=f"Win_S_{i}", mark=f"W-{win_num:02d}"
+                window_type,
+                wall_south,
+                offset=3000 + i * 6000,
+                name=f"Win_S_{i}",
+                mark=f"W-{win_num:02d}",
             )
             all_windows.append(win)
             win_num += 1
         # North windows
         win = Window(
-            window_type, wall_north, offset=3000 + i * 6000, name=f"Win_N_{i}", mark=f"W-{win_num:02d}"
+            window_type,
+            wall_north,
+            offset=3000 + i * 6000,
+            name=f"Win_N_{i}",
+            mark=f"W-{win_num:02d}",
         )
         all_windows.append(win)
         win_num += 1
@@ -308,13 +317,21 @@ def create_ground_floor(building, types):
     for i in range(3):
         # East windows
         win = Window(
-            window_type, wall_east, offset=2500 + i * 5000, name=f"Win_E_{i}", mark=f"W-{win_num:02d}"
+            window_type,
+            wall_east,
+            offset=2500 + i * 5000,
+            name=f"Win_E_{i}",
+            mark=f"W-{win_num:02d}",
         )
         all_windows.append(win)
         win_num += 1
         # West windows
         win = Window(
-            window_type, wall_west, offset=2500 + i * 5000, name=f"Win_W_{i}", mark=f"W-{win_num:02d}"
+            window_type,
+            wall_west,
+            offset=2500 + i * 5000,
+            name=f"Win_W_{i}",
+            mark=f"W-{win_num:02d}",
         )
         all_windows.append(win)
         win_num += 1
@@ -335,7 +352,12 @@ def create_ground_floor(building, types):
     reception_room = Room(
         name="Reception",
         number="G-01",
-        boundary=[(0, 0), (reception_width, 0), (reception_width, reception_depth), (0, reception_depth)],
+        boundary=[
+            (0, 0),
+            (reception_width, 0),
+            (reception_width, reception_depth),
+            (0, reception_depth),
+        ],
         level=ground,
     )
     all_rooms.append(reception_room)
@@ -432,6 +454,70 @@ def create_ground_floor(building, types):
     )
     all_rooms.append(open_workspace_room)
 
+    # Room separators to define circulation around perimeter of open workspace
+    # Circulation runs along walls/enclosed rooms, workspace floats in center
+    # This creates BOMA-compliant area separation without physical walls
+
+    # Circulation corridor width (1.5m / 1500mm)
+    corridor_width = 1500
+
+    # Open workspace boundaries:
+    # - West: after meeting rooms (meeting_room_width = 5000)
+    # - South: after reception depth (reception_depth = 6000)
+    # - East: interior of east exterior wall
+    # - North: interior of north exterior wall
+    # But we need to account for the core in the middle
+
+    workspace_west = meeting_room_width + corridor_width
+    workspace_south = reception_depth + corridor_width
+    workspace_east = BUILDING_LENGTH - corridor_width
+    workspace_north = BUILDING_WIDTH - corridor_width
+
+    # West separator (from reception area down to south wall)
+    sep_west_south = RoomSeparator(
+        start=(workspace_west, 0),
+        end=(workspace_west, workspace_south),
+        level=ground,
+        name="Circulation West-South",
+    )
+    all_room_separators.append(sep_west_south)
+
+    # South separator (from west workspace edge to east, below workspace)
+    sep_south = RoomSeparator(
+        start=(workspace_west, workspace_south),
+        end=(workspace_east, workspace_south),
+        level=ground,
+        name="Circulation South",
+    )
+    all_room_separators.append(sep_south)
+
+    # East separator (full height of workspace)
+    sep_east = RoomSeparator(
+        start=(workspace_east, workspace_south),
+        end=(workspace_east, workspace_north),
+        level=ground,
+        name="Circulation East",
+    )
+    all_room_separators.append(sep_east)
+
+    # North separator (from west to east, above workspace)
+    sep_north = RoomSeparator(
+        start=(workspace_west, workspace_north),
+        end=(workspace_east, workspace_north),
+        level=ground,
+        name="Circulation North",
+    )
+    all_room_separators.append(sep_north)
+
+    # West separator (from north down to meeting rooms area)
+    sep_west_north = RoomSeparator(
+        start=(workspace_west, workspace_north),
+        end=(workspace_west, workspace_south),
+        level=ground,
+        name="Circulation West-North",
+    )
+    all_room_separators.append(sep_west_north)
+
     # Floor slab
     floor_boundary = [
         (0, 0),
@@ -461,7 +547,18 @@ def create_ground_floor(building, types):
     # Structure
     columns, beams = create_structural_grid(ground, types, 0)
 
-    return ground, all_walls, all_doors, all_windows, all_floors, all_ceilings, columns, beams, all_rooms
+    return (
+        ground,
+        all_walls,
+        all_doors,
+        all_windows,
+        all_floors,
+        all_ceilings,
+        columns,
+        beams,
+        all_rooms,
+        all_room_separators,
+    )
 
 
 def create_first_floor(building, types):
@@ -474,6 +571,7 @@ def create_first_floor(building, types):
     all_floors = []
     all_ceilings = []
     all_rooms = []
+    all_room_separators = []
 
     ext_wall = types["exterior_wall"]
     int_wall = types["interior_wall"]
@@ -494,22 +592,38 @@ def create_first_floor(building, types):
     win_num = 20  # Start numbering for first floor
     for i in range(5):
         win_s = Window(
-            window_type, wall_south, offset=2000 + i * 5500, name=f"Win_S1_{i}", mark=f"W-{win_num:02d}"
+            window_type,
+            wall_south,
+            offset=2000 + i * 5500,
+            name=f"Win_S1_{i}",
+            mark=f"W-{win_num:02d}",
         )
         win_num += 1
         win_n = Window(
-            window_type, wall_north, offset=2000 + i * 5500, name=f"Win_N1_{i}", mark=f"W-{win_num:02d}"
+            window_type,
+            wall_north,
+            offset=2000 + i * 5500,
+            name=f"Win_N1_{i}",
+            mark=f"W-{win_num:02d}",
         )
         win_num += 1
         all_windows.extend([win_s, win_n])
 
     for i in range(3):
         win_e = Window(
-            window_type, wall_east, offset=2500 + i * 5000, name=f"Win_E1_{i}", mark=f"W-{win_num:02d}"
+            window_type,
+            wall_east,
+            offset=2500 + i * 5000,
+            name=f"Win_E1_{i}",
+            mark=f"W-{win_num:02d}",
         )
         win_num += 1
         win_w = Window(
-            window_type, wall_west, offset=2500 + i * 5000, name=f"Win_W1_{i}", mark=f"W-{win_num:02d}"
+            window_type,
+            wall_west,
+            offset=2500 + i * 5000,
+            name=f"Win_W1_{i}",
+            mark=f"W-{win_num:02d}",
         )
         win_num += 1
         all_windows.extend([win_e, win_w])
@@ -654,6 +768,59 @@ def create_first_floor(building, types):
     )
     all_rooms.append(open_workspace_room)
 
+    # Room separators to define circulation around perimeter of open workspace
+    # Circulation runs along offices (south) and conference rooms (north)
+    # Open workspace floats in center, bounded by separators
+
+    # Circulation corridor width (1.5m / 1500mm)
+    corridor_width = 1500
+
+    # Open workspace boundaries:
+    # - South: corridor wall at office_depth (4000) + corridor
+    # - North: corridor wall at conf_y (15000) - corridor
+    # - West/East: along exterior walls with corridor
+
+    workspace_south = office_depth + corridor_width
+    workspace_north = conf_y - corridor_width
+    workspace_west = corridor_width
+    workspace_east = BUILDING_LENGTH - corridor_width
+
+    # South separator (along office corridor, wall to wall)
+    sep_south = RoomSeparator(
+        start=(workspace_west, workspace_south),
+        end=(workspace_east, workspace_south),
+        level=first,
+        name="Circulation South",
+    )
+    all_room_separators.append(sep_south)
+
+    # North separator (along conference corridor, wall to wall)
+    sep_north = RoomSeparator(
+        start=(workspace_west, workspace_north),
+        end=(workspace_east, workspace_north),
+        level=first,
+        name="Circulation North",
+    )
+    all_room_separators.append(sep_north)
+
+    # West separator (connecting south and north corridors)
+    sep_west = RoomSeparator(
+        start=(workspace_west, workspace_south),
+        end=(workspace_west, workspace_north),
+        level=first,
+        name="Circulation West",
+    )
+    all_room_separators.append(sep_west)
+
+    # East separator (connecting south and north corridors)
+    sep_east = RoomSeparator(
+        start=(workspace_east, workspace_south),
+        end=(workspace_east, workspace_north),
+        level=first,
+        name="Circulation East",
+    )
+    all_room_separators.append(sep_east)
+
     # Floor slab
     floor_boundary = [
         (0, 0),
@@ -694,7 +861,18 @@ def create_first_floor(building, types):
     # Structure
     columns, beams = create_structural_grid(first, types, 1)
 
-    return first, all_walls, all_doors, all_windows, all_floors, all_ceilings, columns, beams, all_rooms
+    return (
+        first,
+        all_walls,
+        all_doors,
+        all_windows,
+        all_floors,
+        all_ceilings,
+        columns,
+        beams,
+        all_rooms,
+        all_room_separators,
+    )
 
 
 def create_view_templates():
@@ -903,9 +1081,8 @@ def main():
     print("Office Building Example")
     print("=" * 70)
 
-    # Create timestamped output directory
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    output_dir = Path(__file__).parent / "outputs" / "office" / timestamp
+    # Create output directory
+    output_dir = Path(__file__).parent / "outputs" / "office"
     output_dir.mkdir(parents=True, exist_ok=True)
     print(f"\nOutput directory: {output_dir}")
 
@@ -916,14 +1093,32 @@ def main():
 
     # Create floors
     print("\n  Ground Floor...")
-    ground, g_walls, g_doors, g_windows, g_floors, g_ceilings, g_columns, g_beams, g_rooms = (
-        create_ground_floor(building, types)
-    )
+    (
+        ground,
+        g_walls,
+        g_doors,
+        g_windows,
+        g_floors,
+        g_ceilings,
+        g_columns,
+        g_beams,
+        g_rooms,
+        g_separators,
+    ) = create_ground_floor(building, types)
 
     print("  First Floor...")
-    first, f_walls, f_doors, f_windows, f_floors, f_ceilings, f_columns, f_beams, f_rooms = (
-        create_first_floor(building, types)
-    )
+    (
+        first,
+        f_walls,
+        f_doors,
+        f_windows,
+        f_floors,
+        f_ceilings,
+        f_columns,
+        f_beams,
+        f_rooms,
+        f_separators,
+    ) = create_first_floor(building, types)
 
     # Process wall joins per floor
     print("\n  Processing wall joins...")
@@ -948,6 +1143,8 @@ def main():
         + f_columns
         + g_beams
         + f_beams
+        + g_separators
+        + f_separators
     )
     print(f"\n  Total elements: {len(all_elements)}")
     print(f"    Walls: {len(g_walls) + len(f_walls)}")
@@ -957,6 +1154,7 @@ def main():
     print(f"    Ceilings: {len(g_ceilings) + len(f_ceilings)}")
     print(f"    Columns: {len(g_columns) + len(f_columns)}")
     print(f"    Beams: {len(g_beams) + len(f_beams)}")
+    print(f"    Room Separators: {len(g_separators) + len(f_separators)}")
 
     # Export IFC
     print("\n" + "-" * 70)
@@ -970,11 +1168,15 @@ def main():
     print("Generating drawings...")
 
     g_index = SpatialIndex()
-    for elem in g_walls + g_doors + g_windows + g_floors + g_ceilings + g_columns + g_beams:
+    for elem in (
+        g_walls + g_doors + g_windows + g_floors + g_ceilings + g_columns + g_beams + g_separators
+    ):
         g_index.insert(elem)
 
     f_index = SpatialIndex()
-    for elem in f_walls + f_doors + f_windows + f_floors + f_ceilings + f_columns + f_beams:
+    for elem in (
+        f_walls + f_doors + f_windows + f_floors + f_ceilings + f_columns + f_beams + f_separators
+    ):
         f_index.insert(elem)
 
     cache = RepresentationCache()
@@ -1063,6 +1265,55 @@ def main():
     print("  - 6m x 5m structural grid with steel columns and beams")
 
     print(f"\nOutput directory: {output_dir}")
+
+
+def get_building():
+    """Create and return the building for preview server compatibility.
+
+    This function creates the building with all elements but skips
+    file exports. Used by `bimascode serve` for live preview.
+    """
+    building = Building("Modern Office Building")
+    types = create_materials_and_types()
+
+    # Create floors
+    (
+        ground,
+        g_walls,
+        g_doors,
+        g_windows,
+        g_floors,
+        g_ceilings,
+        g_columns,
+        g_beams,
+        g_rooms,
+        g_separators,
+    ) = create_ground_floor(building, types)
+
+    (
+        first,
+        f_walls,
+        f_doors,
+        f_windows,
+        f_floors,
+        f_ceilings,
+        f_columns,
+        f_beams,
+        f_rooms,
+        f_separators,
+    ) = create_first_floor(building, types)
+
+    # Process wall joins
+    for walls in [g_walls, f_walls]:
+        adjustments = detect_and_process_wall_joins(walls, end_cap_type=EndCapType.EXTERIOR)
+        for wall, adj in adjustments.items():
+            wall._trim_adjustments = adj
+
+    return building
+
+
+# Create building at module level for preview server
+building = get_building()
 
 
 if __name__ == "__main__":
