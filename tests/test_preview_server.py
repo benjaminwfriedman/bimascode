@@ -109,8 +109,27 @@ class TestPreviewServer:
         server.stop()
         script_path.unlink()
 
+    def test_preview_server_init_with_output_dir(self):
+        """Test PreviewServer initialization with custom output directory."""
+        from bimascode.server.preview_server import PreviewServer
+
+        with tempfile.NamedTemporaryFile(suffix=".py", delete=False) as f:
+            script_path = Path(f.name)
+            f.write(b"# test script")
+
+        with tempfile.TemporaryDirectory() as output_dir:
+            server = PreviewServer(script_path, host="localhost", port=8765, output_dir=output_dir)
+
+            assert server.output_dir == Path(output_dir).resolve()
+            assert server._temp_output is False
+
+            # Clean up
+            server.stop()
+
+        script_path.unlink()
+
     def test_execute_script_simple(self):
-        """Test executing a simple script without Building."""
+        """Test executing a simple script that succeeds."""
         from bimascode.server.preview_server import PreviewServer
 
         with tempfile.NamedTemporaryFile(suffix=".py", delete=False, mode="w") as f:
@@ -120,9 +139,9 @@ class TestPreviewServer:
         server = PreviewServer(script_path)
         result = server.execute_script()
 
-        # No Building found
-        assert result is None
-        assert server._last_error == "No Building instance found in script"
+        # Script executes successfully (returns True)
+        assert result is True
+        assert server._last_error is None
 
         # Clean up
         server.stop()
@@ -139,9 +158,12 @@ class TestPreviewServer:
         server = PreviewServer(script_path)
         result = server.execute_script()
 
-        assert result is None
-        assert "SyntaxError" in server._last_error
-        assert server._last_traceback is not None
+        # Script fails
+        assert result is False
+        assert server._last_error is not None
+        assert "exited with code" in server._last_error or "SyntaxError" in str(
+            server._last_traceback
+        )
 
         # Clean up
         server.stop()
@@ -158,32 +180,31 @@ class TestPreviewServer:
         server = PreviewServer(script_path)
         result = server.execute_script()
 
-        assert result is None
-        assert "ZeroDivisionError" in server._last_error
+        # Script fails
+        assert result is False
+        assert server._last_error is not None
 
         # Clean up
         server.stop()
         script_path.unlink()
 
-    def test_execute_script_with_building(self):
-        """Test executing a script that creates a Building."""
+    def test_generate_payload_no_files(self):
+        """Test generating payload when no DXF/IFC files exist."""
         from bimascode.server.preview_server import PreviewServer
 
-        script_content = """
-from bimascode.spatial.building import Building
-building = Building("Test Building")
-"""
         with tempfile.NamedTemporaryFile(suffix=".py", delete=False, mode="w") as f:
-            f.write(script_content)
+            f.write("x = 42\n")  # Script that doesn't export anything
             script_path = Path(f.name)
 
         server = PreviewServer(script_path)
-        result = server.execute_script()
+        server.execute_script()
 
-        assert result is not None
-        assert result.name == "Test Building"
-        assert server._building is result
-        assert server._last_error is None
+        payload = server.generate_payload()
+
+        # No files found, returns error
+        assert payload["type"] == "error"
+        assert "No DXF or IFC files found" in payload["message"]
+        assert "timestamp" in payload
 
         # Clean up
         server.stop()
@@ -203,7 +224,7 @@ building = Building("Test Building")
         payload = server.generate_payload()
 
         assert payload["type"] == "error"
-        assert "ZeroDivisionError" in payload["message"]
+        assert server._last_error is not None
         assert "timestamp" in payload
         assert "traceback" in payload
 
@@ -211,75 +232,104 @@ building = Building("Test Building")
         server.stop()
         script_path.unlink()
 
-    def test_generate_payload_success(self):
-        """Test generating success payload with views."""
+    def test_generate_payload_with_dxf_files(self):
+        """Test generating success payload when DXF files exist."""
         from bimascode.server.preview_server import PreviewServer
 
-        script_content = """
-from bimascode.spatial.building import Building
-from bimascode.spatial.level import Level
-
-building = Building("Test Building")
-level = Level(building, "Ground Floor", elevation=0)
+        # Create a script that creates a DXF file
+        with tempfile.TemporaryDirectory() as output_dir:
+            script_content = f"""
+import sys
+from pathlib import Path
+# Create a simple DXF file
+output = Path("{output_dir}") / "test.dxf"
+output.write_text("0\\nSECTION\\n0\\nENDSEC\\n0\\nEOF\\n")
 """
-        with tempfile.NamedTemporaryFile(suffix=".py", delete=False, mode="w") as f:
-            f.write(script_content)
-            script_path = Path(f.name)
+            with tempfile.NamedTemporaryFile(suffix=".py", delete=False, mode="w") as f:
+                f.write(script_content)
+                script_path = Path(f.name)
 
-        server = PreviewServer(script_path)
-        server.execute_script()
+            server = PreviewServer(script_path, output_dir=output_dir)
+            server.execute_script()
 
-        payload = server.generate_payload()
+            # Create a valid DXF file manually for the test
+            import ezdxf
 
-        assert payload["type"] == "update"
-        assert "timestamp" in payload
-        assert "views" in payload
-        assert len(payload["views"]) == 1  # One level = one view
-        assert "Ground Floor - Floor Plan" in payload["views"]
+            doc = ezdxf.new()
+            msp = doc.modelspace()
+            msp.add_line((0, 0), (100, 100))
+            dxf_path = Path(output_dir) / "test.dxf"
+            doc.saveas(str(dxf_path))
 
-        # Check view structure
-        view_data = payload["views"]["Ground Floor - Floor Plan"]
-        assert "lines" in view_data
-        assert "arcs" in view_data
-        assert "polylines" in view_data
-        assert "view_name" in view_data
-        assert "element_count" in view_data
+            # Re-scan output files
+            server._scan_output_files()
 
-        # Clean up
-        server.stop()
-        script_path.unlink()
+            payload = server.generate_payload()
 
-    def test_generate_payload_with_gltf(self):
-        """Test that payload includes model URL when glTF export succeeds."""
-        from bimascode.server.preview_server import PreviewServer
+            assert payload["type"] == "update"
+            assert "timestamp" in payload
+            assert "views" in payload
+            assert "dxf_files" in payload
+            assert "test" in payload["dxf_files"]
 
-        script_content = """
-from bimascode.spatial.building import Building
-from bimascode.spatial.level import Level
+            # Clean up
+            server.stop()
+            script_path.unlink()
 
-building = Building("Test Building")
-level = Level(building, "Ground Floor", elevation=0)
-"""
-        with tempfile.NamedTemporaryFile(suffix=".py", delete=False, mode="w") as f:
-            f.write(script_content)
-            script_path = Path(f.name)
 
-        server = PreviewServer(script_path, host="localhost", port=9000)
-        server.execute_script()
+class TestDXFReader:
+    """Tests for DXF reader module."""
 
-        payload = server.generate_payload()
+    def test_dxf_reader_import(self):
+        """Test that DXF reader can be imported."""
+        from bimascode.server.dxf_reader import read_dxf_to_view_data
 
-        assert payload["type"] == "update"
-        # Model URL should be present (even if export fails, it's attempted)
-        # The URL format should match the server config
-        if payload.get("model_url"):
-            assert "localhost" in payload["model_url"]
-            assert "9001" in payload["model_url"]  # port + 1
-            assert "building.glb" in payload["model_url"]
+        assert read_dxf_to_view_data is not None
 
-        # Clean up
-        server.stop()
-        script_path.unlink()
+    def test_read_simple_dxf(self):
+        """Test reading a simple DXF file."""
+        import ezdxf
+
+        from bimascode.server.dxf_reader import read_dxf_to_view_data
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            # Create a simple DXF file
+            doc = ezdxf.new()
+            msp = doc.modelspace()
+            msp.add_line((0, 0), (100, 100))
+            msp.add_circle((50, 50), 25)
+
+            dxf_path = Path(temp_dir) / "test.dxf"
+            doc.saveas(str(dxf_path))
+
+            # Read it back
+            view_data = read_dxf_to_view_data(dxf_path)
+
+            assert view_data["view_name"] == "test"
+            assert len(view_data["lines"]) == 1
+            assert len(view_data["arcs"]) == 1  # Circle becomes arc
+            assert view_data["lines"][0]["start"]["x"] == 0
+            assert view_data["lines"][0]["end"]["x"] == 100
+
+    def test_read_dxf_with_polylines(self):
+        """Test reading DXF with polylines."""
+        import ezdxf
+
+        from bimascode.server.dxf_reader import read_dxf_to_view_data
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            doc = ezdxf.new()
+            msp = doc.modelspace()
+            msp.add_lwpolyline([(0, 0), (100, 0), (100, 100), (0, 100)], close=True)
+
+            dxf_path = Path(temp_dir) / "test.dxf"
+            doc.saveas(str(dxf_path))
+
+            view_data = read_dxf_to_view_data(dxf_path)
+
+            assert len(view_data["polylines"]) == 1
+            assert view_data["polylines"][0]["closed"] is True
+            assert len(view_data["polylines"][0]["points"]) == 4
 
 
 class TestCLI:
@@ -320,6 +370,19 @@ class TestCLI:
         assert args.host == "0.0.0.0"
         assert args.no_browser is True
 
+    def test_cli_parser_output_option(self):
+        """Test parsing --output option."""
+        from bimascode.server.cli import create_parser
+
+        parser = create_parser()
+
+        args = parser.parse_args(["serve", "test.py", "--output", "/tmp/output"])
+        assert args.output == "/tmp/output"
+
+        # Also test short form
+        args = parser.parse_args(["serve", "test.py", "-o", "/tmp/output2"])
+        assert args.output == "/tmp/output2"
+
     def test_cli_no_command(self):
         """Test CLI with no command shows help."""
         from bimascode.server.cli import main
@@ -341,6 +404,7 @@ class TestCLI:
             port=8765,
             host="localhost",
             no_browser=True,
+            output=None,
         )
 
         result = serve_command(args)
@@ -361,6 +425,7 @@ class TestCLI:
             port=8765,
             host="localhost",
             no_browser=True,
+            output=None,
         )
 
         result = serve_command(args)

@@ -61,9 +61,11 @@ export class Renderer3D {
         this.scene = new THREE.Scene();
         this.scene.background = new THREE.Color(0x0a0a1a);
 
-        // Model container - rotates Z-up to Y-up
+        // Model container for loaded models
+        // BIM uses Z-up coordinates, Three.js uses Y-up
+        // Rotate the container to transform Z-up to Y-up
         this.modelContainer = new THREE.Group();
-        this.modelContainer.rotation.x = -Math.PI / 2; // Rotate -90 degrees around X
+        this.modelContainer.rotation.x = -Math.PI / 2;
         this.scene.add(this.modelContainer);
 
         // Camera

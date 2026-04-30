@@ -544,9 +544,9 @@ export class Renderer2D {
         ctx.lineWidth = 1;
         ctx.stroke();
 
-        // Draw text
+        // Draw text (scales with model like DXF)
         ctx.fillStyle = '#e0e0e0';
-        ctx.font = `${Math.max(10, size * 0.4)}px -apple-system, BlinkMacSystemFont, sans-serif`;
+        ctx.font = `${size * 0.4}px -apple-system, BlinkMacSystemFont, sans-serif`;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         ctx.fillText(tag.text || '', pos.x, pos.y);
@@ -568,9 +568,9 @@ export class Renderer2D {
         ctx.lineWidth = 1;
         ctx.stroke();
 
-        // Draw text
+        // Draw text (scales with model like DXF)
         ctx.fillStyle = '#e0e0e0';
-        ctx.font = `${Math.max(10, radius * 0.8)}px -apple-system, BlinkMacSystemFont, sans-serif`;
+        ctx.font = `${radius * 0.8}px -apple-system, BlinkMacSystemFont, sans-serif`;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         ctx.fillText(tag.text || '', pos.x, pos.y);
@@ -591,9 +591,9 @@ export class Renderer2D {
         ctx.lineWidth = 1;
         ctx.strokeRect(pos.x - width / 2, pos.y - height / 2, width, height);
 
-        // Draw name and number
+        // Draw name and number (scales with model like DXF)
         ctx.fillStyle = '#e0e0e0';
-        const fontSize = Math.max(10, height * 0.25);
+        const fontSize = height * 0.25;
         ctx.font = `${fontSize}px -apple-system, BlinkMacSystemFont, sans-serif`;
         ctx.textAlign = 'center';
 
@@ -612,8 +612,9 @@ export class Renderer2D {
     _drawTextNote(ctx, text) {
         const pos = this._toScreen(text.position);
 
+        // Text scales with model like DXF
         ctx.fillStyle = '#e0e0e0';
-        const fontSize = Math.max(10, (text.height || 100) * this.scale);
+        const fontSize = (text.height || 100) * this.scale;
         ctx.font = `${fontSize}px -apple-system, BlinkMacSystemFont, sans-serif`;
 
         // Handle alignment

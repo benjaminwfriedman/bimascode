@@ -966,7 +966,12 @@ def add_ground_floor_annotations(result, rooms=None):
     if rooms:
         room_style = TagStyle.room_default()
         for room in rooms:
-            result.room_tags.append(RoomTag(room=room, style=room_style))
+            # Override position for Open Workspace to place it above Core (same X, north Y)
+            if room.name == "Open Workspace":
+                tag_pos = Point2D(15000, 12000)  # Same X as Core, but north (above)
+                result.room_tags.append(RoomTag(room=room, position=tag_pos, style=room_style))
+            else:
+                result.room_tags.append(RoomTag(room=room, style=room_style))
 
     # General note (keep as TextNote - this is a title, not a room label)
     result.text_notes.append(
@@ -1001,7 +1006,12 @@ def add_first_floor_annotations(result, rooms=None):
     if rooms:
         room_style = TagStyle.room_default()
         for room in rooms:
-            result.room_tags.append(RoomTag(room=room, style=room_style))
+            # Override position for Open Workspace to place it above Core (same X, north Y)
+            if room.name == "Open Workspace":
+                tag_pos = Point2D(15000, 12000)  # Same X as Core, but north (above)
+                result.room_tags.append(RoomTag(room=room, position=tag_pos, style=room_style))
+            else:
+                result.room_tags.append(RoomTag(room=room, style=room_style))
 
     # General note (keep as TextNote - this is a title, not a room label)
     result.text_notes.append(
@@ -1265,55 +1275,6 @@ def main():
     print("  - 6m x 5m structural grid with steel columns and beams")
 
     print(f"\nOutput directory: {output_dir}")
-
-
-def get_building():
-    """Create and return the building for preview server compatibility.
-
-    This function creates the building with all elements but skips
-    file exports. Used by `bimascode serve` for live preview.
-    """
-    building = Building("Modern Office Building")
-    types = create_materials_and_types()
-
-    # Create floors
-    (
-        ground,
-        g_walls,
-        g_doors,
-        g_windows,
-        g_floors,
-        g_ceilings,
-        g_columns,
-        g_beams,
-        g_rooms,
-        g_separators,
-    ) = create_ground_floor(building, types)
-
-    (
-        first,
-        f_walls,
-        f_doors,
-        f_windows,
-        f_floors,
-        f_ceilings,
-        f_columns,
-        f_beams,
-        f_rooms,
-        f_separators,
-    ) = create_first_floor(building, types)
-
-    # Process wall joins
-    for walls in [g_walls, f_walls]:
-        adjustments = detect_and_process_wall_joins(walls, end_cap_type=EndCapType.EXTERIOR)
-        for wall, adj in adjustments.items():
-            wall._trim_adjustments = adj
-
-    return building
-
-
-# Create building at module level for preview server
-building = get_building()
 
 
 if __name__ == "__main__":

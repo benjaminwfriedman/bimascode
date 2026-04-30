@@ -353,6 +353,52 @@ exporter = DXFExporter()
 exporter.export(result, "floor_plan.dxf")
 ```
 
+## Visual Debugging
+
+Use the debug rendering skill to visually verify geometry and 2D representations during development.
+
+### When to Use Visual Debug
+
+**Always use visual debugging when:**
+- Implementing or modifying element geometry (walls, doors, windows, etc.)
+- Changing 2D plan representation (`get_plan_representation()`)
+- Debugging door swings, wall joins, or coordinate transforms
+- Verifying tags, hatches, or layer assignments
+- Investigating element positioning issues
+
+### How to Use
+
+See `.claude/skills/debug-rendering.md` for full documentation. Quick example:
+
+```python
+from bimascode.server.debug_renderer import render_building_debug
+from pathlib import Path
+
+# Render 2D floor plan and 3D model
+result = render_building_debug(
+    building,
+    output_dir=Path("docs/viewer_debug"),
+    highlight_elements={
+        "Wall": (100, 150, 255),   # Blue
+        "Door": (255, 150, 100),   # Orange
+    },
+)
+
+# Then use Read tool to view: docs/viewer_debug/floor_plan_2d.png
+```
+
+The generated PNG images can be viewed directly by Claude to analyze geometric output.
+
+### Preview Server Alternative
+
+For interactive debugging with live reload:
+```bash
+bimascode serve examples/example_office_building.py
+# Opens browser at http://localhost:8766/ with 2D/3D split view
+```
+
+**Note:** Library code changes require server restart; example file changes auto-reload.
+
 ## Committing
 - We run
     - black
