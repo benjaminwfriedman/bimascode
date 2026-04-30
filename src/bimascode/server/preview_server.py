@@ -394,26 +394,43 @@ class PreviewServer:
                         self.send_error(404, "File not found")
                         return
 
-                # Serve viewer files
-                if self.path == "/" or self.path == "/index.html":
-                    viewer_path = self.viewer_dir / "index.html"
-                    if viewer_path.exists():
-                        self.send_response(200)
-                        self.send_header("Content-Type", "text/html")
-                        self.end_headers()
-                        self.wfile.write(viewer_path.read_bytes())
-                        return
-                    else:
-                        # Send minimal placeholder
-                        self.send_response(200)
-                        self.send_header("Content-Type", "text/html")
-                        self.end_headers()
-                        self.wfile.write(self._get_placeholder_html().encode())
-                        return
+                # MIME type mapping for viewer files
+                mime_types = {
+                    ".html": "text/html",
+                    ".css": "text/css",
+                    ".js": "application/javascript",
+                    ".json": "application/json",
+                    ".png": "image/png",
+                    ".svg": "image/svg+xml",
+                }
 
-                # Default: serve from viewer dir
-                self.directory = str(self.viewer_dir)
-                super().do_GET()
+                # Serve viewer files
+                if self.path == "/":
+                    self.path = "/index.html"
+
+                # Clean path and resolve file
+                clean_path = self.path.lstrip("/")
+                file_path = self.viewer_dir / clean_path
+
+                if file_path.exists() and file_path.is_file():
+                    self.send_response(200)
+                    ext = file_path.suffix.lower()
+                    content_type = mime_types.get(ext, "application/octet-stream")
+                    self.send_header("Content-Type", content_type)
+                    self.send_header("Access-Control-Allow-Origin", "*")
+                    self.end_headers()
+                    self.wfile.write(file_path.read_bytes())
+                    return
+
+                # Fall back to placeholder if index.html doesn't exist
+                if self.path == "/index.html":
+                    self.send_response(200)
+                    self.send_header("Content-Type", "text/html")
+                    self.end_headers()
+                    self.wfile.write(self._get_placeholder_html().encode())
+                    return
+
+                self.send_error(404, "File not found")
 
             def _get_placeholder_html(self) -> str:
                 return (
