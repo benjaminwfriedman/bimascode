@@ -583,7 +583,7 @@ class IFCExporter:
             building: Building instance
         """
         from ..architecture import Ceiling, Door, Floor, Roof, Wall, Window
-        from ..spatial import Room
+        from ..spatial import Room, RoomSeparator
         from ..structure import Beam, StructuralColumn
 
         # Store IFC storeys for element placement
@@ -621,4 +621,6 @@ class IFCExporter:
                 elif isinstance(element, Ceiling):
                     element.to_ifc(self._ifc_file, ifc_storey)
                 elif isinstance(element, Room):
+                    element.to_ifc(self._ifc_file, ifc_storey)
+                elif isinstance(element, RoomSeparator):
                     element.to_ifc(self._ifc_file, ifc_storey)
