@@ -37,6 +37,7 @@ class Door(ElementInstance, HostedElementMixin):
         host_wall: "Wall",
         offset: Length | float,
         sill_height: Length | float = 0.0,
+        swing_outward: bool = False,
         name: str | None = None,
         mark: str | None = None,
     ):
@@ -48,6 +49,7 @@ class Door(ElementInstance, HostedElementMixin):
             host_wall: Wall that hosts this door
             offset: Distance from wall start point to door start
             sill_height: Height from floor to bottom of door (usually 0)
+            swing_outward: If True, door swings to exterior side of wall (fire egress)
             name: Optional name for this door
             mark: Optional mark/identifier for tagging (e.g., "101", "D-1")
         """
@@ -55,6 +57,7 @@ class Door(ElementInstance, HostedElementMixin):
 
         self._host_wall = host_wall
         self._mark = mark
+        self._swing_outward = swing_outward
 
         # Store geometric parameters
         self.set_parameter("offset", normalize_length(offset).mm, override=False)
@@ -103,6 +106,11 @@ class Door(ElementInstance, HostedElementMixin):
     def mark(self, value: str | None) -> None:
         """Set the door mark/identifier."""
         self._mark = value
+
+    @property
+    def swing_outward(self) -> bool:
+        """Check if door swings outward (to exterior side of wall)."""
+        return self._swing_outward
 
     def get_opening_geometry(self):
         """
@@ -501,12 +509,21 @@ class Door(ElementInstance, HostedElementMixin):
         # Draw door swing arc if symbology allows
         if symbology.show_swing:
             # Arc center is at hinge point, radius is door width
-            # Start angle is wall angle, end angle is wall angle + 90 degrees
+            # Swing direction: inward (default) or outward (fire egress)
+            if self._swing_outward:
+                # Swing outward: arc goes in opposite direction
+                start_angle = wall_angle - math.pi / 2
+                end_angle = wall_angle
+            else:
+                # Swing inward: arc goes from wall angle to +90 degrees
+                start_angle = wall_angle
+                end_angle = wall_angle + math.pi / 2
+
             swing_arc = Arc2D(
                 center=Point2D(hinge_x, hinge_y),
                 radius=width,
-                start_angle=wall_angle,
-                end_angle=wall_angle + math.pi / 2,
+                start_angle=start_angle,
+                end_angle=end_angle,
                 style=LineStyle.visible().with_weight(LineStyle.visible().weight),
                 layer=Layer.DOOR,
             )
@@ -514,8 +531,13 @@ class Door(ElementInstance, HostedElementMixin):
 
         # Draw door panel in open position if symbology allows
         if symbology.show_panel:
-            panel_end_x = hinge_x - width * sin_a  # Perpendicular to wall
-            panel_end_y = hinge_y + width * cos_a
+            # Panel direction: inward (default) or outward
+            if self._swing_outward:
+                panel_end_x = hinge_x + width * sin_a  # Opposite perpendicular
+                panel_end_y = hinge_y - width * cos_a
+            else:
+                panel_end_x = hinge_x - width * sin_a  # Perpendicular to wall
+                panel_end_y = hinge_y + width * cos_a
 
             panel_line = Line2D(
                 start=Point2D(hinge_x, hinge_y),

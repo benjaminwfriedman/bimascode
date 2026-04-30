@@ -33,11 +33,15 @@ def serve_command(args: argparse.Namespace) -> int:
         print(f"Error: File must be a Python script: {script_path}", file=sys.stderr)
         return 1
 
+    # Resolve output directory
+    output_dir = Path(args.output) if args.output else None
+
     # Create server
     server = PreviewServer(
         script_path=script_path,
         host=args.host,
         port=args.port,
+        output_dir=output_dir,
     )
 
     # Open browser if requested
@@ -102,6 +106,13 @@ def create_parser() -> argparse.ArgumentParser:
         "--no-browser",
         action="store_true",
         help="Don't automatically open browser on start",
+    )
+    serve_parser.add_argument(
+        "--output",
+        "-o",
+        type=str,
+        default=None,
+        help="Output directory for exported files. If not specified, uses a temp directory.",
     )
 
     return parser

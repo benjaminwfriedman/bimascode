@@ -18,7 +18,7 @@ if TYPE_CHECKING:
 
 
 def render_2d_debug(
-    view_result: "ViewResult",
+    view_result: ViewResult,
     output_path: str | Path,
     highlight_layers: dict[str, tuple[int, int, int]] | None = None,
     highlight_elements: dict[str, tuple[int, int, int]] | None = None,
@@ -154,6 +154,86 @@ def render_2d_debug(
         if len(pts) > 1:
             draw.line(pts, fill=color, width=1)
 
+    # ACI color to RGB mapping (same as DXF standard)
+    aci_to_rgb = {
+        1: (255, 0, 0),  # Red
+        2: (255, 255, 0),  # Yellow
+        3: (0, 255, 0),  # Green
+        4: (0, 255, 255),  # Cyan
+        5: (0, 0, 255),  # Blue
+        6: (255, 0, 255),  # Magenta
+        7: (255, 255, 255),  # White
+        8: (128, 128, 128),  # Dark gray
+        9: (192, 192, 192),  # Light gray
+    }
+
+    # Layer to ACI color mapping (from DXF exporter)
+    layer_aci = {
+        "A-WALL": 7,
+        "A-WALL-FIRE": 1,
+        "A-DOOR": 6,
+        "A-GLAZ": 4,
+        "A-FLOR": 8,
+        "A-CLNG": 9,
+        "S-COLS": 3,
+        "S-BEAM": 3,
+        "G-ANNO": 7,
+        "G-ANNO-DIMS": 7,
+        "G-ANNO-SYMB": 7,
+    }
+
+    def get_layer_color(layer: str) -> tuple[int, int, int]:
+        """Get RGB color for a layer."""
+        aci = layer_aci.get(layer, 7)
+        return aci_to_rgb.get(aci, (200, 200, 200))
+
+    # Draw room tags
+    for tag in view_result.room_tags:
+        pos = to_screen(tag.insertion_point.x, tag.insertion_point.y)
+        color = get_layer_color(tag.layer)
+        # Draw tag box
+        half_w = tag.calculated_width * scale / 2
+        half_h = tag.style.size * scale / 2
+        box = [
+            (pos[0] - half_w, pos[1] - half_h),
+            (pos[0] + half_w, pos[1] + half_h),
+        ]
+        draw.rectangle(box, outline=color, width=1)
+        # Draw tag text centered
+        text = tag.text.replace("\n", " / ")
+        text_x = pos[0] - len(text) * 3  # Approximate centering
+        draw.text((text_x, pos[1] - 6), text, fill=color)
+
+    # Draw door tags
+    for tag in view_result.door_tags:
+        pos = to_screen(tag.insertion_point.x, tag.insertion_point.y)
+        color = get_layer_color(tag.layer)
+        # Draw circle/hexagon
+        radius = tag.style.size * scale / 2
+        draw.ellipse(
+            [pos[0] - radius, pos[1] - radius, pos[0] + radius, pos[1] + radius],
+            outline=color,
+            width=1,
+        )
+        # Draw tag text centered
+        text_x = pos[0] - len(tag.text) * 3
+        draw.text((text_x, pos[1] - 6), tag.text, fill=color)
+
+    # Draw window tags
+    for tag in view_result.window_tags:
+        pos = to_screen(tag.insertion_point.x, tag.insertion_point.y)
+        color = get_layer_color(tag.layer)
+        # Draw circle
+        radius = tag.style.size * scale / 2
+        draw.ellipse(
+            [pos[0] - radius, pos[1] - radius, pos[0] + radius, pos[1] + radius],
+            outline=color,
+            width=1,
+        )
+        # Draw tag text centered
+        text_x = pos[0] - len(tag.text) * 3
+        draw.text((text_x, pos[1] - 6), tag.text, fill=color)
+
     # Draw 2D axis gizmo
     if show_axes:
         # Position gizmo in bottom-left corner
@@ -207,6 +287,19 @@ def render_2d_debug(
         f"Polylines: {len(view_result.polylines)}, Hatches: {len(view_result.hatches)}",
         fill=(150, 150, 150),
     )
+    # Tag counts
+    tag_count = (
+        len(view_result.room_tags)
+        + len(view_result.door_tags)
+        + len(view_result.window_tags)
+    )
+    if tag_count > 0:
+        draw.text(
+            (10, 43),
+            f"Tags: {len(view_result.room_tags)} rooms, "
+            f"{len(view_result.door_tags)} doors, {len(view_result.window_tags)} windows",
+            fill=(150, 150, 150),
+        )
 
     # Legend
     y_offset = 50

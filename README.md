@@ -171,6 +171,27 @@ python examples/example_school_building.py
 | `school_floor_plan.py` | Alternative school layout | IFC + DXF |
 | `office_world_geometry_demo.py` | Office with view templates | IFC + DXF |
 
+## Preview Server
+
+BIM as Code includes a live-reload preview server for interactive development. Run any example script and see changes instantly in your browser with synchronized 2D floor plans and 3D model views.
+
+```bash
+bimascode serve examples/example_office_building.py
+```
+
+This starts a local server at `http://localhost:8766` with:
+- **2D Floor Plan** - Interactive pan/zoom with element highlighting
+- **3D Model** - Orbit controls, element selection, wireframe toggle
+- **Live Reload** - Automatic refresh when you save your script
+- **View Selector** - Switch between floor levels
+- **Export** - Download IFC, fit views to content
+
+<p align="center">
+  <img src="docs/preview_server.png" alt="Preview Server" width="800">
+</p>
+
+The preview server watches your Python file for changes. Edit your building code, save, and the browser automatically reloads with the updated model.
+
 ## Documentation
 
 See the [docs/](./docs) directory for detailed documentation.

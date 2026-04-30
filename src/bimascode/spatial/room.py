@@ -179,6 +179,10 @@ class Room(Element):
         """
         Calculate the centroid of the room boundary.
 
+        Note: For concave polygons (L-shaped, U-shaped rooms), the centroid
+        may fall outside the room boundary. Use get_visual_center() for
+        label placement that is guaranteed to be inside the room.
+
         Returns:
             (x, y) coordinates of centroid in mm
         """
@@ -191,6 +195,153 @@ class Room(Element):
         n = len(boundary)
 
         return (x_sum / n, y_sum / n)
+
+    def get_visual_center(self) -> tuple[float, float]:
+        """
+        Calculate the visual center (pole of inaccessibility) of the room.
+
+        This finds the point inside the polygon that is furthest from all
+        edges, making it ideal for label placement. Unlike centroid, this
+        is guaranteed to be inside the room even for concave shapes.
+
+        Uses an iterative grid-based algorithm:
+        1. Start with a coarse grid over the bounding box
+        2. Find the grid point inside the polygon furthest from edges
+        3. Refine around that point with a finer grid
+        4. Repeat until convergence
+
+        Returns:
+            (x, y) coordinates of visual center in mm
+        """
+        boundary = self._boundary
+        if len(boundary) < 3:
+            return self.get_centroid()
+
+        # Get bounding box
+        min_x = min(p[0] for p in boundary)
+        max_x = max(p[0] for p in boundary)
+        min_y = min(p[1] for p in boundary)
+        max_y = max(p[1] for p in boundary)
+
+        width = max_x - min_x
+        height = max_y - min_y
+
+        if width == 0 or height == 0:
+            return self.get_centroid()
+
+        # Start with centroid as initial best guess
+        best_point = self.get_centroid()
+        best_dist = self._point_to_polygon_distance(best_point[0], best_point[1])
+
+        # If centroid is inside and has positive distance, use iterative refinement
+        cell_size = max(width, height)
+
+        # Iteratively refine
+        for _ in range(5):  # 5 iterations is usually enough
+            cell_size /= 2
+
+            # Check points in a grid around current best
+            for dx in [-1, 0, 1]:
+                for dy in [-1, 0, 1]:
+                    x = best_point[0] + dx * cell_size
+                    y = best_point[1] + dy * cell_size
+
+                    # Check if inside polygon
+                    if not self._point_in_polygon(x, y):
+                        continue
+
+                    dist = self._point_to_polygon_distance(x, y)
+                    if dist > best_dist:
+                        best_dist = dist
+                        best_point = (x, y)
+
+        # If best point is outside or on edge, fall back to grid search
+        if best_dist <= 0:
+            best_dist = -float("inf")
+            # Grid search
+            steps = 10
+            for i in range(steps + 1):
+                for j in range(steps + 1):
+                    x = min_x + (width * i / steps)
+                    y = min_y + (height * j / steps)
+
+                    if not self._point_in_polygon(x, y):
+                        continue
+
+                    dist = self._point_to_polygon_distance(x, y)
+                    if dist > best_dist:
+                        best_dist = dist
+                        best_point = (x, y)
+
+        return best_point
+
+    def _point_in_polygon(self, x: float, y: float) -> bool:
+        """Check if a point is inside the room boundary using ray casting."""
+        boundary = self._boundary
+        n = len(boundary)
+        inside = False
+
+        j = n - 1
+        for i in range(n):
+            xi, yi = boundary[i]
+            xj, yj = boundary[j]
+
+            if ((yi > y) != (yj > y)) and (x < (xj - xi) * (y - yi) / (yj - yi) + xi):
+                inside = not inside
+
+            j = i
+
+        return inside
+
+    def _point_to_polygon_distance(self, x: float, y: float) -> float:
+        """
+        Calculate signed distance from point to polygon boundary.
+
+        Positive = inside, negative = outside.
+        """
+        boundary = self._boundary
+        n = len(boundary)
+
+        # Find minimum distance to any edge
+        min_dist = float("inf")
+
+        for i in range(n):
+            j = (i + 1) % n
+            x1, y1 = boundary[i]
+            x2, y2 = boundary[j]
+
+            # Distance to line segment
+            dist = self._point_to_segment_distance(x, y, x1, y1, x2, y2)
+            min_dist = min(min_dist, dist)
+
+        # Sign based on inside/outside
+        if self._point_in_polygon(x, y):
+            return min_dist
+        else:
+            return -min_dist
+
+    def _point_to_segment_distance(
+        self, px: float, py: float, x1: float, y1: float, x2: float, y2: float
+    ) -> float:
+        """Calculate distance from point (px, py) to line segment (x1,y1)-(x2,y2)."""
+        import math
+
+        dx = x2 - x1
+        dy = y2 - y1
+        length_sq = dx * dx + dy * dy
+
+        if length_sq == 0:
+            # Segment is a point
+            return math.sqrt((px - x1) ** 2 + (py - y1) ** 2)
+
+        # Project point onto line, clamped to segment
+        t = max(0, min(1, ((px - x1) * dx + (py - y1) * dy) / length_sq))
+
+        # Closest point on segment
+        closest_x = x1 + t * dx
+        closest_y = y1 + t * dy
+
+        return math.sqrt((px - closest_x) ** 2 + (py - closest_y) ** 2)
 
     def get_center_3d(self) -> tuple[float, float, float]:
         """

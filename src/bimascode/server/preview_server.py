@@ -1,24 +1,24 @@
 """Preview server for live-reload BIM viewing.
 
-Provides WebSocket server that executes Python scripts, generates
-2D view JSON and 3D glTF, and pushes updates to connected clients.
+Provides WebSocket server that executes Python scripts and serves
+the exported DXF/IFC files to connected clients.
 """
 
 import asyncio
 import http.server
 import json
+import shutil
 import socketserver
+import subprocess
+import sys
 import tempfile
 import threading
 import time
 import traceback
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
 
+from bimascode.server.dxf_reader import read_dxf_to_view_data
 from bimascode.server.file_watcher import FileWatcher
-
-if TYPE_CHECKING:
-    from bimascode.spatial.building import Building
 
 try:
     import websockets
@@ -33,11 +33,15 @@ class PreviewServer:
     """Live preview server for BIM as Code scripts.
 
     Watches a Python script for changes, re-executes it, and pushes
-    updated 2D views (JSON) and 3D model (glTF URL) to connected
-    WebSocket clients.
+    updated 2D views (from DXF files) and 3D model (glTF from IFC) to
+    connected WebSocket clients.
+
+    The script is expected to export IFC and DXF files to the output
+    directory. The server reads these files and serves them to the viewer.
 
     Attributes:
         script_path: Path to the Python script
+        output_dir: Directory where script exports files
         host: Server host address
         port: Server port
     """
@@ -47,6 +51,7 @@ class PreviewServer:
         script_path: str | Path,
         host: str = "localhost",
         port: int = 8765,
+        output_dir: str | Path | None = None,
     ):
         """Initialize the preview server.
 
@@ -54,6 +59,7 @@ class PreviewServer:
             script_path: Path to the Python script to watch
             host: Host address to bind to
             port: Port to listen on
+            output_dir: Directory for exported files. If None, uses a temp directory.
         """
         if not WEBSOCKETS_AVAILABLE:
             raise ImportError(
@@ -65,19 +71,28 @@ class PreviewServer:
         self.host = host
         self.port = port
 
+        # Output directory for exports
+        if output_dir is not None:
+            self.output_dir = Path(output_dir).resolve()
+            self.output_dir.mkdir(parents=True, exist_ok=True)
+            self._temp_output = False
+        else:
+            self._temp_output = True
+            self.output_dir = Path(tempfile.mkdtemp(prefix="bimascode_preview_"))
+
         # Connected WebSocket clients
         self._clients: set = set()
         self._clients_lock = asyncio.Lock()
 
         # Current state
-        self._building: Building | None = None
         self._last_error: str | None = None
         self._last_traceback: str | None = None
         self._last_update_time: float = 0
+        self._dxf_files: list[Path] = []
+        self._ifc_files: list[Path] = []
 
-        # Temp directory for glTF files
-        self._temp_dir = tempfile.mkdtemp(prefix="bimascode_preview_")
-        self._model_path = Path(self._temp_dir) / "building.glb"
+        # Temp directory for glTF conversion
+        self._gltf_dir = Path(tempfile.mkdtemp(prefix="bimascode_gltf_"))
 
         # File watcher (created on serve)
         self._watcher: FileWatcher | None = None
@@ -89,12 +104,15 @@ class PreviewServer:
         # Event loop reference
         self._loop: asyncio.AbstractEventLoop | None = None
 
-    def execute_script(self) -> "Building | None":
-        """Execute the Python script in an isolated namespace.
+    def execute_script(self) -> bool:
+        """Execute the Python script as a subprocess.
+
+        The script should export IFC and DXF files to stdout or to
+        a known location. We run it with OUTPUT_DIR environment variable
+        set to tell scripts where to export.
 
         Returns:
-            Building instance found in the script namespace, or None if
-            execution failed or no Building was found.
+            True if script executed successfully, False otherwise.
 
         Note:
             Errors are captured in self._last_error and self._last_traceback
@@ -103,77 +121,45 @@ class PreviewServer:
         self._last_error = None
         self._last_traceback = None
 
-        # Create isolated namespace
-        namespace: dict[str, Any] = {
-            "__name__": "__main__",
-            "__file__": str(self.script_path),
-        }
-
         try:
-            # Read and compile the script
-            script_content = self.script_path.read_text()
-            compiled = compile(script_content, str(self.script_path), "exec")
+            # Run script as subprocess with OUTPUT_DIR env var
+            env = {
+                **dict(__import__("os").environ),
+                "BIMASCODE_OUTPUT_DIR": str(self.output_dir),
+            }
 
-            # Execute the script
-            exec(compiled, namespace)
+            result = subprocess.run(
+                [sys.executable, str(self.script_path)],
+                capture_output=True,
+                text=True,
+                timeout=120,  # 2 minute timeout
+                env=env,
+                cwd=self.script_path.parent,
+            )
 
-            # Find Building instance by type inspection
-            building = self._find_building(namespace)
-            if building is None:
-                self._last_error = "No Building instance found in script"
-                return None
+            if result.returncode != 0:
+                self._last_error = f"Script exited with code {result.returncode}"
+                self._last_traceback = result.stderr or result.stdout
+                return False
 
-            self._building = building
-            return building
+            # Find exported files
+            self._scan_output_files()
+            return True
 
-        except SyntaxError as e:
-            self._last_error = f"SyntaxError on line {e.lineno}: {e.msg}"
-            self._last_traceback = traceback.format_exc()
-            return None
+        except subprocess.TimeoutExpired:
+            self._last_error = "Script timed out after 120 seconds"
+            self._last_traceback = ""
+            return False
 
         except Exception as e:
             self._last_error = f"{type(e).__name__}: {e}"
             self._last_traceback = traceback.format_exc()
-            return None
+            return False
 
-    def _find_building(self, namespace: dict[str, Any]) -> "Building | None":
-        """Find a Building instance in the script namespace.
-
-        Searches the namespace for Building instances. Also checks if there's
-        a `get_building()` or `create_building()` function that returns one.
-
-        Args:
-            namespace: The executed script's namespace
-
-        Returns:
-            Building instance or None if not found
-        """
-        # Import Building class for isinstance check
-        from bimascode.spatial.building import Building
-
-        # First, search namespace for Building instances directly
-        for value in namespace.values():
-            if isinstance(value, Building):
-                return value
-
-        # Check for common factory function patterns
-        for func_name in ["get_building", "create_building", "make_building", "build"]:
-            if func_name in namespace and callable(namespace[func_name]):
-                try:
-                    result = namespace[func_name]()
-                    if isinstance(result, Building):
-                        return result
-                except Exception:
-                    pass  # Function failed, continue searching
-
-        # Check if Building class was imported and has instances via levels
-        # This catches cases where Building is created inside main()
-        if "Building" in namespace:
-            building_cls = namespace["Building"]
-            # Building tracks all instances - check if any exist
-            # This is a fallback - ideally scripts expose building at module level
-
-        return None
+    def _scan_output_files(self) -> None:
+        """Scan output directory for DXF and IFC files."""
+        self._dxf_files = sorted(self.output_dir.glob("**/*.dxf"))
+        self._ifc_files = sorted(self.output_dir.glob("**/*.ifc"))
 
     def generate_payload(self) -> dict:
         """Generate JSON payload with views and model URL.
@@ -192,90 +178,196 @@ class PreviewServer:
                 "traceback": self._last_traceback or "",
             }
 
-        # Return empty payload if no building
-        if self._building is None:
+        # Return empty payload if no files found
+        if not self._dxf_files and not self._ifc_files:
             return {
                 "type": "error",
                 "timestamp": timestamp,
-                "message": "No building available",
-                "traceback": "",
+                "message": "No DXF or IFC files found in output directory",
+                "traceback": f"Output directory: {self.output_dir}",
             }
 
-        # Generate views for all levels
+        # Read DXF files and convert to view data
         views = {}
+        dxf_files_list = []
         try:
-            views = self._generate_views()
+            for dxf_file in self._dxf_files:
+                view_name = dxf_file.stem
+                view_data = read_dxf_to_view_data(dxf_file)
+                views[view_name] = view_data
+                dxf_files_list.append(view_name)
         except Exception as e:
             return {
                 "type": "error",
                 "timestamp": timestamp,
-                "message": f"Error generating views: {e}",
+                "message": f"Error reading DXF files: {e}",
                 "traceback": traceback.format_exc(),
             }
 
-        # Generate glTF model
+        # Convert IFC to glTF for 3D viewing
         model_url = None
-        try:
-            self._export_gltf()
-            model_url = f"http://{self.host}:{self.port + 1}/model/building.glb"
-        except Exception as e:
-            # Model export failure is non-fatal, just log it
-            print(f"Warning: glTF export failed: {e}")
+        if self._ifc_files:
+            try:
+                gltf_path = self._convert_ifc_to_gltf(self._ifc_files[0])
+                if gltf_path:
+                    model_url = f"http://{self.host}:{self.port + 1}/model/{gltf_path.name}"
+            except Exception as e:
+                print(f"Warning: IFC to glTF conversion failed: {e}")
 
         return {
             "type": "update",
             "timestamp": timestamp,
             "views": views,
+            "dxf_files": dxf_files_list,
             "model_url": model_url,
         }
 
-    def _generate_views(self) -> dict[str, dict]:
-        """Generate floor plan views for all levels.
+    def _convert_ifc_to_gltf(self, ifc_path: Path) -> Path | None:
+        """Convert IFC file to glTF for 3D viewing.
+
+        Args:
+            ifc_path: Path to IFC file
 
         Returns:
-            Dictionary mapping view names to ViewResult.to_dict() data
+            Path to generated glTF file, or None if conversion failed.
         """
-        from bimascode.drawing.floor_plan_view import FloorPlanView
-        from bimascode.drawing.view_base import ViewRange
-        from bimascode.performance.representation_cache import RepresentationCache
-        from bimascode.performance.spatial_index import SpatialIndex
+        try:
+            import ifcopenshell
+            import ifcopenshell.geom
 
-        if self._building is None:
-            return {}
+            # Open IFC file
+            ifc_file = ifcopenshell.open(str(ifc_path))
 
-        views = {}
-        cache = RepresentationCache()
+            # Set up geometry settings
+            geom_settings = ifcopenshell.geom.settings()
+            geom_settings.set(geom_settings.USE_WORLD_COORDS, True)
 
-        for level in self._building.levels:
-            # Build spatial index for this level
-            spatial_index = SpatialIndex()
-            for element in level.elements:
-                spatial_index.insert(element)
+            # Set up serializer settings
+            serializer_settings = ifcopenshell.geom.serializer_settings()
 
-            # Create floor plan view
-            view_name = f"{level.name} - Floor Plan"
-            view_range = ViewRange(cut_height=1200, top=3000, bottom=0, view_depth=0)
-            floor_plan = FloorPlanView(
-                name=view_name,
-                level=level,
-                view_range=view_range,
+            # Output path
+            output_path = self._gltf_dir / "building.glb"
+
+            # Create glTF serializer
+            serializer = ifcopenshell.geom.serializers.gltf(
+                str(output_path), geom_settings, serializer_settings
             )
 
-            # Generate view
-            result = floor_plan.generate(spatial_index, cache)
-            views[view_name] = result.to_dict()
+            # Iterate through elements and serialize
+            iterator = ifcopenshell.geom.iterator(geom_settings, ifc_file)
+            if iterator.initialize():
+                while True:
+                    shape = iterator.get()
+                    serializer.write(shape)
+                    if not iterator.next():
+                        break
 
-        return views
+            serializer.finalize()
 
-    def _export_gltf(self) -> None:
-        """Export building to glTF file."""
-        from bimascode.export.gltf_exporter import GLTFExporter
+            if output_path.exists():
+                # Fix ifcopenshell bug: add missing asset.version field
+                self._fix_gltf_asset_version(output_path)
+                return output_path
+            return None
 
-        if self._building is None:
+        except Exception as e:
+            print(f"IFC to glTF conversion error: {e}")
+            return None
+
+    def _fix_gltf_asset_version(self, glb_path: Path) -> None:
+        """Fix issues in GLB file from ifcopenshell.
+
+        ifcopenshell's glTF serializer has several bugs:
+        1. Missing required asset.version field
+        2. Binary chunk is truncated (header claims more bytes than written)
+        3. When USE_WORLD_COORDS=True, vertices already have world coords baked in,
+           but ifcopenshell still adds Z-up to Y-up rotation matrices to each node,
+           which corrupts the geometry (double transformation)
+
+        This fixes all issues by adding asset.version, padding binary data,
+        and removing redundant node transformation matrices.
+        """
+        import struct
+
+        with open(glb_path, "rb") as f:
+            data = bytearray(f.read())
+
+        if len(data) < 20 or data[:4] != b"glTF":
             return
 
-        exporter = GLTFExporter()
-        exporter.export(self._building, self._model_path)
+        # Parse original structure
+        orig_json_length = struct.unpack("<I", data[12:16])[0]
+        if data[16:20] != b"JSON":
+            return
+
+        json_end = 20 + orig_json_length
+
+        # Extract and parse JSON
+        json_bytes = data[20:json_end]
+        gltf = json.loads(json_bytes.decode("utf-8"))
+
+        # Fix 1: Add asset.version if missing
+        if "asset" not in gltf:
+            gltf["asset"] = {}
+        if "version" not in gltf["asset"]:
+            gltf["asset"]["version"] = "2.0"
+            gltf["asset"]["generator"] = "bimascode"
+
+        # Fix 3: Remove redundant Z-up to Y-up rotation matrices from nodes
+        # When USE_WORLD_COORDS=True, vertices already have world coordinates
+        # baked in. ifcopenshell incorrectly adds rotation matrices anyway,
+        # causing geometry corruption (beams appear diagonal, etc.)
+        for node in gltf.get("nodes", []):
+            if "matrix" in node:
+                del node["matrix"]
+
+        # Re-encode JSON (padded to 4-byte boundary with spaces)
+        new_json_str = json.dumps(gltf, separators=(",", ":"))
+        while len(new_json_str) % 4 != 0:
+            new_json_str += " "
+        new_json_bytes = new_json_str.encode("utf-8")
+
+        # Fix 2: Pad binary data to match claimed buffer size
+        # ifcopenshell truncates the binary data, so we need to pad it
+        bin_chunk_start = json_end
+        if bin_chunk_start + 8 <= len(data):
+            actual_bin_data = bytearray(data[bin_chunk_start + 8 :])
+
+            # Get the claimed buffer size from JSON
+            buffers = gltf.get("buffers", [])
+            if buffers:
+                claimed_size = buffers[0].get("byteLength", len(actual_bin_data))
+                # Pad with zeros if truncated
+                if len(actual_bin_data) < claimed_size:
+                    actual_bin_data.extend(b"\x00" * (claimed_size - len(actual_bin_data)))
+        else:
+            actual_bin_data = bytearray()
+
+        # Build corrected GLB
+        total_length = 12 + 8 + len(new_json_bytes)
+        if len(actual_bin_data) > 0:
+            total_length += 8 + len(actual_bin_data)
+
+        new_glb = bytearray()
+
+        # GLB Header
+        new_glb.extend(b"glTF")
+        new_glb.extend(struct.pack("<I", 2))  # version 2
+        new_glb.extend(struct.pack("<I", total_length))
+
+        # JSON chunk
+        new_glb.extend(struct.pack("<I", len(new_json_bytes)))
+        new_glb.extend(b"JSON")
+        new_glb.extend(new_json_bytes)
+
+        # Binary chunk (padded to match claimed size)
+        if len(actual_bin_data) > 0:
+            new_glb.extend(struct.pack("<I", len(actual_bin_data)))
+            new_glb.extend(b"BIN\x00")
+            new_glb.extend(actual_bin_data)
+
+        with open(glb_path, "wb") as f:
+            f.write(new_glb)
 
     async def handle_client(self, websocket) -> None:
         """Handle a WebSocket client connection.
@@ -322,10 +414,6 @@ class PreviewServer:
             payload = self.generate_payload()
             await websocket.send(json.dumps(payload))
 
-        elif msg_type == "export_ifc":
-            # Export IFC file (future feature)
-            pass
-
     async def _broadcast(self, payload: dict) -> None:
         """Broadcast a payload to all connected clients.
 
@@ -360,7 +448,7 @@ class PreviewServer:
             print(f"  Error: {payload['message']}")
         else:
             view_count = len(payload.get("views", {}))
-            print(f"  Generated {view_count} view(s)")
+            print(f"  Found {view_count} DXF file(s)")
 
         # Broadcast to clients (thread-safe)
         if self._loop is not None:
@@ -368,24 +456,43 @@ class PreviewServer:
 
     def _start_http_server(self) -> None:
         """Start HTTP server for static files and model serving."""
-        # Create handler with access to temp dir and viewer path
-        temp_dir = self._temp_dir
+        # Create handler with access to directories
+        gltf_dir = self._gltf_dir
+        output_dir = self.output_dir
         viewer_dir = Path(__file__).parent / "viewer"
 
         class Handler(http.server.SimpleHTTPRequestHandler):
             def __init__(self, *args, **kwargs):
-                self.temp_dir = temp_dir
+                self.gltf_dir = gltf_dir
+                self.output_dir = output_dir
                 self.viewer_dir = viewer_dir
                 super().__init__(*args, **kwargs)
 
             def do_GET(self):
-                # Serve model files from temp dir
+                # Serve model files from gltf dir
                 if self.path.startswith("/model/"):
                     file_name = self.path[7:]  # Remove "/model/"
-                    file_path = Path(self.temp_dir) / file_name
+                    file_path = Path(self.gltf_dir) / file_name
+                    print(f"[HTTP] Model request: {file_path}, exists: {file_path.exists()}")
                     if file_path.exists():
                         self.send_response(200)
                         self.send_header("Content-Type", "model/gltf-binary")
+                        self.send_header("Access-Control-Allow-Origin", "*")
+                        self.end_headers()
+                        self.wfile.write(file_path.read_bytes())
+                        return
+                    else:
+                        print(f"[HTTP] 404: gltf_dir contents: {list(Path(self.gltf_dir).iterdir()) if Path(self.gltf_dir).exists() else 'dir not exist'}")
+                        self.send_error(404, "File not found")
+                        return
+
+                # Serve DXF files from output dir
+                if self.path.startswith("/dxf/"):
+                    file_name = self.path[5:]  # Remove "/dxf/"
+                    file_path = Path(self.output_dir) / file_name
+                    if file_path.exists() and file_path.suffix.lower() == ".dxf":
+                        self.send_response(200)
+                        self.send_header("Content-Type", "application/octet-stream")
                         self.send_header("Access-Control-Allow-Origin", "*")
                         self.end_headers()
                         self.wfile.write(file_path.read_bytes())
@@ -418,6 +525,10 @@ class PreviewServer:
                     content_type = mime_types.get(ext, "application/octet-stream")
                     self.send_header("Content-Type", content_type)
                     self.send_header("Access-Control-Allow-Origin", "*")
+                    # Disable caching for development
+                    self.send_header("Cache-Control", "no-cache, no-store, must-revalidate")
+                    self.send_header("Pragma", "no-cache")
+                    self.send_header("Expires", "0")
                     self.end_headers()
                     self.wfile.write(file_path.read_bytes())
                     return
@@ -505,10 +616,12 @@ class PreviewServer:
 
         # Initial script execution
         print(f"Executing {self.script_path.name}...")
-        building = self.execute_script()
-        if building is not None:
-            print(f"  Found building: {building.name}")
-            print(f"  Levels: {len(building.levels)}")
+        print(f"Output directory: {self.output_dir}")
+        success = self.execute_script()
+
+        if success:
+            print(f"  Found {len(self._dxf_files)} DXF file(s)")
+            print(f"  Found {len(self._ifc_files)} IFC file(s)")
         else:
             print(f"  Error: {self._last_error}")
 
@@ -552,8 +665,9 @@ class PreviewServer:
             self._http_server.shutdown()
             self._http_server = None
 
-        # Clean up temp directory
-        import shutil
+        # Clean up temp directories
+        if self._temp_output and self.output_dir.exists():
+            shutil.rmtree(self.output_dir, ignore_errors=True)
 
-        if Path(self._temp_dir).exists():
-            shutil.rmtree(self._temp_dir, ignore_errors=True)
+        if self._gltf_dir.exists():
+            shutil.rmtree(self._gltf_dir, ignore_errors=True)

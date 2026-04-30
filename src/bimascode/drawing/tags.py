@@ -358,14 +358,16 @@ class RoomTag:
         """Get the tag insertion point.
 
         Returns the override position if set, otherwise calculates
-        from the room's centroid.
+        from the room's visual center (pole of inaccessibility).
+        This ensures the tag is placed inside the room even for
+        concave shapes like L-shaped or U-shaped rooms.
         """
         if self.position is not None:
             return self.position
 
-        # Get room centroid position
-        centroid = self.room.get_centroid()
-        return Point2D(centroid[0], centroid[1])
+        # Get room visual center (inside polygon, good for labeling)
+        center = self.room.get_visual_center()
+        return Point2D(center[0], center[1])
 
     @property
     def layer(self) -> str:
