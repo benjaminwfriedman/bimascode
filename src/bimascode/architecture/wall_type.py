@@ -19,6 +19,22 @@ if TYPE_CHECKING:
     from bimascode.architecture.wall import Wall
 
 
+class WallFunction(Enum):
+    """
+    Classification of wall function/purpose.
+
+    Aligns with Revit's wall function system for proper filtering
+    in views and schedules.
+    """
+
+    EXTERIOR = "Exterior"  # External envelope walls
+    INTERIOR = "Interior"  # Internal partition walls
+    FOUNDATION = "Foundation"  # Below-grade foundation walls
+    RETAINING = "Retaining"  # Earth-retaining walls
+    SOFFIT = "Soffit"  # Horizontal wall elements (undersides of overhangs)
+    CORE_SHAFT = "Core-Shaft"  # Elevator/stair shaft enclosure walls
+
+
 class LayerFunction(Enum):
     """
     Functional role of a material layer in a wall assembly.
@@ -86,7 +102,11 @@ class WallType(ElementType):
     """
 
     def __init__(
-        self, name: str, layers: list[Layer] | None = None, description: str | None = None
+        self,
+        name: str,
+        layers: list[Layer] | None = None,
+        description: str | None = None,
+        function: WallFunction = WallFunction.INTERIOR,
     ):
         """
         Create a wall type.
@@ -95,10 +115,12 @@ class WallType(ElementType):
             name: Name for this wall type
             layers: List of layers from exterior to interior
             description: Optional description
+            function: Wall function classification (default: INTERIOR)
         """
         super().__init__(name)
         self.layers = layers or []
         self.description = description
+        self._function = function
 
         # Store total width as a parameter
         self._update_width()
@@ -179,6 +201,35 @@ class WallType(ElementType):
     def get_structural_layers(self) -> list[Layer]:
         """Get all structural layers."""
         return [layer for layer in self.layers if layer.structural]
+
+    @property
+    def function(self) -> WallFunction:
+        """Get the wall function classification."""
+        return self._function
+
+    @function.setter
+    def function(self, value: WallFunction) -> None:
+        """Set the wall function classification."""
+        self._function = value
+
+    def get_ifc_predefined_type(self) -> str:
+        """
+        Get the IFC predefined type based on wall function.
+
+        Maps WallFunction to appropriate IfcWall predefined types.
+
+        Returns:
+            IFC predefined type string
+        """
+        mapping = {
+            WallFunction.EXTERIOR: "PARTITIONING",
+            WallFunction.INTERIOR: "PARTITIONING",
+            WallFunction.FOUNDATION: "SOLIDWALL",
+            WallFunction.RETAINING: "SOLIDWALL",
+            WallFunction.SOFFIT: "PARTITIONING",
+            WallFunction.CORE_SHAFT: "SHEAR",
+        }
+        return mapping.get(self._function, "NOTDEFINED")
 
     def get_layers_by_function(self, function: LayerFunction) -> list[Layer]:
         """
@@ -318,7 +369,12 @@ class WallType(ElementType):
 
 
 # Common wall type constructors
-def create_basic_wall_type(name: str, thickness: Length | float, material: Material) -> WallType:
+def create_basic_wall_type(
+    name: str,
+    thickness: Length | float,
+    material: Material,
+    function: WallFunction = WallFunction.INTERIOR,
+) -> WallType:
     """
     Create a simple single-layer wall type.
 
@@ -326,11 +382,12 @@ def create_basic_wall_type(name: str, thickness: Length | float, material: Mater
         name: Wall type name
         thickness: Wall thickness
         material: Wall material
+        function: Wall function classification (default: INTERIOR)
 
     Returns:
         WallType with single layer
     """
-    wall_type = WallType(name)
+    wall_type = WallType(name, function=function)
     wall_type.add_layer(
         material=material, thickness=thickness, function=LayerFunction.STRUCTURE, structural=True
     )
@@ -345,6 +402,7 @@ def create_stud_wall_type(
     interior_finish_thickness: Length | float = 12.5,
     exterior_finish: Material | None = None,
     exterior_finish_thickness: Length | float = 12.5,
+    function: WallFunction = WallFunction.INTERIOR,
 ) -> WallType:
     """
     Create a typical stud wall type with finishes.
@@ -357,12 +415,13 @@ def create_stud_wall_type(
         interior_finish_thickness: Interior finish thickness
         exterior_finish: Exterior finish material
         exterior_finish_thickness: Exterior finish thickness
+        function: Wall function classification (default: INTERIOR)
 
     Returns:
         WallType with multiple layers
     """
 
-    wall_type = WallType(name, description=f"{name} - Wood Stud Wall")
+    wall_type = WallType(name, description=f"{name} - Wood Stud Wall", function=function)
 
     # Exterior finish
     if exterior_finish:

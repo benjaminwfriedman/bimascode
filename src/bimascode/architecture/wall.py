@@ -8,6 +8,7 @@ This module implements straight walls with support for hosted elements
 import math
 from typing import TYPE_CHECKING, Union
 
+from bimascode.architecture.wall_joins import WallJoinStyle
 from bimascode.core.type_instance import ElementInstance
 from bimascode.core.world_geometry import FreestandingElementMixin
 from bimascode.performance.bounding_box import BoundingBox
@@ -60,6 +61,10 @@ class Wall(ElementInstance, FreestandingElementMixin):
 
         # Wall join trim adjustments
         self._trim_adjustments: dict = {}
+
+        # Join styles for each end (start=0, end=1)
+        self._join_style_start: WallJoinStyle = WallJoinStyle.BUTT
+        self._join_style_end: WallJoinStyle = WallJoinStyle.BUTT
 
         # Structural flag
         self._structural = structural
@@ -169,6 +174,60 @@ class Wall(ElementInstance, FreestandingElementMixin):
         return self._structural or len(self.type.get_structural_layers()) > 0
 
     @property
+    def join_style_start(self) -> WallJoinStyle:
+        """Get the join style at the wall's start endpoint."""
+        return self._join_style_start
+
+    @join_style_start.setter
+    def join_style_start(self, value: WallJoinStyle) -> None:
+        """Set the join style at the wall's start endpoint."""
+        self._join_style_start = value
+        self.invalidate_geometry()
+
+    @property
+    def join_style_end(self) -> WallJoinStyle:
+        """Get the join style at the wall's end endpoint."""
+        return self._join_style_end
+
+    @join_style_end.setter
+    def join_style_end(self, value: WallJoinStyle) -> None:
+        """Set the join style at the wall's end endpoint."""
+        self._join_style_end = value
+        self.invalidate_geometry()
+
+    def set_join_style(self, end: int, style: WallJoinStyle) -> None:
+        """
+        Set the join style for a specific endpoint.
+
+        Args:
+            end: 0 for start endpoint, 1 for end endpoint
+            style: Join style to apply
+        """
+        if end == 0:
+            self.join_style_start = style
+        elif end == 1:
+            self.join_style_end = style
+        else:
+            raise ValueError("end must be 0 (start) or 1 (end)")
+
+    def get_join_style(self, end: int) -> WallJoinStyle:
+        """
+        Get the join style for a specific endpoint.
+
+        Args:
+            end: 0 for start endpoint, 1 for end endpoint
+
+        Returns:
+            Join style at the specified endpoint
+        """
+        if end == 0:
+            return self._join_style_start
+        elif end == 1:
+            return self._join_style_end
+        else:
+            raise ValueError("end must be 0 (start) or 1 (end)")
+
+    @property
     def hosted_elements(self) -> list:
         """Get all hosted elements (doors, windows)."""
         return self._hosted_elements.copy()
@@ -275,8 +334,11 @@ class Wall(ElementInstance, FreestandingElementMixin):
         Returns:
             IfcWall entity
         """
-        # Determine predefined type based on structural flag
-        predefined_type = "SHEAR" if self._structural else "STANDARD"
+        # Determine predefined type: structural flag overrides, otherwise use wall function
+        if self._structural:
+            predefined_type = "SHEAR"
+        else:
+            predefined_type = self.type.get_ifc_predefined_type()
 
         # Create wall
         ifc_wall = ifc_file.create_entity(

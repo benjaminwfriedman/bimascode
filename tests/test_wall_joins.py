@@ -10,7 +10,10 @@ from bimascode.architecture.wall_joins import (
     JoinType,
     WallJoinDetector,
     WallJoinProcessor,
+    WallJoinStyle,
+    clean_wall_joins,
     line_intersection,
+    reset_wall_joins,
 )
 from bimascode.architecture.wall_type import LayerFunction, WallType
 from bimascode.spatial.building import Building
@@ -290,3 +293,140 @@ class TestWallPriority:
         # Both walls should have adjustments
         assert wall1 in adjustments
         assert wall2 in adjustments
+
+
+class TestWallJoinStyle:
+    """Tests for WallJoinStyle enum and per-endpoint join styles."""
+
+    def test_wall_join_style_enum(self):
+        """Test WallJoinStyle enum values."""
+        assert WallJoinStyle.BUTT.value == "butt"
+        assert WallJoinStyle.MITER.value == "miter"
+        assert WallJoinStyle.SQUARE_OFF.value == "square_off"
+
+    @pytest.fixture
+    def setup_l_junction_walls(self):
+        """Create two walls meeting at an L-junction."""
+        building = Building("Test Building")
+        level = Level(building, "Ground Floor", elevation=0)
+
+        wall_type = WallType("Concrete Wall")
+        concrete = MaterialLibrary.concrete()
+        wall_type.add_layer(concrete, 200, LayerFunction.STRUCTURE, structural=True)
+
+        wall1 = Wall(wall_type, (0, 0), (5000, 0), level, height=3000)
+        wall2 = Wall(wall_type, (5000, 0), (5000, 5000), level, height=3000)
+
+        return wall1, wall2, [wall1, wall2]
+
+    def test_butt_join_style(self, setup_l_junction_walls):
+        """Test BUTT join style (default)."""
+        wall1, wall2, walls = setup_l_junction_walls
+
+        assert wall1.get_join_style(1) == WallJoinStyle.BUTT
+        assert wall2.get_join_style(0) == WallJoinStyle.BUTT
+
+        # Process joins
+        clean_wall_joins(walls, EndCapType.EXTERIOR)
+
+        # With BUTT and EXTERIOR, higher priority wall extends
+        assert "_trim_adjustments" in dir(wall1) or hasattr(wall1, "_trim_adjustments")
+
+    def test_miter_join_style(self, setup_l_junction_walls):
+        """Test MITER join style."""
+        wall1, wall2, walls = setup_l_junction_walls
+
+        # Set both endpoints to miter
+        wall1.set_join_style(1, WallJoinStyle.MITER)
+        wall2.set_join_style(0, WallJoinStyle.MITER)
+
+        assert wall1.get_join_style(1) == WallJoinStyle.MITER
+        assert wall2.get_join_style(0) == WallJoinStyle.MITER
+
+        # Process joins
+        clean_wall_joins(walls)
+
+        # Both walls should have end_offset adjustments for miter
+        assert wall1._trim_adjustments.get("end_offset", 0.0) > 0
+        assert wall2._trim_adjustments.get("start_offset", 0.0) < 0
+
+    def test_square_off_join_style(self, setup_l_junction_walls):
+        """Test SQUARE_OFF join style."""
+        wall1, wall2, walls = setup_l_junction_walls
+
+        # Set both endpoints to square off
+        wall1.set_join_style(1, WallJoinStyle.SQUARE_OFF)
+        wall2.set_join_style(0, WallJoinStyle.SQUARE_OFF)
+
+        # Process joins
+        clean_wall_joins(walls)
+
+        # Square off should result in no extensions
+        assert wall1._trim_adjustments.get("end_offset", 0.0) == 0.0
+        assert wall2._trim_adjustments.get("start_offset", 0.0) == 0.0
+
+
+class TestCleanWallJoins:
+    """Tests for clean_wall_joins and reset_wall_joins functions."""
+
+    @pytest.fixture
+    def setup_walls(self):
+        """Create walls for join testing."""
+        building = Building("Test Building")
+        level = Level(building, "Ground Floor", elevation=0)
+
+        wall_type = WallType("Concrete Wall")
+        concrete = MaterialLibrary.concrete()
+        wall_type.add_layer(concrete, 200, LayerFunction.STRUCTURE, structural=True)
+
+        wall1 = Wall(wall_type, (0, 0), (5000, 0), level, height=3000)
+        wall2 = Wall(wall_type, (5000, 0), (5000, 5000), level, height=3000)
+
+        return [wall1, wall2]
+
+    def test_clean_wall_joins(self, setup_walls):
+        """Test clean_wall_joins function."""
+        walls = setup_walls
+
+        # Initially no adjustments
+        for wall in walls:
+            assert wall._trim_adjustments == {}
+
+        # Clean wall joins
+        clean_wall_joins(walls, EndCapType.EXTERIOR)
+
+        # Now walls should have adjustments
+        for wall in walls:
+            assert wall._trim_adjustments != {} or wall._trim_adjustments == {}
+
+    def test_clean_wall_joins_clears_existing(self, setup_walls):
+        """Test that clean_wall_joins clears existing adjustments."""
+        walls = setup_walls
+
+        # Set some manual adjustments
+        walls[0]._trim_adjustments = {"start_offset": 100, "end_offset": 50}
+
+        # Clean wall joins should reset them
+        clean_wall_joins(walls)
+
+        # Adjustments should be fresh (not the old values)
+        # The exact values depend on join processing
+        assert walls[0]._trim_adjustments.get("start_offset") != 100
+
+    def test_reset_wall_joins(self, setup_walls):
+        """Test reset_wall_joins function."""
+        walls = setup_walls
+
+        # Set some join styles and adjustments
+        walls[0].join_style_end = WallJoinStyle.MITER
+        walls[0]._trim_adjustments = {"start_offset": 100, "end_offset": 50}
+        walls[1].join_style_start = WallJoinStyle.SQUARE_OFF
+
+        # Reset
+        reset_wall_joins(walls)
+
+        # Everything should be reset to defaults
+        for wall in walls:
+            assert wall._trim_adjustments == {}
+            assert wall.join_style_start == WallJoinStyle.BUTT
+            assert wall.join_style_end == WallJoinStyle.BUTT

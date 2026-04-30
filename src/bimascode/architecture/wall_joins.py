@@ -18,11 +18,26 @@ if TYPE_CHECKING:
 
 
 class JoinType(Enum):
-    """Type of wall join."""
+    """Type of wall join topology."""
 
     L_JUNCTION = "L"  # Corner - both walls end at intersection
     T_JUNCTION = "T"  # T-intersection - one wall ends at another's side
     CROSS = "X"  # Cross - walls pass through each other
+
+
+class WallJoinStyle(Enum):
+    """
+    Style of how wall ends are cut at joins.
+
+    Controls the geometric treatment at wall intersections:
+    - BUTT: One wall stops at the face of another (default)
+    - MITER: Both walls are cut at bisecting angle
+    - SQUARE_OFF: Both walls are squared off with no overlap
+    """
+
+    BUTT = "butt"  # One wall stops at face of another
+    MITER = "miter"  # Both walls cut at bisecting angle
+    SQUARE_OFF = "square_off"  # Both walls squared off, leaving gap
 
 
 class EndCapType(Enum):
@@ -309,6 +324,33 @@ class WallJoinProcessor:
         wall_a = join.wall_a
         wall_b = join.wall_b
 
+        # Get join styles for each wall at the joining endpoint
+        style_a = wall_a.get_join_style(join.wall_a_end)
+        style_b = wall_b.get_join_style(join.wall_b_end)
+
+        # Calculate wall angles
+        angle_a = wall_a.angle
+        angle_b = wall_b.angle
+
+        # Handle based on join styles
+        if style_a == WallJoinStyle.MITER and style_b == WallJoinStyle.MITER:
+            # Both walls get miter cut at bisecting angle
+            self._apply_miter_cut(join, adjustments, angle_a, angle_b)
+        elif style_a == WallJoinStyle.SQUARE_OFF or style_b == WallJoinStyle.SQUARE_OFF:
+            # Square off: both walls stop at centerline, no overlap
+            # No extension needed - walls just stop at their defined endpoints
+            pass
+        else:
+            # Default BUTT join or mixed: use end cap type
+            self._apply_butt_join(join, adjustments, a_priority, b_priority)
+
+    def _apply_butt_join(
+        self, join: WallJoin, adjustments: dict["Wall", dict], a_priority: int, b_priority: int
+    ) -> None:
+        """Apply butt join (one wall extends to face of other)."""
+        wall_a = join.wall_a
+        wall_b = join.wall_b
+
         # Calculate extension/trim based on end cap type
         if self.end_cap_type == EndCapType.FLUSH:
             # Both walls meet at centerline - no extension needed
@@ -336,6 +378,45 @@ class WallJoinProcessor:
                 trim = wall_a.width / 2
                 self._apply_extension(adjustments[wall_b], join.wall_b_end, -trim)
 
+    def _apply_miter_cut(
+        self,
+        join: WallJoin,
+        adjustments: dict["Wall", dict],
+        angle_a: float,
+        angle_b: float,
+    ) -> None:
+        """
+        Apply miter cut to both walls at the intersection.
+
+        Both walls are cut at the bisecting angle so they meet cleanly.
+        """
+        wall_a = join.wall_a
+        wall_b = join.wall_b
+
+        # Calculate the angle between walls
+        angle_diff = abs(angle_b - angle_a)
+
+        # Normalize to 0-180 range
+        if angle_diff > math.pi:
+            angle_diff = 2 * math.pi - angle_diff
+
+        # For a miter, each wall extends by: (half_width / tan(half_angle))
+        # where half_angle is half the angle between the walls
+        half_angle = angle_diff / 2
+
+        # Prevent division by zero for near-parallel walls
+        if abs(math.sin(half_angle)) < 0.01:
+            return
+
+        # Extension for wall A (based on wall A's width)
+        ext_a = (wall_a.width / 2) / math.tan(half_angle)
+        # Extension for wall B (based on wall B's width)
+        ext_b = (wall_b.width / 2) / math.tan(half_angle)
+
+        # Apply extensions
+        self._apply_extension(adjustments[wall_a], join.wall_a_end, ext_a)
+        self._apply_extension(adjustments[wall_b], join.wall_b_end, ext_b)
+
     def _process_t_junction(
         self, join: WallJoin, adjustments: dict["Wall", dict], a_priority: int, b_priority: int
     ) -> None:
@@ -354,6 +435,22 @@ class WallJoinProcessor:
             ending_end = join.wall_b_end
             adj = adjustments[ending_wall]
 
+        # Get join style for the ending wall
+        style = ending_wall.get_join_style(ending_end)
+
+        if style == WallJoinStyle.SQUARE_OFF:
+            # Square off: wall stops at centerline, no extension
+            pass
+        elif style == WallJoinStyle.MITER:
+            # Miter doesn't apply to T-junctions, treat as BUTT
+            # Fall through to BUTT behavior
+            self._apply_t_butt_join(adj, ending_end, continuous_wall)
+        else:
+            # Default BUTT behavior
+            self._apply_t_butt_join(adj, ending_end, continuous_wall)
+
+    def _apply_t_butt_join(self, adj: dict, ending_end: int, continuous_wall: "Wall") -> None:
+        """Apply butt join for T-junction ending wall."""
         if self.end_cap_type == EndCapType.FLUSH:
             # End at centerline
             pass
@@ -411,3 +508,49 @@ def detect_and_process_wall_joins(
 
     processor = WallJoinProcessor(joins, end_cap_type)
     return processor.process_joins()
+
+
+def clean_wall_joins(
+    walls: list["Wall"],
+    end_cap_type: EndCapType = EndCapType.EXTERIOR,
+    tolerance: float = 50.0,
+) -> None:
+    """
+    Recalculate all wall joins and apply trim adjustments.
+
+    This function clears existing trim adjustments, re-detects joins,
+    and applies new adjustments based on current wall positions and
+    join styles.
+
+    Args:
+        walls: List of walls to process
+        end_cap_type: How to trim wall ends at joins
+        tolerance: Distance tolerance for join detection (mm)
+    """
+    # Clear existing trim adjustments
+    for wall in walls:
+        wall._trim_adjustments = {}
+
+    # Detect and process joins
+    adjustments = detect_and_process_wall_joins(walls, end_cap_type, tolerance)
+
+    # Apply adjustments to walls
+    for wall, adj in adjustments.items():
+        wall._trim_adjustments = adj
+        wall.invalidate_geometry()
+
+
+def reset_wall_joins(walls: list["Wall"]) -> None:
+    """
+    Reset all wall join adjustments to defaults.
+
+    Clears all trim adjustments and resets join styles to BUTT.
+
+    Args:
+        walls: List of walls to reset
+    """
+    for wall in walls:
+        wall._trim_adjustments = {}
+        wall._join_style_start = WallJoinStyle.BUTT
+        wall._join_style_end = WallJoinStyle.BUTT
+        wall.invalidate_geometry()
