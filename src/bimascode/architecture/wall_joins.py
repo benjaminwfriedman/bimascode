@@ -740,17 +740,29 @@ def _apply_adjustment(
     _ensure_trim_adjustments(wall)
 
     if end == 0:
-        # Extending start means moving it back (negative direction)
+        # Start offset: positive = trim forward (shorten), negative = extend backward
+        # Accumulate by taking the most extreme adjustment
         current = wall._trim_adjustments.get("start_offset", 0.0)
-        wall._trim_adjustments["start_offset"] = min(current, -offset)
+        if offset >= 0:
+            # Extension: take the larger extension
+            wall._trim_adjustments["start_offset"] = max(current, offset)
+        else:
+            # Trim: take the larger trim (more negative)
+            wall._trim_adjustments["start_offset"] = min(current, offset)
         if miter_angle is not None:
             wall._trim_adjustments["start_miter_angle"] = miter_angle
         if miter_inside_sign is not None:
             wall._trim_adjustments["start_miter_inside_sign"] = miter_inside_sign
     elif end == 1:
-        # Extending end means moving it forward (positive direction)
+        # End offset: positive = extend forward, negative = trim backward
+        # Accumulate by taking the most extreme adjustment
         current = wall._trim_adjustments.get("end_offset", 0.0)
-        wall._trim_adjustments["end_offset"] = max(current, offset)
+        if offset >= 0:
+            # Extension: take the larger extension
+            wall._trim_adjustments["end_offset"] = max(current, offset)
+        else:
+            # Trim: take the larger trim (more negative)
+            wall._trim_adjustments["end_offset"] = min(current, offset)
         if miter_angle is not None:
             wall._trim_adjustments["end_miter_angle"] = miter_angle
         if miter_inside_sign is not None:
@@ -789,15 +801,13 @@ def _apply_miter_join(wall_a: "Wall", wall_b: "Wall", join: WallJoin) -> None:
         return
 
     # Determine which side of each wall is the "inside" of the L-corner.
-    # The inside is where the two walls enclose space (the corner pocket).
+    # The inside is where the acute angle is (shorter angle between walls).
+    # This is order-invariant and rotation-invariant.
     #
-    # We use the cross product of direction vectors pointing AWAY from the junction.
-    # This tells us how the walls "fan out" from the corner:
-    #   cross_z < 0: walls fan out clockwise -> inside is on left (+perp)
-    #   cross_z > 0: walls fan out counterclockwise -> inside is on right (-perp)
+    # For each wall, we check which perpendicular direction (left or right)
+    # points toward the other wall's "away" direction. That side is the inside.
 
-    # Get direction vectors pointing AWAY from the junction
-    # Wall direction is start->end. If wall ends at junction, flip to point away.
+    # Get direction vectors pointing AWAY from the junction for each wall
     away_a_x = math.cos(angle_a)
     away_a_y = math.sin(angle_a)
     if join.wall_a_end == 1:
@@ -810,21 +820,24 @@ def _apply_miter_join(wall_a: "Wall", wall_b: "Wall", join: WallJoin) -> None:
         away_b_x = -away_b_x
         away_b_y = -away_b_y
 
-    # Cross product z-component determines turning direction
-    cross_z = away_a_x * away_b_y - away_a_y * away_b_x
+    # For wall_a: which perpendicular points toward wall_b?
+    # Left perpendicular of wall direction: (-sin(angle), cos(angle))
+    # Dot with away_b: positive means left side faces wall_b (the inside)
+    perp_a_left_x = -math.sin(angle_a)
+    perp_a_left_y = math.cos(angle_a)
+    dot_left_a = perp_a_left_x * away_b_x + perp_a_left_y * away_b_y
+    inside_sign_a = 1 if dot_left_a > 0 else -1
 
-    # miter_inside_sign indicates which side of the wall is inside the L-corner:
-    #   +1 = inside is on +perp side (left when walking start->end)
-    #   -1 = inside is on -perp side (right when walking start->end)
-    if cross_z < 0:
-        inside_sign = 1   # Inside on left (+perp)
-    else:
-        inside_sign = -1  # Inside on right (-perp)
+    # For wall_b: which perpendicular points toward wall_a?
+    perp_b_left_x = -math.sin(angle_b)
+    perp_b_left_y = math.cos(angle_b)
+    dot_left_b = perp_b_left_x * away_a_x + perp_b_left_y * away_a_y
+    inside_sign_b = 1 if dot_left_b > 0 else -1
 
-    # Apply miter angle and inside sign to both walls.
+    # Apply miter angle with per-wall inside sign.
     # Offset is 0 because the corner geometry handles the diagonal cut in wall.py.
-    _apply_adjustment(wall_a, join.wall_a_end, 0.0, half_angle, inside_sign)
-    _apply_adjustment(wall_b, join.wall_b_end, 0.0, half_angle, inside_sign)
+    _apply_adjustment(wall_a, join.wall_a_end, 0.0, half_angle, inside_sign_a)
+    _apply_adjustment(wall_b, join.wall_b_end, 0.0, half_angle, inside_sign_b)
 
 
 def _apply_butt_join(
@@ -888,7 +901,7 @@ def _apply_butt_join(
         other.invalidate_geometry()
 
     elif join.join_type == JoinType.T_JUNCTION:
-        # The wall that ends gets extended to continuous wall's face
+        # The wall that ends gets trimmed to stop at continuous wall's inner face
         if join.wall_a_end >= 0:
             ending_wall = wall_a
             continuous_wall = wall_b
@@ -898,8 +911,19 @@ def _apply_butt_join(
             continuous_wall = wall_a
             ending_end = join.wall_b_end
 
-        extension = continuous_wall.width / 2
-        _apply_adjustment(ending_wall, ending_end, extension)
+        # Trim the ending wall to stop at the continuous wall's inner face.
+        # The trim amount is half the continuous wall's width.
+        # Sign convention (from wall.py):
+        #   start_offset: positive = trim forward (shorten), negative = extend backward
+        #   end_offset: positive = extend forward, negative = trim backward (shorten)
+        # To shorten the wall: use positive for start, negative for end.
+        trim = continuous_wall.width / 2
+        if ending_end == 0:
+            # Trimming start: positive offset shortens the wall
+            _apply_adjustment(ending_wall, ending_end, trim)
+        else:
+            # Trimming end: negative offset shortens the wall
+            _apply_adjustment(ending_wall, ending_end, -trim)
 
 
 def join_walls(

@@ -488,8 +488,9 @@ class TestJoinWalls:
         # Apply butt join
         join_walls(WallJoinStyle.BUTT, wall1, wall2)
 
-        # The ending wall (wall2) should have an extension
-        assert wall2._trim_adjustments.get("end_offset", 0) > 0
+        # The ending wall (wall2) should be trimmed back to the continuous wall's face
+        # Negative offset = trim back by half of wall1's width
+        assert wall2._trim_adjustments.get("end_offset", 0) < 0
 
         # The continuous wall (wall1) should not be modified at this point
         # (it doesn't terminate at the intersection)
@@ -528,7 +529,8 @@ class TestJoinWalls:
         join_walls(WallJoinStyle.BUTT, wall1, wall2, extend=wall2)
 
         # Thinner wall (wall2) should extend even though it's thinner
-        assert wall2._trim_adjustments.get("start_offset", 0) < 0
+        # Positive start_offset means extending backward past its start point
+        assert wall2._trim_adjustments.get("start_offset", 0) > 0
 
     def test_join_walls_requires_two_walls(self, setup_building):
         """Test that join_walls requires at least 2 walls."""
