@@ -187,14 +187,14 @@ The `-o` / `--output` flag specifies where exported files (DXF, IFC) are written
 - **Export** - Download IFC, fit views to content
 
 <p align="center">
-  <img src="docs/preview_server.png" alt="Preview Server" width="800">
+  <img src="dev/preview_server.png" alt="Preview Server" width="800">
 </p>
 
 The preview server watches your Python file for changes. Edit your building code, save, and the browser automatically reloads with the updated model.
 
 ## Documentation
 
-See the [docs/](./docs) directory for detailed documentation.
+**[API Documentation](https://benjaminwfriedman.github.io/bimascode/bimascode.html)** - Full API reference
 
 ## Project Structure
 
