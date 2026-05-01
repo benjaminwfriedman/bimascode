@@ -24,6 +24,7 @@ from bimascode.architecture import (
     EndCapType,
     Floor,
     Wall,
+    WallFunction,
     Window,
     create_basic_wall_type,
     detect_and_process_wall_joins,
@@ -81,13 +82,13 @@ def create_materials_and_types():
 
     # Compound exterior wall: glass + insulation + concrete
     # Demonstrates per-layer hatching with different patterns
-    exterior_wall_type = WallType("Exterior Wall - Curtain")
+    exterior_wall_type = WallType("Exterior Wall - Curtain", function=WallFunction.EXTERIOR)
     exterior_wall_type.add_layer(glass, 25, LayerFunction.FINISH_EXTERIOR)
     exterior_wall_type.add_layer(insulation, 75, LayerFunction.THERMAL_INSULATION)
     exterior_wall_type.add_layer(concrete, 200, LayerFunction.STRUCTURE, structural=True)
 
     # Interior partition: gypsum + steel stud + gypsum
-    interior_wall_type = WallType("Interior Partition")
+    interior_wall_type = WallType("Interior Partition", function=WallFunction.INTERIOR)
     interior_wall_type.add_layer(gypsum, 12.5, LayerFunction.FINISH_INTERIOR)
     interior_wall_type.add_layer(steel, 75, LayerFunction.STRUCTURE)
     interior_wall_type.add_layer(gypsum, 12.5, LayerFunction.FINISH_INTERIOR)
@@ -96,7 +97,9 @@ def create_materials_and_types():
         # Walls - compound types for per-layer hatching
         "exterior_wall": exterior_wall_type,
         "interior_wall": interior_wall_type,
-        "core_wall": create_basic_wall_type("Core Wall", 200, concrete),
+        "core_wall": create_basic_wall_type(
+            "Core Wall", 200, concrete, function=WallFunction.CORE_SHAFT
+        ),
         # Doors
         "single_door": DoorType(name="Single Door", width=900, height=2100),
         "double_door": create_double_door_type("Double Door", width=1800, height=2100),

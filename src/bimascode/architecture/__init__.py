@@ -39,11 +39,15 @@ from .wall_joins import (
     WallJoin,
     WallJoinDetector,
     WallJoinProcessor,
+    WallJoinStyle,
+    clean_wall_joins,
     detect_and_process_wall_joins,
+    reset_wall_joins,
 )
 from .wall_type import (
     Layer,
     LayerFunction,
+    WallFunction,
     WallType,
     create_basic_wall_type,
     create_stud_wall_type,
@@ -60,6 +64,7 @@ from .window_type import (
 __all__ = [
     # Wall types and elements
     "WallType",
+    "WallFunction",
     "Layer",
     "LayerFunction",
     "Wall",
@@ -92,11 +97,14 @@ __all__ = [
     "create_circular_opening",
     # Wall joins (Sprint 3)
     "JoinType",
+    "WallJoinStyle",
     "EndCapType",
     "WallJoin",
     "WallJoinDetector",
     "WallJoinProcessor",
     "detect_and_process_wall_joins",
+    "clean_wall_joins",
+    "reset_wall_joins",
     # Ceiling types and elements (Sprint 4)
     "CeilingType",
     "Ceiling",

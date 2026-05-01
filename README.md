@@ -176,10 +176,10 @@ python examples/example_school_building.py
 BIM as Code includes a live-reload preview server for interactive development. Run any example script and see changes instantly in your browser with synchronized 2D floor plans and 3D model views.
 
 ```bash
-bimascode serve examples/example_office_building.py
+bimascode serve examples/example_office_building.py -o examples/outputs/office
 ```
 
-This starts a local server at `http://localhost:8766` with:
+The `-o` / `--output` flag specifies where exported files (DXF, IFC) are written. This starts a local server at `http://localhost:8766` with:
 - **2D Floor Plan** - Interactive pan/zoom with element highlighting
 - **3D Model** - Orbit controls, element selection, wireframe toggle
 - **Live Reload** - Automatic refresh when you save your script

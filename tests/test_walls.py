@@ -8,10 +8,12 @@ from bimascode.architecture import (
     Layer,
     LayerFunction,
     Wall,
+    WallFunction,
     WallType,
     create_basic_wall_type,
     create_stud_wall_type,
 )
+from bimascode.architecture.wall_joins import WallJoinStyle
 from bimascode.spatial.building import Building
 from bimascode.spatial.level import Level
 from bimascode.utils.materials import MaterialLibrary
@@ -324,3 +326,110 @@ class TestWall:
         assert wall2 in level.elements
         assert wall3 in level.elements
         assert wall4 in level.elements
+
+    def test_wall_join_styles_default(self):
+        """Test that wall join styles default to BUTT."""
+        building = Building("Test Building")
+        level = Level(building, "Level 1", elevation=0)
+        wall_type = create_basic_wall_type("Test Wall", 200, MaterialLibrary.concrete())
+
+        wall = Wall(wall_type, (0, 0), (5000, 0), level)
+
+        assert wall.join_style_start == WallJoinStyle.BUTT
+        assert wall.join_style_end == WallJoinStyle.BUTT
+
+    def test_wall_set_join_style(self):
+        """Test setting join styles on wall endpoints."""
+        building = Building("Test Building")
+        level = Level(building, "Level 1", elevation=0)
+        wall_type = create_basic_wall_type("Test Wall", 200, MaterialLibrary.concrete())
+
+        wall = Wall(wall_type, (0, 0), (5000, 0), level)
+
+        wall.join_style_start = WallJoinStyle.MITER
+        wall.join_style_end = WallJoinStyle.BUTT
+
+        assert wall.join_style_start == WallJoinStyle.MITER
+        assert wall.join_style_end == WallJoinStyle.BUTT
+        assert wall.get_join_style(0) == WallJoinStyle.MITER
+        assert wall.get_join_style(1) == WallJoinStyle.BUTT
+
+    def test_wall_set_join_style_method(self):
+        """Test set_join_style method."""
+        building = Building("Test Building")
+        level = Level(building, "Level 1", elevation=0)
+        wall_type = create_basic_wall_type("Test Wall", 200, MaterialLibrary.concrete())
+
+        wall = Wall(wall_type, (0, 0), (5000, 0), level)
+
+        wall.set_join_style(0, WallJoinStyle.MITER)
+        wall.set_join_style(1, WallJoinStyle.BUTT)
+
+        assert wall.join_style_start == WallJoinStyle.MITER
+        assert wall.join_style_end == WallJoinStyle.BUTT
+
+
+class TestWallFunction:
+    """Tests for WallFunction enum and wall type function parameter."""
+
+    def test_wall_function_enum_values(self):
+        """Test that WallFunction enum has all expected values."""
+        assert WallFunction.EXTERIOR.value == "Exterior"
+        assert WallFunction.INTERIOR.value == "Interior"
+        assert WallFunction.FOUNDATION.value == "Foundation"
+        assert WallFunction.RETAINING.value == "Retaining"
+        assert WallFunction.SOFFIT.value == "Soffit"
+        assert WallFunction.CORE_SHAFT.value == "Core-Shaft"
+
+    def test_wall_type_default_function(self):
+        """Test that wall type defaults to INTERIOR function."""
+        wall_type = WallType("Test Wall")
+        assert wall_type.function == WallFunction.INTERIOR
+
+    def test_wall_type_with_function(self):
+        """Test creating wall type with specific function."""
+        wall_type = WallType("Exterior Wall", function=WallFunction.EXTERIOR)
+        assert wall_type.function == WallFunction.EXTERIOR
+
+    def test_wall_type_function_setter(self):
+        """Test changing wall type function."""
+        wall_type = WallType("Test Wall")
+        wall_type.function = WallFunction.FOUNDATION
+        assert wall_type.function == WallFunction.FOUNDATION
+
+    def test_create_basic_wall_type_with_function(self):
+        """Test create_basic_wall_type with function parameter."""
+        concrete = MaterialLibrary.concrete()
+        wall_type = create_basic_wall_type(
+            "Exterior Concrete", 300, concrete, function=WallFunction.EXTERIOR
+        )
+        assert wall_type.function == WallFunction.EXTERIOR
+
+    def test_create_stud_wall_type_with_function(self):
+        """Test create_stud_wall_type with function parameter."""
+        timber = MaterialLibrary.timber()
+        gypsum = MaterialLibrary.gypsum_board()
+
+        wall_type = create_stud_wall_type(
+            "Interior Stud Wall",
+            stud_material=timber,
+            interior_finish=gypsum,
+            function=WallFunction.INTERIOR,
+        )
+        assert wall_type.function == WallFunction.INTERIOR
+
+    def test_ifc_predefined_type_mapping(self):
+        """Test IFC predefined type mapping for wall functions."""
+        exterior = WallType("Exterior", function=WallFunction.EXTERIOR)
+        interior = WallType("Interior", function=WallFunction.INTERIOR)
+        foundation = WallType("Foundation", function=WallFunction.FOUNDATION)
+        retaining = WallType("Retaining", function=WallFunction.RETAINING)
+        soffit = WallType("Soffit", function=WallFunction.SOFFIT)
+        core_shaft = WallType("Core-Shaft", function=WallFunction.CORE_SHAFT)
+
+        assert exterior.get_ifc_predefined_type() == "PARTITIONING"
+        assert interior.get_ifc_predefined_type() == "PARTITIONING"
+        assert foundation.get_ifc_predefined_type() == "SOLIDWALL"
+        assert retaining.get_ifc_predefined_type() == "SOLIDWALL"
+        assert soffit.get_ifc_predefined_type() == "PARTITIONING"
+        assert core_shaft.get_ifc_predefined_type() == "SHEAR"

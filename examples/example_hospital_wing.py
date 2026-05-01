@@ -14,16 +14,18 @@ Building: Single corridor wing with patient rooms
 - Nurses station: Central location
 """
 
+from datetime import datetime
 from pathlib import Path
 
 from bimascode.architecture import (
     Door,
     Floor,
     Wall,
+    WallFunction,
+    WallJoinStyle,
     create_basic_wall_type,
-    detect_and_process_wall_joins,
-    EndCapType,
 )
+from bimascode.architecture.wall_joins import join_walls
 from bimascode.architecture.door_type import DoorType
 from bimascode.architecture.floor_type import FloorType, LayerFunction
 from bimascode.drawing.dxf_exporter import DXFExporter
@@ -68,10 +70,14 @@ def create_types():
     gypsum = MaterialLibrary.gypsum_board()
 
     # Exterior wall (concrete)
-    exterior_wall = create_basic_wall_type("Exterior Wall", 250, concrete)
+    exterior_wall = create_basic_wall_type(
+        "Exterior Wall", 250, concrete, function=WallFunction.EXTERIOR
+    )
 
     # Interior partition (gypsum both sides)
-    interior_wall = create_basic_wall_type("Interior Partition", 150, gypsum)
+    interior_wall = create_basic_wall_type(
+        "Interior Partition", 150, gypsum, function=WallFunction.INTERIOR
+    )
 
     # Patient room door (wider for bed access)
     patient_door = DoorType(name="Patient Room Door", width=1200, height=2100)
@@ -89,12 +95,20 @@ def create_types():
 
 
 def create_hospital_wing(building, types):
-    """Create hospital wing with patient rooms and nurses station."""
+    """Create hospital wing with patient rooms and nurses station.
+
+    Wall join strategy (as an architect would specify):
+    - Exterior corners: MITER - creates clean 45° diagonal at building corners
+    - Corridor walls to exterior: BUTT - corridor walls extend to exterior wall face
+    - Partition walls to corridor: BUTT - partitions extend to corridor wall face
+    - Partition walls to exterior: BUTT - partitions extend to exterior wall face
+    """
     level = Level(building, "Level 1", elevation=0)
 
     all_walls = []
     all_doors = []
     all_rooms = []
+    all_partitions = []  # Track partitions separately for join processing
 
     ext_wall = types["exterior_wall"]
     int_wall = types["interior_wall"]
@@ -113,7 +127,9 @@ def create_hospital_wing(building, types):
     south_room_y = corridor_south_y - ROOM_DEPTH
     north_room_y = corridor_north_y + ROOM_DEPTH
 
-    # -- Exterior walls --
+    # ==========================================================================
+    # EXTERIOR WALLS - Form the building envelope
+    # ==========================================================================
 
     # South exterior wall (outer edge of south rooms)
     wall_south = Wall(
@@ -155,7 +171,27 @@ def create_hospital_wing(building, types):
     )
     all_walls.append(wall_east)
 
-    # -- Corridor walls --
+    # ==========================================================================
+    # EXTERIOR CORNER JOINS - MITER for clean diagonal corners
+    # ==========================================================================
+    # Each corner is an L-junction where two exterior walls meet.
+    # MITER creates a 45° diagonal joint line on the inside of the corner.
+
+    # Southwest corner: wall_south.start meets wall_west.end
+    join_walls(WallJoinStyle.MITER, wall_south, wall_west)
+
+    # Southeast corner: wall_south.end meets wall_east.start
+    join_walls(WallJoinStyle.MITER, wall_south, wall_east)
+
+    # Northeast corner: wall_east.end meets wall_north.start
+    join_walls(WallJoinStyle.MITER, wall_east, wall_north)
+
+    # Northwest corner: wall_north.end meets wall_west.start
+    join_walls(WallJoinStyle.MITER, wall_north, wall_west)
+
+    # ==========================================================================
+    # CORRIDOR WALLS - Interior walls along the main circulation path
+    # ==========================================================================
 
     # South corridor wall (with doors to south rooms)
     corridor_wall_south = Wall(
@@ -177,7 +213,27 @@ def create_hospital_wing(building, types):
     )
     all_walls.append(corridor_wall_north)
 
-    # -- Patient rooms (South side) --
+    # ==========================================================================
+    # CORRIDOR TO EXTERIOR JOINS - BUTT (T-junctions)
+    # ==========================================================================
+    # Corridor walls meet exterior walls at T-junctions.
+    # The corridor wall terminates at the exterior wall's face.
+
+    # South corridor west end meets west exterior wall
+    join_walls(WallJoinStyle.BUTT, corridor_wall_south, wall_west)
+
+    # South corridor east end meets east exterior wall
+    join_walls(WallJoinStyle.BUTT, corridor_wall_south, wall_east)
+
+    # North corridor east end meets east exterior wall
+    join_walls(WallJoinStyle.BUTT, corridor_wall_north, wall_east)
+
+    # North corridor west end meets west exterior wall
+    join_walls(WallJoinStyle.BUTT, corridor_wall_north, wall_west)
+
+    # ==========================================================================
+    # PATIENT ROOMS (South side)
+    # ==========================================================================
     # First 5 rooms on west, then nurses station, then 5 more on east
 
     room_partition_points_south = [0]  # Start at west end
@@ -185,7 +241,7 @@ def create_hospital_wing(building, types):
     for i in range(NUM_ROOMS_PER_SIDE):
         room_x = i * ROOM_WIDTH
 
-        # Partition wall between rooms (skip first)
+        # Partition wall between rooms (skip first - west wall serves as boundary)
         if i > 0:
             partition = Wall(
                 int_wall,
@@ -195,6 +251,9 @@ def create_hospital_wing(building, types):
                 name=f"Partition_S{i}",
             )
             all_walls.append(partition)
+            all_partitions.append(
+                (partition, corridor_wall_south, wall_south)
+            )  # Track for joins
 
         room_partition_points_south.append(room_x + ROOM_WIDTH)
 
@@ -226,32 +285,34 @@ def create_hospital_wing(building, types):
     nurses_x_start = NUM_ROOMS_PER_SIDE * ROOM_WIDTH
     nurses_x_end = nurses_x_start + NURSES_STATION_WIDTH
 
-    # Partition before nurses station
-    partition = Wall(
+    # Partition before nurses station (west side)
+    partition_nurses_sw = Wall(
         int_wall,
         (nurses_x_start, corridor_south_y),
         (nurses_x_start, south_room_y),
         level,
         name="Partition_Nurses_West",
     )
-    all_walls.append(partition)
+    all_walls.append(partition_nurses_sw)
+    all_partitions.append((partition_nurses_sw, corridor_wall_south, wall_south))
     room_partition_points_south.append(nurses_x_end)
 
-    # Partition after nurses station
-    partition = Wall(
+    # Partition after nurses station (east side)
+    partition_nurses_se = Wall(
         int_wall,
         (nurses_x_end, corridor_south_y),
         (nurses_x_end, south_room_y),
         level,
         name="Partition_Nurses_East",
     )
-    all_walls.append(partition)
+    all_walls.append(partition_nurses_se)
+    all_partitions.append((partition_nurses_se, corridor_wall_south, wall_south))
 
     # East side rooms (South)
     for i in range(NUM_ROOMS_PER_SIDE):
         room_x = nurses_x_end + i * ROOM_WIDTH
 
-        # Partition wall between rooms (skip first - already have nurses station partition)
+        # Partition wall between rooms (skip first - nurses station partition exists)
         if i > 0:
             partition = Wall(
                 int_wall,
@@ -261,6 +322,7 @@ def create_hospital_wing(building, types):
                 name=f"Partition_SE{i}",
             )
             all_walls.append(partition)
+            all_partitions.append((partition, corridor_wall_south, wall_south))
 
         room_partition_points_south.append(room_x + ROOM_WIDTH)
 
@@ -288,7 +350,9 @@ def create_hospital_wing(building, types):
         )
         all_rooms.append(patient_room)
 
-    # -- Patient rooms (North side) --
+    # ==========================================================================
+    # PATIENT ROOMS (North side)
+    # ==========================================================================
     room_partition_points_north = [0]
 
     for i in range(NUM_ROOMS_PER_SIDE):
@@ -303,6 +367,7 @@ def create_hospital_wing(building, types):
                 name=f"Partition_N{i}",
             )
             all_walls.append(partition)
+            all_partitions.append((partition, corridor_wall_north, wall_north))
 
         room_partition_points_north.append(room_x + ROOM_WIDTH)
 
@@ -331,24 +396,26 @@ def create_hospital_wing(building, types):
         all_rooms.append(patient_room)
 
     # North nurses station partitions
-    partition = Wall(
+    partition_nurses_nw = Wall(
         int_wall,
         (nurses_x_start, corridor_north_y),
         (nurses_x_start, north_room_y),
         level,
         name="Partition_Nurses_North_West",
     )
-    all_walls.append(partition)
+    all_walls.append(partition_nurses_nw)
+    all_partitions.append((partition_nurses_nw, corridor_wall_north, wall_north))
     room_partition_points_north.append(nurses_x_end)
 
-    partition = Wall(
+    partition_nurses_ne = Wall(
         int_wall,
         (nurses_x_end, corridor_north_y),
         (nurses_x_end, north_room_y),
         level,
         name="Partition_Nurses_North_East",
     )
-    all_walls.append(partition)
+    all_walls.append(partition_nurses_ne)
+    all_partitions.append((partition_nurses_ne, corridor_wall_north, wall_north))
 
     # East side rooms (North)
     for i in range(NUM_ROOMS_PER_SIDE):
@@ -363,6 +430,7 @@ def create_hospital_wing(building, types):
                 name=f"Partition_NE{i}",
             )
             all_walls.append(partition)
+            all_partitions.append((partition, corridor_wall_north, wall_north))
 
         room_partition_points_north.append(room_x + ROOM_WIDTH)
 
@@ -389,6 +457,20 @@ def create_hospital_wing(building, types):
             level=level,
         )
         all_rooms.append(patient_room)
+
+    # ==========================================================================
+    # PARTITION WALL JOINS - BUTT (all T-junctions)
+    # ==========================================================================
+    # Each partition meets:
+    # 1. A corridor wall at its start (T-junction)
+    # 2. An exterior wall at its end (T-junction)
+    # Partitions extend to the face of the walls they meet.
+
+    for partition, corridor_wall, exterior_wall in all_partitions:
+        # Partition start meets corridor wall
+        join_walls(WallJoinStyle.BUTT, partition, corridor_wall)
+        # Partition end meets exterior wall
+        join_walls(WallJoinStyle.BUTT, partition, exterior_wall)
 
     # Create nurses station rooms (south and north)
     nurses_station_south = Room(
@@ -610,11 +692,8 @@ def main():
         north_room_y,
     ) = create_hospital_wing(building, types)
 
-    # Process wall joins
-    print("  Processing wall joins...")
-    adjustments = detect_and_process_wall_joins(walls, end_cap_type=EndCapType.EXTERIOR)
-    for wall, adj in adjustments.items():
-        wall._trim_adjustments = adj
+    # Wall joins are now applied explicitly using join_walls() in create_hospital_wing()
+    print("  Wall joins applied via join_walls() API")
 
     print(f"  Walls: {len(walls)}")
     print(f"  Doors: {len(doors)}")
@@ -703,7 +782,9 @@ def main():
         ),
     )
     result.section_symbols.append(section_symbol)
-    print(f"  Section symbol added: {section_symbol.section_id} on sheet {section_symbol.sheet_number}")
+    print(
+        f"  Section symbol added: {section_symbol.section_id} on sheet {section_symbol.sheet_number}"
+    )
 
     # Generate second section view through patient rooms (cuts through doors)
     # This section runs north-south through the center of the first patient room
@@ -740,7 +821,9 @@ def main():
         ),
     )
     result.section_symbols.append(section_symbol_b)
-    print(f"  Section symbol added: {section_symbol_b.section_id} on sheet {section_symbol_b.sheet_number}")
+    print(
+        f"  Section symbol added: {section_symbol_b.section_id} on sheet {section_symbol_b.sheet_number}"
+    )
 
     # Generate third section view through main corridor (perpendicular to A and B)
     # This section runs east-west through the center of the corridor
@@ -777,7 +860,9 @@ def main():
         ),
     )
     result.section_symbols.append(section_symbol_c)
-    print(f"  Section symbol added: {section_symbol_c.section_id} on sheet {section_symbol_c.sheet_number}")
+    print(
+        f"  Section symbol added: {section_symbol_c.section_id} on sheet {section_symbol_c.sheet_number}"
+    )
     print(f"  Floor plan now has {len(result.section_symbols)} section symbol(s)")
 
     # Export floor plan DXF (includes section symbol)
@@ -944,10 +1029,7 @@ def get_building():
         north_room_y,
     ) = create_hospital_wing(building, types)
 
-    # Process wall joins
-    adjustments = detect_and_process_wall_joins(walls, end_cap_type=EndCapType.EXTERIOR)
-    for wall, adj in adjustments.items():
-        wall._trim_adjustments = adj
+    # Wall joins are applied explicitly in create_hospital_wing() via join_walls()
 
     return building
 
