@@ -41,6 +41,12 @@ ruff check src/ tests/
 mypy src/
 ```
 
+### Documentation
+```bash
+# Regenerate API docs (output to docs/)
+pdoc -o docs src/bimascode
+```
+
 ### Running Examples
 ```bash
 # Activate virtual environment first
