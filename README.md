@@ -6,6 +6,10 @@
   <strong>Programmatic Building Information Modeling in Python</strong>
 </p>
 
+<p align="center">
+  <a href="https://benjaminwfriedman.github.io/bimascode/bimascode.html">API Documentation</a>
+</p>
+
 ---
 
 **BIM as Code** is a Python library for programmatic Building Information Modeling. Write Python code to create buildings, generate documentation drawings, and export to industry-standard formats like IFC and DXF.
@@ -191,10 +195,6 @@ The `-o` / `--output` flag specifies where exported files (DXF, IFC) are written
 </p>
 
 The preview server watches your Python file for changes. Edit your building code, save, and the browser automatically reloads with the updated model.
-
-## Documentation
-
-**[API Documentation](https://benjaminwfriedman.github.io/bimascode/bimascode.html)** - Full API reference
 
 ## Project Structure
 
