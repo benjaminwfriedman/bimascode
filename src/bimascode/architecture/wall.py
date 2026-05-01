@@ -323,6 +323,21 @@ class Wall(ElementInstance, FreestandingElementMixin):
         self.set_parameter("height", normalize_length(height).mm, override=False)
         self.invalidate_geometry()
 
+    def set_trim_adjustments(self, adjustments: dict) -> None:
+        """
+        Set wall join trim adjustments.
+
+        Trim adjustments control how the wall geometry is extended or trimmed
+        at joins with other walls.
+
+        Args:
+            adjustments: Dict with 'start_offset' and 'end_offset' values (mm).
+                        Negative start_offset extends the start backward.
+                        Positive end_offset extends the end forward.
+        """
+        self._trim_adjustments = adjustments
+        self.invalidate_geometry()
+
     def to_ifc(self, ifc_file, ifc_building_storey):
         """
         Export wall to IFC.
@@ -517,6 +532,48 @@ class Wall(ElementInstance, FreestandingElementMixin):
         adj_end_x = end[0] + end_offset * cos_a
         adj_end_y = end[1] + end_offset * sin_a
 
+        # Get miter angles and inside signs for diagonal corner cuts
+        start_miter = self._trim_adjustments.get("start_miter_angle") if self._trim_adjustments else None
+        end_miter = self._trim_adjustments.get("end_miter_angle") if self._trim_adjustments else None
+        start_inside_sign = self._trim_adjustments.get("start_miter_inside_sign", 1) if self._trim_adjustments else 1
+        end_inside_sign = self._trim_adjustments.get("end_miter_inside_sign", 1) if self._trim_adjustments else 1
+
+        # Calculate miter corner offsets for diagonal cuts at L-corners.
+        # The inside corner cuts back, the outside corner extends forward.
+        # This creates a diagonal line on the inside of the L-corner.
+        #
+        # inside_sign indicates which side is inside the L-corner:
+        #   +1 = left side (+perp)
+        #   -1 = right side (-perp)
+
+        # Start miter offsets (positive offset = toward wall end)
+        start_left_offset = 0.0
+        start_right_offset = 0.0
+        if start_miter is not None and abs(start_miter) > 0.01:
+            miter_ext = half_width / math.tan(start_miter)
+            if start_inside_sign > 0:
+                # Inside on left: left cuts back (toward end), right extends back
+                start_left_offset = miter_ext
+                start_right_offset = -miter_ext
+            else:
+                # Inside on right: right cuts back, left extends back
+                start_left_offset = -miter_ext
+                start_right_offset = miter_ext
+
+        # End miter offsets (positive offset = past wall end)
+        end_left_offset = 0.0
+        end_right_offset = 0.0
+        if end_miter is not None and abs(end_miter) > 0.01:
+            miter_ext = half_width / math.tan(end_miter)
+            if end_inside_sign > 0:
+                # Inside on left: left cuts back, right extends forward
+                end_left_offset = -miter_ext
+                end_right_offset = miter_ext
+            else:
+                # Inside on right: right cuts back, left extends forward
+                end_left_offset = miter_ext
+                end_right_offset = -miter_ext
+
         # Collect openings (doors/windows) that are cut by the section plane
         openings = []
         for element in self._hosted_elements:
@@ -534,11 +591,29 @@ class Wall(ElementInstance, FreestandingElementMixin):
 
         # If no openings, draw wall as single polyline
         if not openings:
+            # Apply miter offsets to corners
+            # Left edge uses +perp, right edge uses -perp
             corners = [
-                Point2D(adj_start_x + perp_x, adj_start_y + perp_y),
-                Point2D(adj_end_x + perp_x, adj_end_y + perp_y),
-                Point2D(adj_end_x - perp_x, adj_end_y - perp_y),
-                Point2D(adj_start_x - perp_x, adj_start_y - perp_y),
+                # Start left corner (+perp side)
+                Point2D(
+                    adj_start_x + perp_x + start_left_offset * cos_a,
+                    adj_start_y + perp_y + start_left_offset * sin_a,
+                ),
+                # End left corner (+perp side)
+                Point2D(
+                    adj_end_x + perp_x + end_left_offset * cos_a,
+                    adj_end_y + perp_y + end_left_offset * sin_a,
+                ),
+                # End right corner (-perp side)
+                Point2D(
+                    adj_end_x - perp_x + end_right_offset * cos_a,
+                    adj_end_y - perp_y + end_right_offset * sin_a,
+                ),
+                # Start right corner (-perp side)
+                Point2D(
+                    adj_start_x - perp_x + start_right_offset * cos_a,
+                    adj_start_y - perp_y + start_right_offset * sin_a,
+                ),
             ]
             wall_outline = Polyline2D(
                 points=corners,
@@ -603,11 +678,29 @@ class Wall(ElementInstance, FreestandingElementMixin):
                 e_x = start[0] + actual_end * cos_a
                 e_y = start[1] + actual_end * sin_a
 
+                # Apply miter offsets only at actual wall ends (not at openings)
+                seg_start_left = start_left_offset if seg_start == 0 else 0.0
+                seg_start_right = start_right_offset if seg_start == 0 else 0.0
+                seg_end_left = end_left_offset if seg_end == wall_length else 0.0
+                seg_end_right = end_right_offset if seg_end == wall_length else 0.0
+
                 corners = [
-                    Point2D(s_x + perp_x, s_y + perp_y),
-                    Point2D(e_x + perp_x, e_y + perp_y),
-                    Point2D(e_x - perp_x, e_y - perp_y),
-                    Point2D(s_x - perp_x, s_y - perp_y),
+                    Point2D(
+                        s_x + perp_x + seg_start_left * cos_a,
+                        s_y + perp_y + seg_start_left * sin_a,
+                    ),
+                    Point2D(
+                        e_x + perp_x + seg_end_left * cos_a,
+                        e_y + perp_y + seg_end_left * sin_a,
+                    ),
+                    Point2D(
+                        e_x - perp_x + seg_end_right * cos_a,
+                        e_y - perp_y + seg_end_right * sin_a,
+                    ),
+                    Point2D(
+                        s_x - perp_x + seg_start_right * cos_a,
+                        s_y - perp_y + seg_start_right * sin_a,
+                    ),
                 ]
                 seg_outline = Polyline2D(
                     points=corners,

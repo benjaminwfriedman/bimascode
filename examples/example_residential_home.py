@@ -26,6 +26,7 @@ from bimascode.architecture import (
     Floor,
     Roof,
     Wall,
+    WallFunction,
     Window,
     create_basic_wall_type,
     detect_and_process_wall_joins,
@@ -72,14 +73,14 @@ def create_materials_and_types():
     # - Insulation (INSUL pattern)
     # - Concrete structure (AR-CONC pattern)
     # - Gypsum interior (SOLID with color)
-    exterior_wall_type = WallType("Exterior Wall - Compound")
+    exterior_wall_type = WallType("Exterior Wall - Compound", function=WallFunction.EXTERIOR)
     exterior_wall_type.add_layer(brick, 100, LayerFunction.FINISH_EXTERIOR)
     exterior_wall_type.add_layer(insulation, 50, LayerFunction.THERMAL_INSULATION)
     exterior_wall_type.add_layer(concrete, 100, LayerFunction.STRUCTURE, structural=True)
     exterior_wall_type.add_layer(gypsum, 12.5, LayerFunction.FINISH_INTERIOR)
 
     # Interior wall with gypsum on both sides and wood studs
-    interior_wall_type = WallType("Interior Wall - Stud")
+    interior_wall_type = WallType("Interior Wall - Stud", function=WallFunction.INTERIOR)
     interior_wall_type.add_layer(gypsum, 12.5, LayerFunction.FINISH_INTERIOR)
     interior_wall_type.add_layer(wood, 90, LayerFunction.STRUCTURE, structural=True)
     interior_wall_type.add_layer(gypsum, 12.5, LayerFunction.FINISH_INTERIOR)

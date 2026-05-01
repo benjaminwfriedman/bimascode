@@ -2,6 +2,8 @@
 Tests for wall joins detection and processing.
 """
 
+import math
+
 import pytest
 
 from bimascode.architecture.wall import Wall
@@ -12,6 +14,7 @@ from bimascode.architecture.wall_joins import (
     WallJoinProcessor,
     WallJoinStyle,
     clean_wall_joins,
+    join_walls,
     line_intersection,
     reset_wall_joins,
 )
@@ -302,7 +305,6 @@ class TestWallJoinStyle:
         """Test WallJoinStyle enum values."""
         assert WallJoinStyle.BUTT.value == "butt"
         assert WallJoinStyle.MITER.value == "miter"
-        assert WallJoinStyle.SQUARE_OFF.value == "square_off"
 
     @pytest.fixture
     def setup_l_junction_walls(self):
@@ -350,20 +352,6 @@ class TestWallJoinStyle:
         assert wall1._trim_adjustments.get("end_offset", 0.0) > 0
         assert wall2._trim_adjustments.get("start_offset", 0.0) < 0
 
-    def test_square_off_join_style(self, setup_l_junction_walls):
-        """Test SQUARE_OFF join style."""
-        wall1, wall2, walls = setup_l_junction_walls
-
-        # Set both endpoints to square off
-        wall1.set_join_style(1, WallJoinStyle.SQUARE_OFF)
-        wall2.set_join_style(0, WallJoinStyle.SQUARE_OFF)
-
-        # Process joins
-        clean_wall_joins(walls)
-
-        # Square off should result in no extensions
-        assert wall1._trim_adjustments.get("end_offset", 0.0) == 0.0
-        assert wall2._trim_adjustments.get("start_offset", 0.0) == 0.0
 
 
 class TestCleanWallJoins:
@@ -420,7 +408,7 @@ class TestCleanWallJoins:
         # Set some join styles and adjustments
         walls[0].join_style_end = WallJoinStyle.MITER
         walls[0]._trim_adjustments = {"start_offset": 100, "end_offset": 50}
-        walls[1].join_style_start = WallJoinStyle.SQUARE_OFF
+        walls[1].join_style_start = WallJoinStyle.MITER
 
         # Reset
         reset_wall_joins(walls)
@@ -430,3 +418,163 @@ class TestCleanWallJoins:
             assert wall._trim_adjustments == {}
             assert wall.join_style_start == WallJoinStyle.BUTT
             assert wall.join_style_end == WallJoinStyle.BUTT
+
+
+class TestJoinWalls:
+    """Tests for the new join_walls() API."""
+
+    @pytest.fixture
+    def setup_building(self):
+        """Create a building for wall join testing."""
+        building = Building("Test Building")
+        level = Level(building, "Ground Floor", elevation=0)
+
+        wall_type = WallType("Concrete Wall")
+        concrete = MaterialLibrary.concrete()
+        wall_type.add_layer(concrete, 200, LayerFunction.STRUCTURE, structural=True)
+
+        return building, level, wall_type
+
+    def test_join_walls_miter_l_junction(self, setup_building):
+        """Test miter join on L-junction."""
+        building, level, wall_type = setup_building
+
+        wall1 = Wall(wall_type, (0, 0), (5000, 0), level, height=3000)
+        wall2 = Wall(wall_type, (5000, 0), (5000, 5000), level, height=3000)
+
+        # Apply miter join
+        join_walls(WallJoinStyle.MITER, wall1, wall2)
+
+        # Check that miter angles were applied
+        assert wall1._trim_adjustments.get("end_miter_angle") is not None
+        assert wall2._trim_adjustments.get("start_miter_angle") is not None
+
+        # For perpendicular walls, miter angle should be ~45 degrees (pi/4)
+        expected_angle = math.pi / 4
+        assert abs(wall1._trim_adjustments["end_miter_angle"] - expected_angle) < 0.01
+        assert abs(wall2._trim_adjustments["start_miter_angle"] - expected_angle) < 0.01
+
+        # Miter joins use corner offsets (calculated in wall.py) rather than centerline extensions
+        # So the centerline offset should be 0
+        assert wall1._trim_adjustments.get("end_offset", 0) == 0
+        assert wall2._trim_adjustments.get("start_offset", 0) == 0
+
+        # Inside sign should also be set to indicate which side gets the miter cut
+        assert wall1._trim_adjustments.get("end_miter_inside_sign") is not None
+        assert wall2._trim_adjustments.get("start_miter_inside_sign") is not None
+
+    def test_join_walls_miter_rejects_t_junction(self, setup_building):
+        """Test that miter join raises error for T-junction."""
+        building, level, wall_type = setup_building
+
+        # Main wall (passes through)
+        wall1 = Wall(wall_type, (0, 0), (10000, 0), level, height=3000)
+        # Perpendicular wall ending at main wall
+        wall2 = Wall(wall_type, (5000, 5000), (5000, 0), level, height=3000)
+
+        # Miter should be rejected for T-junction
+        with pytest.raises(ValueError, match="MITER.*L-junction"):
+            join_walls(WallJoinStyle.MITER, wall1, wall2)
+
+    def test_join_walls_butt_t_junction(self, setup_building):
+        """Test butt join on T-junction."""
+        building, level, wall_type = setup_building
+
+        # Main wall (passes through)
+        wall1 = Wall(wall_type, (0, 0), (10000, 0), level, height=3000)
+        # Perpendicular wall ending at main wall
+        wall2 = Wall(wall_type, (5000, 5000), (5000, 0), level, height=3000)
+
+        # Apply butt join
+        join_walls(WallJoinStyle.BUTT, wall1, wall2)
+
+        # The ending wall (wall2) should have an extension
+        assert wall2._trim_adjustments.get("end_offset", 0) > 0
+
+        # The continuous wall (wall1) should not be modified at this point
+        # (it doesn't terminate at the intersection)
+
+    def test_join_walls_butt_l_junction_auto_priority(self, setup_building):
+        """Test butt join on L-junction with auto priority."""
+        building, level, wall_type = setup_building
+
+        # Create a thinner partition wall type
+        partition_type = WallType("Partition")
+        gypsum = MaterialLibrary.gypsum_board()
+        partition_type.add_layer(gypsum, 100, LayerFunction.FINISH_INTERIOR)
+
+        wall1 = Wall(wall_type, (0, 0), (5000, 0), level, height=3000)  # Thicker
+        wall2 = Wall(partition_type, (5000, 0), (5000, 5000), level, height=3000)  # Thinner
+
+        # Apply butt join - thicker wall should win
+        join_walls(WallJoinStyle.BUTT, wall1, wall2)
+
+        # Thicker wall (wall1) should extend
+        assert wall1._trim_adjustments.get("end_offset", 0) > 0
+
+    def test_join_walls_butt_l_junction_explicit_extend(self, setup_building):
+        """Test butt join on L-junction with explicit extend wall."""
+        building, level, wall_type = setup_building
+
+        # Create a thinner partition wall type
+        partition_type = WallType("Partition")
+        gypsum = MaterialLibrary.gypsum_board()
+        partition_type.add_layer(gypsum, 100, LayerFunction.FINISH_INTERIOR)
+
+        wall1 = Wall(wall_type, (0, 0), (5000, 0), level, height=3000)  # Thicker
+        wall2 = Wall(partition_type, (5000, 0), (5000, 5000), level, height=3000)  # Thinner
+
+        # Apply butt join with explicit extend - force thinner to extend
+        join_walls(WallJoinStyle.BUTT, wall1, wall2, extend=wall2)
+
+        # Thinner wall (wall2) should extend even though it's thinner
+        assert wall2._trim_adjustments.get("start_offset", 0) < 0
+
+    def test_join_walls_requires_two_walls(self, setup_building):
+        """Test that join_walls requires at least 2 walls."""
+        building, level, wall_type = setup_building
+
+        wall1 = Wall(wall_type, (0, 0), (5000, 0), level, height=3000)
+
+        with pytest.raises(ValueError, match="at least 2 walls"):
+            join_walls(WallJoinStyle.MITER, wall1)
+
+    def test_join_walls_validates_common_intersection(self, setup_building):
+        """Test that join_walls validates walls meet at common point."""
+        building, level, wall_type = setup_building
+
+        # Two walls that don't meet
+        wall1 = Wall(wall_type, (0, 0), (1000, 0), level, height=3000)
+        wall2 = Wall(wall_type, (5000, 0), (5000, 1000), level, height=3000)
+
+        with pytest.raises(ValueError, match="do not meet"):
+            join_walls(WallJoinStyle.MITER, wall1, wall2)
+
+    def test_join_walls_validates_extend_parameter(self, setup_building):
+        """Test that extend parameter must be one of the walls."""
+        building, level, wall_type = setup_building
+
+        wall1 = Wall(wall_type, (0, 0), (5000, 0), level, height=3000)
+        wall2 = Wall(wall_type, (5000, 0), (5000, 5000), level, height=3000)
+        wall3 = Wall(wall_type, (0, 0), (0, 5000), level, height=3000)  # Not in join
+
+        with pytest.raises(ValueError, match="extend wall must be"):
+            join_walls(WallJoinStyle.BUTT, wall1, wall2, extend=wall3)
+
+    def test_join_walls_three_way(self, setup_building):
+        """Test miter join with 3 walls."""
+        building, level, wall_type = setup_building
+
+        # Three walls meeting at a point
+        wall1 = Wall(wall_type, (0, 0), (5000, 0), level, height=3000)
+        wall2 = Wall(wall_type, (5000, 0), (5000, 5000), level, height=3000)
+        wall3 = Wall(wall_type, (5000, 0), (10000, 0), level, height=3000)
+
+        # Apply miter join to all three
+        # wall1-wall2 is L-junction, wall2-wall3 is L-junction
+        # wall1-wall3 forms a continuous line (180 degrees), should be ignored
+        join_walls(WallJoinStyle.MITER, wall1, wall2, wall3)
+
+        # wall1 and wall2 should have miter angles
+        assert wall1._trim_adjustments.get("end_miter_angle") is not None
+        assert wall2._trim_adjustments.get("start_miter_angle") is not None

@@ -347,12 +347,12 @@ class TestWall:
         wall = Wall(wall_type, (0, 0), (5000, 0), level)
 
         wall.join_style_start = WallJoinStyle.MITER
-        wall.join_style_end = WallJoinStyle.SQUARE_OFF
+        wall.join_style_end = WallJoinStyle.BUTT
 
         assert wall.join_style_start == WallJoinStyle.MITER
-        assert wall.join_style_end == WallJoinStyle.SQUARE_OFF
+        assert wall.join_style_end == WallJoinStyle.BUTT
         assert wall.get_join_style(0) == WallJoinStyle.MITER
-        assert wall.get_join_style(1) == WallJoinStyle.SQUARE_OFF
+        assert wall.get_join_style(1) == WallJoinStyle.BUTT
 
     def test_wall_set_join_style_method(self):
         """Test set_join_style method."""
@@ -363,10 +363,10 @@ class TestWall:
         wall = Wall(wall_type, (0, 0), (5000, 0), level)
 
         wall.set_join_style(0, WallJoinStyle.MITER)
-        wall.set_join_style(1, WallJoinStyle.SQUARE_OFF)
+        wall.set_join_style(1, WallJoinStyle.BUTT)
 
         assert wall.join_style_start == WallJoinStyle.MITER
-        assert wall.join_style_end == WallJoinStyle.SQUARE_OFF
+        assert wall.join_style_end == WallJoinStyle.BUTT
 
 
 class TestWallFunction:

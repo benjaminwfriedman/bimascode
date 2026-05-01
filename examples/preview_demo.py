@@ -10,6 +10,7 @@ two-room building that you can modify and see updates in real-time.
 from bimascode.architecture import (
     Door,
     Wall,
+    WallFunction,
     Window,
     create_basic_wall_type,
 )
@@ -25,14 +26,14 @@ building = Building("Preview Demo")
 
 # Materials and types
 concrete = MaterialLibrary.concrete()
-ext_wall_type = create_basic_wall_type("Exterior", 200, concrete)
-int_wall_type = create_basic_wall_type("Interior", 100, concrete)
+ext_wall_type = create_basic_wall_type("Exterior", 200, concrete, function=WallFunction.EXTERIOR)
+int_wall_type = create_basic_wall_type("Interior", 100, concrete, function=WallFunction.INTERIOR)
 door_type = DoorType("Standard Door", width=900, height=2100)
 window_type = WindowType("Standard Window", width=1200, height=1500, default_sill_height=900)
 
 # Building dimensions (mm)
 WIDTH = 10000  # 10m
-DEPTH = 8000   # 8m
+DEPTH = 8000  # 8m
 
 # Create ground floor
 ground = Level(building, "Ground Floor", elevation=0)

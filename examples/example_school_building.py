@@ -25,6 +25,7 @@ from bimascode.architecture import (
     EndCapType,
     Floor,
     Wall,
+    WallFunction,
     Window,
     detect_and_process_wall_joins,
 )
@@ -66,19 +67,19 @@ def create_materials_and_types():
 
     # Compound exterior wall: brick + insulation + CMU + gypsum
     # Demonstrates per-layer hatching with different patterns
-    exterior_wall_type = WallType("Exterior CMU Wall - Compound")
+    exterior_wall_type = WallType("Exterior CMU Wall - Compound", function=WallFunction.EXTERIOR)
     exterior_wall_type.add_layer(brick, 100, LayerFunction.FINISH_EXTERIOR)
     exterior_wall_type.add_layer(insulation, 50, LayerFunction.THERMAL_INSULATION)
     exterior_wall_type.add_layer(concrete, 150, LayerFunction.STRUCTURE, structural=True)
 
     # Interior wall: gypsum + concrete + gypsum
-    interior_wall_type = WallType("Interior Wall - Finished")
+    interior_wall_type = WallType("Interior Wall - Finished", function=WallFunction.INTERIOR)
     interior_wall_type.add_layer(gypsum, 12.5, LayerFunction.FINISH_INTERIOR)
     interior_wall_type.add_layer(concrete, 100, LayerFunction.STRUCTURE)
     interior_wall_type.add_layer(gypsum, 12.5, LayerFunction.FINISH_INTERIOR)
 
     # Corridor wall: concrete CMU (thicker)
-    corridor_wall_type = WallType("Corridor Wall - CMU")
+    corridor_wall_type = WallType("Corridor Wall - CMU", function=WallFunction.INTERIOR)
     corridor_wall_type.add_layer(gypsum, 12.5, LayerFunction.FINISH_INTERIOR)
     corridor_wall_type.add_layer(concrete, 175, LayerFunction.STRUCTURE, structural=True)
     corridor_wall_type.add_layer(gypsum, 12.5, LayerFunction.FINISH_INTERIOR)
@@ -946,26 +947,38 @@ def get_building():
     east_wing_inner_x = e_bounds[0]
 
     west_south_connect = Wall(
-        ext_wall, (west_wing_inner_x, 0), (west_wing_inner_x, diagonal_upper_y),
-        ground, name="West_South_Connect",
+        ext_wall,
+        (west_wing_inner_x, 0),
+        (west_wing_inner_x, diagonal_upper_y),
+        ground,
+        name="West_South_Connect",
     )
     all_walls.append(west_south_connect)
 
     east_south_connect = Wall(
-        ext_wall, (east_wing_inner_x, diagonal_upper_y), (east_wing_inner_x, 0),
-        ground, name="East_South_Connect",
+        ext_wall,
+        (east_wing_inner_x, diagonal_upper_y),
+        (east_wing_inner_x, 0),
+        ground,
+        name="East_South_Connect",
     )
     all_walls.append(east_south_connect)
 
     west_north_connect = Wall(
-        ext_wall, (west_wing_inner_x, classroom_wing_width), (west_wing_inner_x, gym_start_y),
-        ground, name="West_North_Connect",
+        ext_wall,
+        (west_wing_inner_x, classroom_wing_width),
+        (west_wing_inner_x, gym_start_y),
+        ground,
+        name="West_North_Connect",
     )
     all_walls.append(west_north_connect)
 
     east_north_connect = Wall(
-        ext_wall, (east_wing_inner_x, gym_start_y), (east_wing_inner_x, classroom_wing_width),
-        ground, name="East_North_Connect",
+        ext_wall,
+        (east_wing_inner_x, gym_start_y),
+        (east_wing_inner_x, classroom_wing_width),
+        ground,
+        name="East_North_Connect",
     )
     all_walls.append(east_north_connect)
 
