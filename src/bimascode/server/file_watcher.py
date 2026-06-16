@@ -141,5 +141,9 @@ class _ChangeHandler(FileSystemEventHandler):
         if path.suffix != ".py":
             return
 
+        # Ignore the patched preview script created by PreviewServer
+        if path.name.startswith(".bimascode_preview_"):
+            return
+
         # Trigger callback
         self.callback(path)

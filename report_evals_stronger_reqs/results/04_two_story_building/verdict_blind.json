@@ -1,0 +1,81 @@
+{
+  "eval_id": "04_two_story_building",
+  "builder_type": "blind",
+  "overall": "PASS",
+  "tests": [
+    {"name": "test_ifc_opens", "status": "passed"},
+    {"name": "test_has_project", "status": "passed"},
+    {"name": "test_has_site", "status": "passed"},
+    {"name": "test_has_building", "status": "passed"},
+    {"name": "test_has_two_storeys", "status": "failed", "reason": "Expected 2 storeys, got 3 (Ground Floor, Upper Floor, Roof). The blind builder created a separate storey for the roof."},
+    {"name": "test_ground_floor_at_zero", "status": "passed"},
+    {"name": "test_upper_floor_at_3m", "status": "passed"},
+    {"name": "test_floor_to_floor_height", "status": "passed"},
+    {"name": "test_has_walls", "status": "passed"},
+    {"name": "test_walls_on_both_floors", "status": "passed"},
+    {"name": "test_exterior_wall_thickness", "status": "passed"},
+    {"name": "test_has_doors", "status": "passed"},
+    {"name": "test_has_front_door", "status": "passed"},
+    {"name": "test_doors_on_ground_floor", "status": "passed"},
+    {"name": "test_doors_on_upper_floor", "status": "passed"},
+    {"name": "test_has_windows", "status": "passed"},
+    {"name": "test_living_room_has_large_window", "status": "passed"},
+    {"name": "test_windows_on_ground_floor", "status": "passed"},
+    {"name": "test_windows_on_upper_floor", "status": "passed"},
+    {"name": "test_has_floors", "status": "passed"},
+    {"name": "test_floor_slab_on_each_level", "status": "passed"},
+    {"name": "test_has_opening", "status": "passed"},
+    {"name": "test_has_ceilings", "status": "passed"},
+    {"name": "test_has_roof", "status": "passed"},
+    {"name": "test_opening_clearance_from_corners", "status": "passed"},
+    {"name": "test_opening_spacing", "status": "passed"},
+    {"name": "test_dxf_directory_exists", "status": "passed"},
+    {"name": "test_has_floor_plans", "status": "passed"},
+    {"name": "test_has_elevations", "status": "passed"},
+    {"name": "test_has_section", "status": "passed"},
+    {"name": "test_floor_plans_have_content", "status": "passed"},
+    {"name": "test_floor_plans_have_door_swings", "status": "passed"},
+    {"name": "test_pdf_exists", "status": "passed"},
+    {"name": "test_pdf_opens", "status": "passed"},
+    {"name": "test_pdf_has_multiple_pages", "status": "failed", "reason": "Expected at least 4 pages, got 1. The blind builder created a single-page PDF with all views combined instead of separate pages."},
+    {"name": "test_pdf_has_text", "status": "passed"},
+    {"name": "test_living_room_approximately_6x5m", "status": "passed"},
+    {"name": "test_kitchen_approximately_4x4m", "status": "passed"},
+    {"name": "test_bedrooms_exist", "status": "passed"},
+    {"name": "test_building_has_reasonable_footprint", "status": "passed"}
+  ],
+  "test_summary": {
+    "total": 40,
+    "passed": 38,
+    "failed": 2,
+    "errors": 0,
+    "skipped": 0
+  },
+  "ifc_inspection": {
+    "file_size_kb": 1228,
+    "entities": {
+      "IfcProject": 1,
+      "IfcSite": 1,
+      "IfcBuilding": 1,
+      "IfcBuildingStorey": 3,
+      "IfcWall": 17,
+      "IfcDoor": 6,
+      "IfcWindow": 5,
+      "IfcSlab": 2,
+      "IfcRoof": 1,
+      "IfcCovering": 2,
+      "IfcOpeningElement": 11
+    },
+    "notes": "IFC file opens correctly. Contains 3 storeys (Ground Floor at 0mm, Upper Floor at 3000mm, Roof at 6000mm). The roof was placed on a separate storey rather than on the upper floor level. All expected architectural elements are present including 17 walls, 6 doors, 5 windows, floor slabs, ceilings, and roof."
+  },
+  "visual_inspection": {
+    "floor_plan": "Ground floor shows entry vestibule (SW corner), living room (main area), kitchen (NE), and stair area. Upper floor shows master bedroom, second bedroom, bathroom, and hallway. Door swings visible as arcs. Window breaks visible in exterior walls.",
+    "elevations": "Not present in PDF (single page with plans and section only)",
+    "section": "Section A-A shows two-story building with proper floor heights and flat roof",
+    "issues": [
+      "PDF has only 1 page combining all views instead of separate sheets",
+      "Elevations not included in PDF drawing set"
+    ]
+  },
+  "reasoning": "Building fundamentally meets the two-story residential building requirements. The model includes all required rooms on both floors with appropriate dimensions, 6 doors for room access, 5 windows, 300mm exterior walls, 3m floor-to-floor height, ceilings, and flat roof. The two failures are minor: (1) creating a separate storey for the roof instead of placing it on the upper floor level, and (2) generating a single-page PDF instead of a multi-page drawing set. These are presentation/organization issues rather than architectural deficiencies. With 95% test pass rate and correct building structure, this passes overall."
+}

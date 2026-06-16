@@ -325,7 +325,12 @@ class Door(ElementInstance, HostedElementMixin):
 
         # Create door element
         # Door placement is at the bottom-left corner of the frame
-        door_location = ifc_file.createIfcCartesianPoint((float(offset), 0.0, float(sill)))
+        # Y offset centers the door within the wall thickness
+        frame_depth = self.type.frame_depth
+        y_offset = -frame_depth / 2  # Center door in wall
+        door_location = ifc_file.createIfcCartesianPoint(
+            (float(offset), float(y_offset), float(sill))
+        )
 
         door_axis_placement = ifc_file.createIfcAxis2Placement3D(
             door_location,

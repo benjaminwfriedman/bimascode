@@ -315,6 +315,81 @@ class PDFExporter:
 
         return True
 
+    def export_sheets(
+        self,
+        sheets: list[Sheet],
+        filepath: str,
+    ) -> bool:
+        """Export multiple Sheets to a single PDF file.
+
+        Combines multiple sheets into one multi-page PDF document.
+        This method handles temp file management internally and is
+        compatible with the preview server's path redirection.
+
+        Args:
+            sheets: List of Sheet objects to export
+            filepath: Output file path for combined PDF
+
+        Returns:
+            True if export succeeded
+        """
+        if not self.is_available:
+            raise ImportError("matplotlib is required for PDF export")
+
+        if not sheets:
+            return False
+
+        try:
+            from matplotlib.backends.backend_pdf import PdfPages
+        except ImportError as err:
+            raise ImportError("matplotlib is required for multi-page PDF export") from err
+
+        with PdfPages(filepath) as pdf:
+            for sheet in sheets:
+                # Figure size in inches (sheet size is in mm)
+                fig_width = sheet.size.width / 25.4
+                fig_height = sheet.size.height / 25.4
+
+                # Create figure with exact paper size
+                fig, ax = self._plt.subplots(figsize=(fig_width, fig_height))
+
+                # Set background
+                if self.background == "white":
+                    fig.patch.set_facecolor("white")
+                    ax.set_facecolor("white")
+                else:
+                    fig.patch.set_alpha(0)
+                    ax.set_facecolor("none")
+
+                # Remove axes decorations
+                ax.set_aspect("equal")
+                ax.axis("off")
+
+                # Set limits to sheet bounds (origin at bottom-left)
+                ax.set_xlim(0, sheet.size.width)
+                ax.set_ylim(0, sheet.size.height)
+
+                # Draw sheet border
+                self._draw_sheet_border(ax, sheet)
+
+                # Draw each viewport
+                for viewport in sheet.viewports:
+                    self._draw_viewport(ax, viewport, sheet)
+
+                # Draw title block
+                if sheet.title_block:
+                    self._draw_title_block(ax, sheet.title_block)
+
+                # Draw annotations
+                if sheet.annotations.total_geometry_count > 0:
+                    self._draw_view_result(ax, sheet.annotations, scale=1.0)
+
+                # Add page to PDF
+                pdf.savefig(fig, bbox_inches="tight", pad_inches=0, dpi=self.dpi)
+                self._plt.close(fig)
+
+        return True
+
     def _draw_sheet_border(self, ax, sheet: Sheet) -> None:
         """Draw the sheet border."""
         # Light gray border

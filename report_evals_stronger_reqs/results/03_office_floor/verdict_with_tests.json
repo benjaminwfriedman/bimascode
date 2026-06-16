@@ -1,0 +1,110 @@
+{
+  "eval_id": "03_office_floor",
+  "builder_type": "with_tests",
+  "overall": "PASS",
+  "tests": [
+    {"name": "test_ifc_file_opens", "status": "passed"},
+    {"name": "test_has_building_hierarchy", "status": "passed"},
+    {"name": "test_has_one_level", "status": "passed"},
+    {"name": "test_has_exterior_walls", "status": "passed"},
+    {"name": "test_has_interior_partition_walls", "status": "passed"},
+    {"name": "test_walls_have_geometry", "status": "passed"},
+    {"name": "test_has_main_entrance", "status": "passed"},
+    {"name": "test_has_office_doors", "status": "passed"},
+    {"name": "test_main_entrance_width", "status": "passed"},
+    {"name": "test_doors_have_geometry", "status": "passed"},
+    {"name": "test_has_windows_on_east_and_west", "status": "passed"},
+    {"name": "test_has_multiple_large_windows", "status": "passed"},
+    {"name": "test_windows_have_geometry", "status": "passed"},
+    {"name": "test_building_footprint_approximately_correct", "status": "passed"},
+    {"name": "test_building_not_too_small", "status": "passed"},
+    {"name": "test_has_glazing_elements", "status": "passed"},
+    {"name": "test_doors_have_corner_clearance", "status": "passed"},
+    {"name": "test_windows_have_corner_clearance", "status": "passed"},
+    {"name": "test_openings_have_mutual_clearance", "status": "passed"},
+    {"name": "test_floor_plan_exists", "status": "passed"},
+    {"name": "test_floor_plan_opens", "status": "passed"},
+    {"name": "test_elevations_exist", "status": "passed"},
+    {"name": "test_has_all_four_elevations", "status": "passed"},
+    {"name": "test_section_exists", "status": "passed"},
+    {"name": "test_floor_plan_has_door_swings", "status": "passed"},
+    {"name": "test_floor_plan_has_wall_lines", "status": "passed"},
+    {"name": "test_floor_plan_uses_correct_layers", "status": "passed"},
+    {"name": "test_pdf_exists", "status": "passed"},
+    {"name": "test_pdf_opens", "status": "passed"},
+    {"name": "test_pdf_has_multiple_pages", "status": "passed"},
+    {"name": "test_pdf_contains_text", "status": "passed"},
+    {"name": "test_pdf_has_sheet_numbers", "status": "passed"},
+    {"name": "test_sufficient_interior_walls_for_offices", "status": "passed"},
+    {"name": "test_door_count_matches_program", "status": "passed"},
+    {"name": "test_has_corridor_space", "status": "passed"},
+    {"name": "test_entrance_on_south_wall", "status": "passed"},
+    {"name": "test_three_office_doors", "status": "passed"}
+  ],
+  "test_summary": {
+    "total": 37,
+    "passed": 37,
+    "failed": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  "ifc_inspection": {
+    "file_size_kb": 737,
+    "schema": "IFC4",
+    "entities": {
+      "IfcProject": 1,
+      "IfcSite": 1,
+      "IfcBuilding": 1,
+      "IfcBuildingStorey": 1,
+      "IfcWall": 11,
+      "IfcDoor": 4,
+      "IfcWindow": 10,
+      "IfcSlab": 1,
+      "IfcCurtainWall": 0
+    },
+    "walls": [
+      "Ext_South", "Ext_East", "Ext_North", "Ext_West",
+      "Reception_East", "Corridor_South", "Corridor_North",
+      "Office_Corridor_South", "Office_Partition_1", "Office_Partition_2", "Office_East"
+    ],
+    "doors": [
+      {"name": "Main_Entry", "width_mm": 1900},
+      {"name": "Office_1_Door", "width_mm": 1000},
+      {"name": "Office_2_Door", "width_mm": 1000},
+      {"name": "Office_3_Door", "width_mm": 1000}
+    ],
+    "notes": "All expected entities present. 4 exterior walls + 7 interior walls. Main entrance is double door (~1800mm), 3 single office doors. 10 windows total (4 on south facade glazing, 3 on east, 3 on west)."
+  },
+  "visual_inspection": {
+    "floor_plan": "20m x 12m building showing: Reception (001) in SW corner ~4x4m, Corridor (CORR) running E-W, 3 Private Offices (101, 102, 103) along north wall each 4x3m, Open Workspace (200) in NE area. All door swings visible with arc notation. Door tags (D-01 to D-04) and window tags (W-01 to W-10) correctly placed.",
+    "elevations": {
+      "north": "Shows blank wall with no windows (north facade faces offices)",
+      "south": "Shows glazing panels (4 windows W-01 to W-04) and main entrance door with gap in center",
+      "east": "Shows 3 large windows (W-05, W-06, W-07) evenly spaced",
+      "west": "Shows 3 large windows (W-08, W-09, W-10) evenly spaced"
+    },
+    "section": "Section A-A shows building cross-section with windows visible in elevation, interior walls cutting through",
+    "issues": []
+  },
+  "dxf_inspection": {
+    "floor_plan": "ground_floor_plan.dxf",
+    "elevations": ["elevation_north.dxf", "elevation_south.dxf", "elevation_east.dxf", "elevation_west.dxf"],
+    "sections": ["section_AA.dxf"],
+    "total_dxf_files": 6
+  },
+  "pdf_inspection": {
+    "pages": 6,
+    "sheets": ["A-101 Ground Floor Plan", "A-201 North Elevation", "A-202 South Elevation", "A-203 East Elevation", "A-204 West Elevation", "A-301 Section A-A"],
+    "title_blocks": "Present with project name, date, scale, drawn_by, revision"
+  },
+  "code_differences": {
+    "summary": "The test-aware builder version includes additional documentation comments explaining window placement relative to interior wall connection points. The code explicitly calculates safe zones for window placement to avoid interior wall connection points, with detailed comments about Y positions where interior walls meet exterior walls.",
+    "key_changes": [
+      "Added comments documenting interior wall connection positions (Y=4000, Y=5500, Y=9000)",
+      "Window offsets adjusted with explicit calculations for safe zones",
+      "East wall windows moved to avoid corridor wall connections",
+      "West wall windows positioned to avoid office corridor connection"
+    ]
+  },
+  "reasoning": "Building meets all requirements from the prompt. The test-aware builder produced essentially the same building as the blind builder, with both passing all 37 tests. The main difference is that the test-aware version includes more detailed comments documenting the design constraint for avoiding interior wall connection points when placing windows. Both versions successfully created: (1) 20m x 12m office floor, (2) Reception ~4x4m near entrance, (3) 3 private offices 4x3m along north wall, (4) Open workspace, (5) Corridor connecting all spaces, (6) 1.8m double door on south wall, (7) 3 office doors, (8) Large windows on east/west walls, (9) South facade glazing. All outputs (IFC, DXF, PDF) are valid and match requirements."
+}

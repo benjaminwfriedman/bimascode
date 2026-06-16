@@ -315,7 +315,12 @@ class Window(ElementInstance, HostedElementMixin):
         )
 
         # Create window element
-        window_location = ifc_file.createIfcCartesianPoint((float(offset), 0.0, float(sill)))
+        # Y offset centers the window within the wall thickness
+        frame_depth = self.type.frame_depth
+        y_offset = -frame_depth / 2  # Center window in wall
+        window_location = ifc_file.createIfcCartesianPoint(
+            (float(offset), float(y_offset), float(sill))
+        )
 
         window_axis_placement = ifc_file.createIfcAxis2Placement3D(
             window_location,

@@ -69,15 +69,18 @@ export class Renderer3D {
         this.scene.add(this.modelContainer);
 
         // Camera
+        // Using near=10 with far=100000 gives better depth precision (1:10000 ratio)
+        // Combined with logarithmicDepthBuffer, this eliminates z-fighting
         const aspect = this.container.clientWidth / this.container.clientHeight;
-        this.camera = new THREE.PerspectiveCamera(45, aspect, 0.1, 100000);
+        this.camera = new THREE.PerspectiveCamera(45, aspect, 10, 100000);
         this.camera.position.set(10000, 10000, 10000);
         this.camera.up.set(0, 1, 0); // Y is up in Three.js
 
         // Renderer
         this.renderer = new THREE.WebGLRenderer({
             antialias: true,
-            alpha: true
+            alpha: true,
+            logarithmicDepthBuffer: true  // Better depth precision for large scenes
         });
         this.renderer.setSize(this.container.clientWidth, this.container.clientHeight);
         this.renderer.setPixelRatio(window.devicePixelRatio);
@@ -88,7 +91,7 @@ export class Renderer3D {
         // Controls
         this.controls = new OrbitControls(this.camera, this.renderer.domElement);
         this.controls.enableDamping = true;
-        this.controls.dampingFactor = 0.1;
+        this.controls.dampingFactor = 0.05;  // Lower value = snappier response
         this.controls.screenSpacePanning = true;
         this.controls.minDistance = 100;
         this.controls.maxDistance = 100000;
@@ -565,6 +568,7 @@ export class Renderer3D {
                             if (child.material) {
                                 child.material.metalness = 0.1;
                                 child.material.roughness = 0.8;
+                                child.material.side = THREE.DoubleSide;  // Render both sides
                             }
                         }
                     });
