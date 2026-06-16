@@ -1,0 +1,72 @@
+{
+  "eval_id": "02_two_room_house",
+  "builder_type": "with_tests",
+  "overall": "PASS",
+  "tests": [
+    {"name": "test_ifc_file_opens", "status": "passed"},
+    {"name": "test_has_project_hierarchy", "status": "passed"},
+    {"name": "test_single_storey_building", "status": "passed"},
+    {"name": "test_has_walls", "status": "passed"},
+    {"name": "test_wall_count_reasonable", "status": "passed"},
+    {"name": "test_exterior_wall_thickness", "status": "passed"},
+    {"name": "test_has_doors", "status": "passed"},
+    {"name": "test_has_two_doors", "status": "passed"},
+    {"name": "test_doors_have_geometry", "status": "passed"},
+    {"name": "test_has_windows", "status": "passed"},
+    {"name": "test_has_two_windows", "status": "passed"},
+    {"name": "test_windows_have_geometry", "status": "passed"},
+    {"name": "test_large_window_width", "status": "passed"},
+    {"name": "test_building_footprint_approximately_correct", "status": "passed"},
+    {"name": "test_doors_not_at_wall_corners", "status": "passed"},
+    {"name": "test_windows_not_at_wall_corners", "status": "passed"},
+    {"name": "test_dxf_directory_exists", "status": "passed"},
+    {"name": "test_floor_plan_exists", "status": "passed"},
+    {"name": "test_elevation_drawings_exist", "status": "passed"},
+    {"name": "test_section_drawing_exists", "status": "passed"},
+    {"name": "test_floor_plan_has_door_swings", "status": "passed"},
+    {"name": "test_floor_plan_has_lines", "status": "passed"},
+    {"name": "test_dxf_files_valid", "status": "passed"},
+    {"name": "test_pdf_exists", "status": "passed"},
+    {"name": "test_pdf_opens", "status": "passed"},
+    {"name": "test_pdf_has_multiple_pages", "status": "passed"},
+    {"name": "test_pdf_has_content", "status": "passed"},
+    {"name": "test_has_materials", "status": "passed"},
+    {"name": "test_exterior_wall_has_layers", "status": "passed"},
+    {"name": "test_brick_material_exists", "status": "passed"},
+    {"name": "test_concrete_material_exists", "status": "passed"},
+    {"name": "test_has_spaces", "status": "passed"},
+    {"name": "test_living_room_exists", "status": "passed"},
+    {"name": "test_bedroom_exists", "status": "passed"}
+  ],
+  "test_summary": {
+    "total": 34,
+    "passed": 34,
+    "failed": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  "ifc_inspection": {
+    "file_size_kb": 303.4,
+    "entities": {
+      "IfcProject": 1,
+      "IfcSite": 1,
+      "IfcBuilding": 1,
+      "IfcBuildingStorey": 1,
+      "IfcWall": 5,
+      "IfcDoor": 2,
+      "IfcWindow": 2,
+      "IfcSlab": 1,
+      "IfcSpace": 2,
+      "IfcMaterial": 12,
+      "IfcMaterialLayerSet": 6
+    },
+    "notes": "All expected entities present. 5 walls (4 exterior + 1 interior), 2 doors (entry + interior), 2 windows (large south + medium north), 2 spaces (Living Room, Bedroom). Material layers properly defined with brick and concrete."
+  },
+  "visual_inspection": {
+    "floor_plan": "Two rooms (Living Room 101, Bedroom 102) clearly shown with shared interior wall. Entry door D-01 on south wall with door swing arc. Interior door D-02 in shared wall with door swing arc. Large window W-01 on south wall in living room, medium window W-02 on north wall in bedroom. Wall thickness appears correct at 250mm.",
+    "elevations": "Page 2 shows 4 elevations: North elevation shows bedroom window, South elevation shows large living room window and entry door, East and West elevations show blank walls. Interior wall visible in north elevation.",
+    "section": "Page 3 shows Section A-A cut through center of building north-south, showing interior door opening in shared wall. Wall thicknesses and heights correctly represented.",
+    "issues": []
+  },
+  "reasoning": "Building meets all requirements perfectly. Two rooms (6m x 5m living room, 4m x 5m bedroom) sharing an interior wall. 2 doors placed correctly (entry door on south wall, interior door in shared wall). 2 windows (2m wide large window on south wall in living room, medium window on north wall in bedroom). Exterior walls use brick (100mm) + concrete (150mm) = 250mm total. IFC exports with full hierarchy, proper materials, and all entities. DXF files complete (floor plan, 4 elevations, section). PDF drawing set has 3 pages (floor plan A-101, elevations A-201, section A-301) with proper title blocks. All 34 tests pass (100%). Overall PASS."
+}

@@ -1,0 +1,72 @@
+{
+  "eval_id": "02_two_room_house",
+  "builder_type": "blind",
+  "overall": "PASS",
+  "tests": [
+    {"name": "test_ifc_file_opens", "status": "passed"},
+    {"name": "test_has_project_hierarchy", "status": "passed"},
+    {"name": "test_single_storey_building", "status": "passed"},
+    {"name": "test_has_walls", "status": "passed"},
+    {"name": "test_wall_count_reasonable", "status": "passed"},
+    {"name": "test_exterior_wall_thickness", "status": "passed"},
+    {"name": "test_has_doors", "status": "passed"},
+    {"name": "test_has_two_doors", "status": "passed"},
+    {"name": "test_doors_have_geometry", "status": "passed"},
+    {"name": "test_has_windows", "status": "passed"},
+    {"name": "test_has_two_windows", "status": "passed"},
+    {"name": "test_windows_have_geometry", "status": "passed"},
+    {"name": "test_large_window_width", "status": "passed"},
+    {"name": "test_building_footprint_approximately_correct", "status": "passed"},
+    {"name": "test_doors_not_at_wall_corners", "status": "passed"},
+    {"name": "test_windows_not_at_wall_corners", "status": "passed"},
+    {"name": "test_dxf_directory_exists", "status": "passed"},
+    {"name": "test_floor_plan_exists", "status": "passed"},
+    {"name": "test_elevation_drawings_exist", "status": "passed"},
+    {"name": "test_section_drawing_exists", "status": "passed"},
+    {"name": "test_floor_plan_has_door_swings", "status": "passed"},
+    {"name": "test_floor_plan_has_lines", "status": "passed"},
+    {"name": "test_dxf_files_valid", "status": "passed"},
+    {"name": "test_pdf_exists", "status": "passed"},
+    {"name": "test_pdf_opens", "status": "passed"},
+    {"name": "test_pdf_has_multiple_pages", "status": "failed", "reason": "PDF has only 1 page instead of 3+ (plan + elevations + section)"},
+    {"name": "test_pdf_has_content", "status": "passed"},
+    {"name": "test_has_materials", "status": "passed"},
+    {"name": "test_exterior_wall_has_layers", "status": "passed"},
+    {"name": "test_brick_material_exists", "status": "passed"},
+    {"name": "test_concrete_material_exists", "status": "passed"},
+    {"name": "test_has_spaces", "status": "passed"},
+    {"name": "test_living_room_exists", "status": "passed"},
+    {"name": "test_bedroom_exists", "status": "passed"}
+  ],
+  "test_summary": {
+    "total": 34,
+    "passed": 33,
+    "failed": 1,
+    "errors": 0,
+    "skipped": 0
+  },
+  "ifc_inspection": {
+    "file_size_kb": 303.4,
+    "entities": {
+      "IfcProject": 1,
+      "IfcSite": 1,
+      "IfcBuilding": 1,
+      "IfcBuildingStorey": 1,
+      "IfcWall": 5,
+      "IfcDoor": 2,
+      "IfcWindow": 2,
+      "IfcSlab": 1,
+      "IfcSpace": 2,
+      "IfcMaterial": 12,
+      "IfcMaterialLayerSet": 6
+    },
+    "notes": "All expected entities present. 5 walls (4 exterior + 1 interior), 2 doors (entry + interior), 2 windows (large south + medium north), 2 spaces (Living Room, Bedroom). Material layers properly defined."
+  },
+  "visual_inspection": {
+    "floor_plan": "Two rooms (Living Room 101, Bedroom 102) clearly shown with shared interior wall. Entry door D-01 on south wall with door swing. Interior door D-02 in shared wall with door swing. Large window W-01 on south wall in living room, medium window W-02 on north wall in bedroom. Wall thickness appears correct.",
+    "elevations": "N/A - PDF only contains floor plan page",
+    "section": "N/A - PDF only contains floor plan page",
+    "issues": ["PDF has only 1 page - missing elevations and section pages despite DXF files being generated"]
+  },
+  "reasoning": "Building meets all core requirements: two rooms (6m x 5m living room, 4m x 5m bedroom) sharing a wall, 2 doors (entry + interior), 2 windows (2m large on south, medium on north), exterior walls with brick (100mm) + concrete (150mm) = 250mm. IFC exports correctly with full hierarchy and materials. DXF files are complete (floor plan, 4 elevations, section). The only failure is the PDF drawing set has only 1 page instead of 3+, which is a minor output formatting issue rather than a model defect. 33/34 tests pass (97%), well above the 80% threshold. Overall PASS."
+}

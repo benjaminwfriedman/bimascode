@@ -188,7 +188,7 @@ class GLTFExporter:
         try:
             from OCP.BRep import BRep_Tool
             from OCP.BRepMesh import BRepMesh_IncrementalMesh
-            from OCP.TopAbs import TopAbs_FACE
+            from OCP.TopAbs import TopAbs_FACE, TopAbs_REVERSED
             from OCP.TopExp import TopExp_Explorer
             from OCP.TopLoc import TopLoc_Location
             from OCP.TopoDS import TopoDS
@@ -228,6 +228,9 @@ class GLTFExporter:
                 explorer.Next()
                 continue
 
+            # Check if face orientation is reversed - if so, flip triangle winding
+            is_reversed = face.Orientation() == TopAbs_REVERSED
+
             # Get transformation
             transform = location.Transformation()
 
@@ -243,13 +246,14 @@ class GLTFExporter:
                 tri = triangulation.Triangle(i)
                 n1, n2, n3 = tri.Get()
                 # Adjust indices (OCCT is 1-based, trimesh is 0-based)
-                all_faces.append(
-                    [
-                        n1 - 1 + vertex_offset,
-                        n2 - 1 + vertex_offset,
-                        n3 - 1 + vertex_offset,
-                    ]
-                )
+                idx1 = n1 - 1 + vertex_offset
+                idx2 = n2 - 1 + vertex_offset
+                idx3 = n3 - 1 + vertex_offset
+                # Flip winding order for reversed faces to maintain consistent normals
+                if is_reversed:
+                    all_faces.append([idx1, idx3, idx2])
+                else:
+                    all_faces.append([idx1, idx2, idx3])
 
             vertex_offset += triangulation.NbNodes()
             explorer.Next()
@@ -257,5 +261,7 @@ class GLTFExporter:
         if not all_vertices or not all_faces:
             return None
 
-        # Create trimesh mesh
-        return trimesh.Trimesh(vertices=all_vertices, faces=all_faces)
+        # Create trimesh mesh and fix any remaining winding issues
+        result = trimesh.Trimesh(vertices=all_vertices, faces=all_faces)
+        result.fix_normals()
+        return result

@@ -1,0 +1,119 @@
+{
+  "eval_id": "01_simple_room",
+  "builder_type": "blind",
+  "overall": "PASS",
+  "tests": [
+    {
+      "name": "test_ifc_opens",
+      "status": "passed"
+    },
+    {
+      "name": "test_has_project",
+      "status": "passed"
+    },
+    {
+      "name": "test_has_building",
+      "status": "passed"
+    },
+    {
+      "name": "test_has_building_storey",
+      "status": "passed"
+    },
+    {
+      "name": "test_has_four_walls",
+      "status": "passed"
+    },
+    {
+      "name": "test_walls_have_geometry",
+      "status": "passed"
+    },
+    {
+      "name": "test_has_one_door",
+      "status": "passed"
+    },
+    {
+      "name": "test_door_has_geometry",
+      "status": "passed"
+    },
+    {
+      "name": "test_has_one_window",
+      "status": "passed"
+    },
+    {
+      "name": "test_window_has_geometry",
+      "status": "passed"
+    },
+    {
+      "name": "test_room_dimensions_approximately_correct",
+      "status": "passed"
+    },
+    {
+      "name": "test_dxf_directory_exists",
+      "status": "passed"
+    },
+    {
+      "name": "test_has_floor_plan",
+      "status": "passed"
+    },
+    {
+      "name": "test_has_elevations",
+      "status": "passed"
+    },
+    {
+      "name": "test_has_section",
+      "status": "passed"
+    },
+    {
+      "name": "test_floor_plan_opens",
+      "status": "passed"
+    },
+    {
+      "name": "test_floor_plan_has_entities",
+      "status": "passed"
+    },
+    {
+      "name": "test_pdf_exists",
+      "status": "passed"
+    },
+    {
+      "name": "test_pdf_opens",
+      "status": "passed"
+    },
+    {
+      "name": "test_pdf_has_pages",
+      "status": "passed"
+    },
+    {
+      "name": "test_pdf_has_multiple_sheets",
+      "status": "passed"
+    }
+  ],
+  "test_summary": {
+    "total": 21,
+    "passed": 21,
+    "failed": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  "ifc_inspection": {
+    "file_size_kb": 129,
+    "entities": {
+      "IfcProject": 1,
+      "IfcSite": 1,
+      "IfcBuilding": 1,
+      "IfcBuildingStorey": 1,
+      "IfcWall": 4,
+      "IfcDoor": 1,
+      "IfcWindow": 1,
+      "IfcSlab": 1
+    },
+    "notes": "All expected entities present. Proper IFC hierarchy (Project > Site > Building > Storey). Wall positions correct: South at Y=0, East at X=5000, North at Y=4000, West at X=0."
+  },
+  "visual_inspection": {
+    "floor_plan": "4 walls forming closed rectangle, door swing arc on south wall (bottom), window break on east wall (right side). Clean mitered corners.",
+    "elevations": "Door opening visible in South Elevation, window opening visible in East Elevation. North and West elevations show plain walls as expected.",
+    "section": "Section A-A shows room interior with window opening visible in section cut.",
+    "issues": []
+  },
+  "reasoning": "Building meets all requirements from the prompt. The 5m x 4m room is correctly modeled with 4 concrete walls (200mm thick), one door on the south wall, and one window on the east wall. IFC export has proper hierarchy and all entities. PDF drawing set has 3 pages (floor plan, elevations, section) with correct viewport labels and title blocks. DXF files include floor plan, 4 elevations, and section. All 21 tests pass."
+}

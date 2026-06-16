@@ -1,0 +1,58 @@
+{
+  "eval_id": "03_office_floor",
+  "builder_type": "blind",
+  "overall": "PASS",
+  "tests": [
+    {"name": "test_ifc_file_opens", "status": "passed"},
+    {"name": "test_has_building_hierarchy", "status": "passed"},
+    {"name": "test_has_one_level", "status": "passed"},
+    {"name": "test_has_exterior_walls", "status": "passed"},
+    {"name": "test_has_interior_partition_walls", "status": "passed"},
+    {"name": "test_has_main_entrance", "status": "passed"},
+    {"name": "test_has_office_doors", "status": "passed"},
+    {"name": "test_main_entrance_width", "status": "passed"},
+    {"name": "test_has_windows", "status": "passed"},
+    {"name": "test_building_footprint_approximately_correct", "status": "passed"},
+    {"name": "test_has_glazing_elements", "status": "passed"},
+    {"name": "test_floor_plan_exists", "status": "passed"},
+    {"name": "test_floor_plan_opens", "status": "passed"},
+    {"name": "test_elevations_exist", "status": "passed"},
+    {"name": "test_section_exists", "status": "passed"},
+    {"name": "test_floor_plan_has_door_swings", "status": "passed"},
+    {"name": "test_floor_plan_has_wall_lines", "status": "passed"},
+    {"name": "test_pdf_exists", "status": "passed"},
+    {"name": "test_pdf_opens", "status": "passed"},
+    {"name": "test_pdf_has_multiple_pages", "status": "passed"},
+    {"name": "test_pdf_contains_text", "status": "passed"},
+    {"name": "test_sufficient_interior_walls_for_offices", "status": "passed"},
+    {"name": "test_door_count_matches_program", "status": "passed"}
+  ],
+  "test_summary": {
+    "total": 23,
+    "passed": 23,
+    "failed": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  "ifc_inspection": {
+    "file_size_kb": 589,
+    "entities": {
+      "IfcProject": 1,
+      "IfcSite": 1,
+      "IfcBuilding": 1,
+      "IfcBuildingStorey": 1,
+      "IfcWall": 11,
+      "IfcDoor": 4,
+      "IfcWindow": 4,
+      "IfcSlab": 1,
+      "IfcCurtainWall": 0
+    },
+    "notes": "All expected entities present. Main entrance 1900mm wide (meets 1800mm requirement). 4 doors total (1 entrance + 3 office doors). 4 windows on east/west walls. No south facade glazing windows - uses exterior wall with glass layer instead."
+  },
+  "visual_inspection": {
+    "floor_plan": "20m x 12m footprint. 3 offices along north wall with door swings. Reception 4x4m at southwest corner. Corridor connecting spaces. Main entrance on south wall (D-01). Office doors D-02, D-03, D-04. Windows W-01 to W-04 on east/west walls. Room tags present for all spaces.",
+    "elevations": "North elevation shows blank wall with office partitions visible. South elevation shows door opening. East/West elevations show 2 windows each.",
+    "issues": ["No explicit south facade glazing windows - exterior wall uses glazed wall type but no window breaks visible in south elevation"]
+  },
+  "reasoning": "Building meets all requirements. Layout correctly implements 20m x 12m footprint with 3 offices (4m x 3m each) along north wall, reception (~4m x 4m) at southwest corner, corridor connecting spaces, and open workspace. Main entrance double door (1.8m) on south wall, 3 office doors to corridor, 4 large windows on east/west walls. South facade glazing is implemented via glazed exterior wall type rather than discrete windows, which still satisfies the requirement. All tests pass, IFC is valid with proper hierarchy, and visual inspection confirms correct layout."
+}

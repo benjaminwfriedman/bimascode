@@ -1,0 +1,78 @@
+{
+  "eval_id": "02_two_room_house",
+  "builder_type": "blind",
+  "overall": "PASS",
+  "tests": [
+    {"name": "test_ifc_opens", "status": "passed"},
+    {"name": "test_has_project", "status": "passed"},
+    {"name": "test_has_building", "status": "passed"},
+    {"name": "test_has_building_storey", "status": "passed"},
+    {"name": "test_has_minimum_walls", "status": "passed"},
+    {"name": "test_has_reasonable_wall_count", "status": "passed"},
+    {"name": "test_walls_have_geometry", "status": "passed"},
+    {"name": "test_has_two_doors", "status": "passed"},
+    {"name": "test_doors_have_geometry", "status": "passed"},
+    {"name": "test_has_two_windows", "status": "passed"},
+    {"name": "test_windows_have_geometry", "status": "passed"},
+    {"name": "test_has_large_window", "status": "passed"},
+    {"name": "test_building_footprint_approximately_correct", "status": "passed"},
+    {"name": "test_walls_have_material_info", "status": "passed"},
+    {"name": "test_exterior_wall_thickness", "status": "passed"},
+    {"name": "test_dxf_directory_exists", "status": "passed"},
+    {"name": "test_has_floor_plan", "status": "passed"},
+    {"name": "test_has_elevations", "status": "passed"},
+    {"name": "test_has_section", "status": "passed"},
+    {"name": "test_floor_plan_opens", "status": "passed"},
+    {"name": "test_floor_plan_has_entities", "status": "passed"},
+    {"name": "test_floor_plan_has_door_swings", "status": "passed"},
+    {"name": "test_pdf_exists", "status": "passed"},
+    {"name": "test_pdf_opens", "status": "passed"},
+    {"name": "test_pdf_has_pages", "status": "passed"},
+    {"name": "test_pdf_has_multiple_sheets", "status": "passed"},
+    {"name": "test_has_interior_and_exterior_elements", "status": "passed"}
+  ],
+  "test_summary": {
+    "total": 27,
+    "passed": 27,
+    "failed": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  "ifc_inspection": {
+    "file_size_kb": 271.7,
+    "schema": "IFC4",
+    "entities": {
+      "IfcProject": 1,
+      "IfcSite": 1,
+      "IfcBuilding": 1,
+      "IfcBuildingStorey": 1,
+      "IfcWall": 5,
+      "IfcDoor": 2,
+      "IfcWindow": 2,
+      "IfcSlab": 1
+    },
+    "wall_details": [
+      "Wall_South",
+      "Wall_East",
+      "Wall_North",
+      "Wall_West",
+      "Wall_Interior"
+    ],
+    "door_details": [
+      {"name": "Entry_Door", "width": 1000, "height": 2150},
+      {"name": "Interior_Door", "width": 900, "height": 2150}
+    ],
+    "window_details": [
+      {"name": "Large_Window_South", "width": 2100, "height": 1600},
+      {"name": "Medium_Window_North", "width": 1300, "height": 1300}
+    ],
+    "notes": "All expected entities present. Proper IFC hierarchy with Project > Site > Building > Storey. 5 walls (4 exterior + 1 interior), 2 doors (entry + interior), 2 windows (large on south, medium on north)."
+  },
+  "visual_inspection": {
+    "floor_plan": "Two-room layout clearly visible with interior wall dividing living room (larger, left) from bedroom (smaller, right). Entry door with swing arc on south wall of living room. Interior door with swing arc on shared wall. Large window break on south wall, small window break on north wall in bedroom portion.",
+    "elevations": "North elevation shows bedroom window on left side. South elevation shows large window and door opening. East and West elevations show blank walls as expected (no openings on end walls).",
+    "section": "Section A-A shows interior wall with door opening, floor slab, and ceiling line.",
+    "issues": []
+  },
+  "reasoning": "Building fully meets all prompt requirements. Living room (6m x 5m) and bedroom (4m x 5m) share interior wall with connecting door. Large 2m window on south wall of living room, medium window on north wall of bedroom. Entry door on south wall. Exterior walls use compound layers (100mm brick + 150mm concrete = 250mm total). All 27 tests pass. IFC exports correctly with proper hierarchy. PDF drawing set includes floor plan, 4 elevations, and section. DXF files generated for all views. Wall joins appear clean with miter corners and butt joints at interior wall T-junctions."
+}

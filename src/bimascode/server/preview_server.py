@@ -90,6 +90,7 @@ class PreviewServer:
         self._last_update_time: float = 0
         self._dxf_files: list[Path] = []
         self._ifc_files: list[Path] = []
+        self._glb_files: list[Path] = []
 
         # Temp directory for glTF conversion
         self._gltf_dir = Path(tempfile.mkdtemp(prefix="bimascode_gltf_"))
@@ -104,12 +105,155 @@ class PreviewServer:
         # Event loop reference
         self._loop: asyncio.AbstractEventLoop | None = None
 
+    def _create_patched_script(self) -> Path:
+        """Create a temp copy of the script with export paths redirected.
+
+        Monkey-patches all bimascode export methods to redirect output files
+        to the server's output directory, preserving original filenames.
+
+        Returns:
+            Path to the temporary patched script.
+        """
+        preamble = f'''\
+# === BIMASCODE PREVIEW SERVER PATCHS ===
+# Redirects all exports to server output directory
+import os as _os
+from pathlib import Path as _Path
+
+_BIMASCODE_OUTPUT_DIR = _Path({repr(str(self.output_dir))})
+
+def _redirect_path(original_path):
+    """Redirect a path to the server output directory, keeping filename."""
+    p = _Path(original_path)
+    return str(_BIMASCODE_OUTPUT_DIR / p.name)
+
+# Patch Building.export_ifc
+try:
+    from bimascode.spatial.building import Building as _Building
+    _original_export_ifc = _Building.export_ifc
+    def _patched_export_ifc(self, filepath, *args, **kwargs):
+        return _original_export_ifc(self, _redirect_path(filepath), *args, **kwargs)
+    _Building.export_ifc = _patched_export_ifc
+except (ImportError, AttributeError):
+    pass
+
+# Patch DXFExporter.export
+try:
+    from bimascode.drawing.dxf_exporter import DXFExporter as _DXFExporter
+    _original_dxf_export = _DXFExporter.export
+    def _patched_dxf_export(self, result, filepath, *args, **kwargs):
+        return _original_dxf_export(self, result, _redirect_path(filepath), *args, **kwargs)
+    _DXFExporter.export = _patched_dxf_export
+except (ImportError, AttributeError):
+    pass
+
+# Patch DXFExporter.export_multiple
+try:
+    from bimascode.drawing.dxf_exporter import DXFExporter as _DXFExporter2
+    _original_dxf_export_multiple = _DXFExporter2.export_multiple
+    def _patched_dxf_export_multiple(self, results, filepath, *args, **kwargs):
+        return _original_dxf_export_multiple(self, results, _redirect_path(filepath), *args, **kwargs)
+    _DXFExporter2.export_multiple = _patched_dxf_export_multiple
+except (ImportError, AttributeError):
+    pass
+
+# Patch DXFSheetExporter.export_sheet
+try:
+    from bimascode.drawing.dxf_exporter import DXFSheetExporter as _DXFSheetExporter
+    _original_dxf_export_sheet = _DXFSheetExporter.export_sheet
+    def _patched_dxf_export_sheet(self, sheet, filepath, *args, **kwargs):
+        return _original_dxf_export_sheet(self, sheet, _redirect_path(filepath), *args, **kwargs)
+    _DXFSheetExporter.export_sheet = _patched_dxf_export_sheet
+except (ImportError, AttributeError):
+    pass
+
+# Patch DXFSheetExporter.export_sheet_flat
+try:
+    from bimascode.drawing.dxf_exporter import DXFSheetExporter as _DXFSheetExporter2
+    _original_dxf_export_sheet_flat = _DXFSheetExporter2.export_sheet_flat
+    def _patched_dxf_export_sheet_flat(self, sheet, filepath, *args, **kwargs):
+        return _original_dxf_export_sheet_flat(self, sheet, _redirect_path(filepath), *args, **kwargs)
+    _DXFSheetExporter2.export_sheet_flat = _patched_dxf_export_sheet_flat
+except (ImportError, AttributeError):
+    pass
+
+# Patch Sheet.export_dxf
+try:
+    from bimascode.drawing.sheet import Sheet as _Sheet
+    _original_sheet_export_dxf = _Sheet.export_dxf
+    def _patched_sheet_export_dxf(self, filepath, *args, **kwargs):
+        return _original_sheet_export_dxf(self, _redirect_path(filepath), *args, **kwargs)
+    _Sheet.export_dxf = _patched_sheet_export_dxf
+except (ImportError, AttributeError):
+    pass
+
+# Patch Sheet.export_pdf
+try:
+    from bimascode.drawing.sheet import Sheet as _Sheet2
+    _original_sheet_export_pdf = _Sheet2.export_pdf
+    def _patched_sheet_export_pdf(self, filepath, *args, **kwargs):
+        return _original_sheet_export_pdf(self, _redirect_path(filepath), *args, **kwargs)
+    _Sheet2.export_pdf = _patched_sheet_export_pdf
+except (ImportError, AttributeError):
+    pass
+
+# Patch PDFExporter.export
+try:
+    from bimascode.drawing.pdf_exporter import PDFExporter as _PDFExporter
+    _original_pdf_export = _PDFExporter.export
+    def _patched_pdf_export(self, result, filepath, *args, **kwargs):
+        return _original_pdf_export(self, result, _redirect_path(filepath), *args, **kwargs)
+    _PDFExporter.export = _patched_pdf_export
+except (ImportError, AttributeError):
+    pass
+
+# Patch PDFExporter.export_sheet
+try:
+    from bimascode.drawing.pdf_exporter import PDFExporter as _PDFExporter2
+    _original_pdf_export_sheet = _PDFExporter2.export_sheet
+    def _patched_pdf_export_sheet(self, sheet, filepath, *args, **kwargs):
+        return _original_pdf_export_sheet(self, sheet, _redirect_path(filepath), *args, **kwargs)
+    _PDFExporter2.export_sheet = _patched_pdf_export_sheet
+except (ImportError, AttributeError):
+    pass
+
+# Patch PDFExporter.export_sheets
+try:
+    from bimascode.drawing.pdf_exporter import PDFExporter as _PDFExporter3
+    _original_pdf_export_sheets = _PDFExporter3.export_sheets
+    def _patched_pdf_export_sheets(self, sheets, filepath, *args, **kwargs):
+        return _original_pdf_export_sheets(self, sheets, _redirect_path(filepath), *args, **kwargs)
+    _PDFExporter3.export_sheets = _patched_pdf_export_sheets
+except (ImportError, AttributeError):
+    pass
+
+# Patch GLTFExporter.export
+try:
+    from bimascode.export.gltf_exporter import GLTFExporter as _GLTFExporter
+    _original_gltf_export = _GLTFExporter.export
+    def _patched_gltf_export(self, building, filepath, *args, **kwargs):
+        return _original_gltf_export(self, building, _redirect_path(filepath), *args, **kwargs)
+    _GLTFExporter.export = _patched_gltf_export
+except (ImportError, AttributeError):
+    pass
+
+# === END BIMASCODE PREVIEW SERVER PATCHES ===
+
+'''
+        # Read original script
+        original_content = self.script_path.read_text()
+
+        # Create temp file in same directory (for relative imports to work)
+        temp_script = self.script_path.parent / f".bimascode_preview_{self.script_path.name}"
+        temp_script.write_text(preamble + original_content)
+
+        return temp_script
+
     def execute_script(self) -> bool:
         """Execute the Python script as a subprocess.
 
-        The script should export IFC and DXF files to stdout or to
-        a known location. We run it with OUTPUT_DIR environment variable
-        set to tell scripts where to export.
+        Creates a patched copy of the script that redirects all export calls
+        to the server's output directory, then executes it.
 
         Returns:
             True if script executed successfully, False otherwise.
@@ -121,15 +265,18 @@ class PreviewServer:
         self._last_error = None
         self._last_traceback = None
 
+        # Create patched script with export redirects
+        patched_script = self._create_patched_script()
+
         try:
-            # Run script as subprocess with OUTPUT_DIR env var
+            # Run patched script as subprocess
             env = {
                 **dict(__import__("os").environ),
                 "BIMASCODE_OUTPUT_DIR": str(self.output_dir),
             }
 
             result = subprocess.run(
-                [sys.executable, str(self.script_path)],
+                [sys.executable, str(patched_script)],
                 capture_output=True,
                 text=True,
                 timeout=120,  # 2 minute timeout
@@ -156,10 +303,16 @@ class PreviewServer:
             self._last_traceback = traceback.format_exc()
             return False
 
+        finally:
+            # Clean up patched script
+            if patched_script.exists():
+                patched_script.unlink()
+
     def _scan_output_files(self) -> None:
-        """Scan output directory for DXF and IFC files."""
+        """Scan output directory for DXF, IFC, and GLB files."""
         self._dxf_files = sorted(self.output_dir.glob("**/*.dxf"))
         self._ifc_files = sorted(self.output_dir.glob("**/*.ifc"))
+        self._glb_files = sorted(self.output_dir.glob("**/*.glb"))
 
     def generate_payload(self) -> dict:
         """Generate JSON payload with views and model URL.
@@ -204,9 +357,18 @@ class PreviewServer:
                 "traceback": traceback.format_exc(),
             }
 
-        # Convert IFC to glTF for 3D viewing
+        # Get 3D model URL
+        # Prefer pre-generated GLB files (from GLTFExporter) over IFC conversion
+        # because IfcOpenShell's gltf serializer has vertex data corruption bugs
         model_url = None
-        if self._ifc_files:
+        if self._glb_files:
+            # Use pre-generated GLB file directly (copy to gltf_dir for serving)
+            glb_src = self._glb_files[0]
+            glb_dest = self._gltf_dir / glb_src.name
+            shutil.copy(glb_src, glb_dest)
+            model_url = f"http://{self.host}:{self.port + 1}/model/{glb_dest.name}"
+        elif self._ifc_files:
+            # Fall back to IFC conversion (has known bugs with some geometry)
             try:
                 gltf_path = self._convert_ifc_to_gltf(self._ifc_files[0])
                 if gltf_path:
@@ -225,6 +387,9 @@ class PreviewServer:
     def _convert_ifc_to_gltf(self, ifc_path: Path) -> Path | None:
         """Convert IFC file to glTF for 3D viewing.
 
+        Uses ifcopenshell to extract geometry from IFC, then tessellates
+        with correct face winding using trimesh.
+
         Args:
             ifc_path: Path to IFC file
 
@@ -234,6 +399,8 @@ class PreviewServer:
         try:
             import ifcopenshell
             import ifcopenshell.geom
+            import numpy as np
+            import trimesh
 
             # Open IFC file
             ifc_file = ifcopenshell.open(str(ifc_path))
@@ -241,37 +408,84 @@ class PreviewServer:
             # Set up geometry settings
             geom_settings = ifcopenshell.geom.settings()
             geom_settings.set(geom_settings.USE_WORLD_COORDS, True)
-
-            # Set up serializer settings
-            serializer_settings = ifcopenshell.geom.serializer_settings()
+            geom_settings.set(geom_settings.WELD_VERTICES, False)
 
             # Output path
             output_path = self._gltf_dir / "building.glb"
 
-            # Create glTF serializer
-            serializer = ifcopenshell.geom.serializers.gltf(
-                str(output_path), geom_settings, serializer_settings
-            )
+            # Create trimesh scene
+            scene = trimesh.Scene()
 
-            # Iterate through elements and serialize
+            # Element type to color mapping (RGB 0-1)
+            element_colors = {
+                "IfcWall": [0.78, 0.78, 0.78, 1.0],
+                "IfcWallStandardCase": [0.78, 0.78, 0.78, 1.0],
+                "IfcSlab": [0.59, 0.59, 0.59, 1.0],
+                "IfcRoof": [0.39, 0.39, 0.39, 1.0],
+                "IfcCovering": [0.94, 0.94, 0.94, 1.0],
+                "IfcDoor": [0.55, 0.35, 0.17, 1.0],
+                "IfcWindow": [0.68, 0.85, 0.90, 0.7],
+                "IfcColumn": [0.63, 0.63, 0.67, 1.0],
+                "IfcBeam": [0.63, 0.63, 0.67, 1.0],
+                "IfcSpace": [0.78, 0.78, 1.0, 0.3],
+            }
+            default_color = [0.7, 0.7, 0.7, 1.0]
+
+            # Iterate through elements
             iterator = ifcopenshell.geom.iterator(geom_settings, ifc_file)
             if iterator.initialize():
                 while True:
                     shape = iterator.get()
-                    serializer.write(shape)
+                    element = ifc_file.by_id(shape.id)
+                    ifc_type = element.is_a()
+
+                    # Get geometry data
+                    geom = shape.geometry
+                    verts = np.array(geom.verts).reshape(-1, 3)
+                    faces = np.array(geom.faces).reshape(-1, 3)
+
+                    if len(verts) == 0 or len(faces) == 0:
+                        if not iterator.next():
+                            break
+                        continue
+
+                    # Create mesh
+                    mesh = trimesh.Trimesh(vertices=verts, faces=faces)
+
+                    # Fix face winding for consistent normals
+                    mesh.fix_normals()
+
+                    # Apply color
+                    color = element_colors.get(ifc_type, default_color)
+                    mesh.visual.face_colors = [
+                        [int(c * 255) for c in color] for _ in range(len(mesh.faces))
+                    ]
+
+                    # Get element name
+                    name = getattr(element, "Name", None) or f"{ifc_type}_{shape.id}"
+
+                    # Add to scene
+                    scene.add_geometry(mesh, node_name=name)
+
                     if not iterator.next():
                         break
 
-            serializer.finalize()
+            # Handle empty scenes
+            if len(scene.geometry) == 0:
+                placeholder = trimesh.creation.box(extents=[1, 1, 1])
+                scene.add_geometry(placeholder, node_name="placeholder")
 
-            if output_path.exists():
-                # Fix ifcopenshell bug: add missing asset.version field
-                self._fix_gltf_asset_version(output_path)
-                return output_path
-            return None
+            # Export to GLB
+            glb_data = scene.export(file_type="glb")
+            output_path.write_bytes(glb_data)
+
+            return output_path
 
         except Exception as e:
             print(f"IFC to glTF conversion error: {e}")
+            import traceback
+
+            traceback.print_exc()
             return None
 
     def _fix_gltf_asset_version(self, glb_path: Path) -> None:
@@ -304,7 +518,23 @@ class PreviewServer:
 
         # Extract and parse JSON
         json_bytes = data[20:json_end]
-        gltf = json.loads(json_bytes.decode("utf-8"))
+        try:
+            gltf = json.loads(json_bytes.decode("utf-8"))
+        except json.JSONDecodeError:
+            # ifcopenshell sometimes writes truncated/malformed JSON
+            # Try to find the actual JSON end by looking for closing brace
+            json_str = json_bytes.decode("utf-8", errors="replace")
+            # Find last valid closing brace
+            last_brace = json_str.rfind("}")
+            if last_brace > 0:
+                try:
+                    gltf = json.loads(json_str[: last_brace + 1])
+                except json.JSONDecodeError:
+                    print("Warning: Could not parse GLB JSON, skipping fixes")
+                    return
+            else:
+                print("Warning: Could not parse GLB JSON, skipping fixes")
+                return
 
         # Fix 1: Add asset.version if missing
         if "asset" not in gltf:
@@ -482,7 +712,9 @@ class PreviewServer:
                         self.wfile.write(file_path.read_bytes())
                         return
                     else:
-                        print(f"[HTTP] 404: gltf_dir contents: {list(Path(self.gltf_dir).iterdir()) if Path(self.gltf_dir).exists() else 'dir not exist'}")
+                        print(
+                            f"[HTTP] 404: gltf_dir contents: {list(Path(self.gltf_dir).iterdir()) if Path(self.gltf_dir).exists() else 'dir not exist'}"
+                        )
                         self.send_error(404, "File not found")
                         return
 

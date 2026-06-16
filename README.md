@@ -225,3 +225,9 @@ Built with:
 - [IfcOpenShell](https://ifcopenshell.org/) - IFC toolkit
 - [ezdxf](https://ezdxf.mozman.at/) - DXF library
 - [OCP CAD Viewer](https://github.com/bernhard-42/vscode-ocp-cad-viewer) - 3D visualization
+
+## Known Issues
+
+This is alpha software. Known issues include:
+
+- **IFC compatibility**: Rendering varies by viewer. Autodesk Viewer has issues with door placement and boolean wall cuts.
